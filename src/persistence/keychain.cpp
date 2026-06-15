@@ -30,22 +30,30 @@ bool save(const std::string &service, const std::string &account,
   if (api_key.empty())
     return false;
 
-  SecKeychainItemRef item = nullptr;
-  OSStatus status = SecKeychainFindGenericPassword(
-      nullptr, static_cast<UInt32>(service.size()), service.c_str(),
-      static_cast<UInt32>(account.size()), account.c_str(), nullptr, nullptr,
-      &item);
-
-  if (status == errSecSuccess && item) {
-    status = SecKeychainItemModifyAttributesAndData(
-        item, nullptr, static_cast<UInt32>(api_key.size()), api_key.c_str());
-    CFRelease(item);
-  } else {
-    status = SecKeychainAddGenericPassword(
-        nullptr, static_cast<UInt32>(service.size()), service.c_str(),
-        static_cast<UInt32>(account.size()), account.c_str(),
-        static_cast<UInt32>(api_key.size()), api_key.c_str(), nullptr);
+  // Overwrite semantics via delete-then-add rather than in-place
+  // modify. A generic-password item created by a previously signed
+  // build (e.g. the upstream plugin before the rename, or any earlier
+  // ad-hoc-signed build) carries an ACL bound to that binary's
+  // signature. SecKeychainItemModifyAttributesAndData is then denied
+  // for the current binary, so "Save Key" silently failed until the
+  // user deleted the entry by hand. Deleting first and adding a fresh
+  // item sidesteps the ACL — the new item is owned by the current
+  // binary. Delete failure is ignored (the item may not exist, or the
+  // delete may be denied; the add below is what we check).
+  SecKeychainItemRef existing = nullptr;
+  if (SecKeychainFindGenericPassword(
+          nullptr, static_cast<UInt32>(service.size()), service.c_str(),
+          static_cast<UInt32>(account.size()), account.c_str(), nullptr,
+          nullptr, &existing) == errSecSuccess &&
+      existing) {
+    SecKeychainItemDelete(existing);
+    CFRelease(existing);
   }
+
+  OSStatus status = SecKeychainAddGenericPassword(
+      nullptr, static_cast<UInt32>(service.size()), service.c_str(),
+      static_cast<UInt32>(account.size()), account.c_str(),
+      static_cast<UInt32>(api_key.size()), api_key.c_str(), nullptr);
   return status == errSecSuccess;
 }
 
