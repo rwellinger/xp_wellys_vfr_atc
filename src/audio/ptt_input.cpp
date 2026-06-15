@@ -1,5 +1,5 @@
 /*
- * xp_wellys_atc - AI-powered ATC voice communication for X-Plane 12
+ * xp_wellys_devfr_atc - AI-powered ATC voice communication for X-Plane 12
  * Copyright (C) 2026 thWelly & Claude (Anthropic)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -40,10 +40,10 @@ static int ptt_command_handler(XPLMCommandRef, XPLMCommandPhase phase, void *) {
 
 void init() {
   ptt_cmd_ =
-      XPLMCreateCommand("xp_wellys_atc/ptt", "Welly's ATC: Push-to-Talk");
+      XPLMCreateCommand("xp_wellys_devfr_atc/ptt", "Welly's ATC: Push-to-Talk");
   XPLMRegisterCommandHandler(ptt_cmd_, ptt_command_handler, 1, nullptr);
 
-  XPLMDebugString("[xp_wellys_atc] PTT input initialized (X-Plane command)\n");
+  XPLMDebugString("[xp_wellys_devfr_atc] PTT input initialized (X-Plane command)\n");
 }
 
 void stop() {

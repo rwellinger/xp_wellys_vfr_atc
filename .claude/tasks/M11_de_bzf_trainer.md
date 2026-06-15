@@ -68,7 +68,7 @@ Erst angreifen wenn Phase 2 in der Praxis steht und ein BZF-Inhaber das Strict-M
 
 - Strict-Mode sammelt während des Flugs eine Compliance-Liste: `(timestamp, intent, missing_elements, corrective_response)`
 - Am Flug-Ende (z.B. Engines off / X-Plane Pause): Modal mit `"Phraseologie-Auswertung"` — Liste der Fehler, Statistik (X von Y Anweisungen vollständig phrasiert).
-- Export als Plain-Text-Log in `<X-Plane>/Output/preferences/xp_wellys_atc/debrief_<YYYY-MM-DD>.txt`.
+- Export als Plain-Text-Log in `<X-Plane>/Output/preferences/xp_wellys_devfr_atc/debrief_<YYYY-MM-DD>.txt`.
 
 ### Phase 4 — Scenario-Presets (BZF-Praxis-Prüfungsstruktur)
 

@@ -1,5 +1,5 @@
 /*
- * xp_wellys_atc - AI-powered ATC voice communication for X-Plane 12
+ * xp_wellys_devfr_atc - AI-powered ATC voice communication for X-Plane 12
  * Copyright (C) 2026 thWelly & Claude (Anthropic)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -127,7 +127,7 @@ PLUGIN_API int XPluginStart(char *name, char *sig, char *desc) {
 #else
   std::snprintf(name, 256, "Welly's ATC");
 #endif
-  std::snprintf(sig, 256, "ch.thWelly.wellys_atc");
+  std::snprintf(sig, 256, "ch.thWelly.wellys_devfr_atc");
   std::snprintf(desc, 256, "AI-powered ATC voice communication for VFR");
 
   logging::set_sink(&XPLMDebugString);
@@ -187,7 +187,7 @@ PLUGIN_API int XPluginStart(char *name, char *sig, char *desc) {
 
   // ATC Panel command (bindable via X-Plane keyboard/joystick settings)
   cmd_atc_panel_ =
-      XPLMCreateCommand("xp_wellys_atc/atc_panel", "Toggle ATC Commands Panel");
+      XPLMCreateCommand("xp_wellys_devfr_atc/atc_panel", "Toggle ATC Commands Panel");
   XPLMRegisterCommandHandler(cmd_atc_panel_, atc_panel_cmd_handler, 1, nullptr);
 
   // Menu

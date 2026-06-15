@@ -160,7 +160,7 @@
   "settings.voice_tip": "Tipp: 'onyx' kommt einer echten ATC-Stimme am naechsten.",
   "settings.ptt_header": "Push-to-Talk",
   "settings.ptt_bind_hint": "Belegung via X-Plane: Settings > Joystick > Buttons & Keys",
-  "settings.ptt_command": "Befehl: xp_wellys_atc/ptt",
+  "settings.ptt_command": "Befehl: xp_wellys_devfr_atc/ptt",
   "settings.callsign_label": "Rufzeichen (Kennzeichen)",
   "settings.callsign_hint": "  (Kennzeichen eingeben, z. B. HB-WRO oder DEABC)",
   "settings.pattern_dir_label": "Platzrundenrichtung",

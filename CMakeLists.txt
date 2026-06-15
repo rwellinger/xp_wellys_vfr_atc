@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.26)
-project(xp_wellys_atc CXX OBJCXX)
+project(xp_wellys_devfr_atc CXX OBJCXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -23,7 +23,7 @@ option(XPWELLYS_USE_LOCAL_INFERENCE
 # ── Sanitizer build (ASan + UBSan) ───────────────────────────────────────────
 # When ON, instruments the SDK-free engine OBJECT lib + atc_repl + Catch2
 # tests with AddressSanitizer + UndefinedBehaviorSanitizer. The plugin
-# module (`xp_wellys_atc.xpl`) and vendored libs (whisper/llama/piper/
+# module (`xp_wellys_devfr_atc.xpl`) and vendored libs (whisper/llama/piper/
 # ggml/imgui) are deliberately NOT instrumented — ASan inside the X-Plane
 # process is fragile on macOS ARM64, and those vendor trees aren't built
 # clean enough for sanitizers anyway.
@@ -231,7 +231,7 @@ if(XP_WELLYS_ATC_SANITIZE)
 endif()
 
 # ── Plugin MODULE (Engine + X-Plane-spezifisch) ──────────────────────────────
-add_library(xp_wellys_atc MODULE
+add_library(xp_wellys_devfr_atc MODULE
     $<TARGET_OBJECTS:xp_atc_engine>
     src/main.cpp
     src/atc/atc_session.cpp
@@ -285,14 +285,14 @@ if(XPWELLYS_USE_LOCAL_INFERENCE)
     # transitively. Static libs come from the spike submodules added
     # above. In the OpenAI-only build these TUs are not compiled at
     # all (and the loader is built without their includes).
-    target_sources(xp_wellys_atc PRIVATE
+    target_sources(xp_wellys_devfr_atc PRIVATE
         src/backends/whisper_stt.cpp
         src/backends/llama_lm.cpp
         src/backends/piper_tts.cpp
     )
 endif()
 
-target_include_directories(xp_wellys_atc PRIVATE
+target_include_directories(xp_wellys_devfr_atc PRIVATE
     ${CMAKE_SOURCE_DIR}/sdk
     ${CMAKE_SOURCE_DIR}/sdk/XPLM
     ${CMAKE_SOURCE_DIR}/sdk/XPWidgets
@@ -303,7 +303,7 @@ target_include_directories(xp_wellys_atc PRIVATE
 )
 
 if(XPWELLYS_USE_LOCAL_INFERENCE)
-    target_include_directories(xp_wellys_atc PRIVATE
+    target_include_directories(xp_wellys_devfr_atc PRIVATE
         # Local inference backends — headers from the spike submodules.
         ${SPIKES_DIR}/spike_whisper/third_party/whisper.cpp/include
         ${SPIKES_DIR}/spike_llama/third_party/llama.cpp/include
@@ -313,19 +313,19 @@ if(XPWELLYS_USE_LOCAL_INFERENCE)
     )
     # Surface the flag to C++ code so loader.cpp can #ifdef the
     # local-only includes + backend instantiation calls.
-    target_compile_definitions(xp_wellys_atc PRIVATE
+    target_compile_definitions(xp_wellys_devfr_atc PRIVATE
         XPWELLYS_USE_LOCAL_INFERENCE=1
     )
 endif()
 
-set_target_properties(xp_wellys_atc PROPERTIES
-    OUTPUT_NAME "xp_wellys_atc"
+set_target_properties(xp_wellys_devfr_atc PROPERTIES
+    OUTPUT_NAME "xp_wellys_devfr_atc"
     SUFFIX      ".xpl"
     PREFIX      ""
 )
 
 if(APPLE)
-    target_compile_definitions(xp_wellys_atc PRIVATE
+    target_compile_definitions(xp_wellys_devfr_atc PRIVATE
         APL=1 IBM=0 LIN=0
         XPLM200=1 XPLM210=1 XPLM300=1 XPLM301=1 XPLM400=1
         XP_WELLYS_ATC_VERSION="${VERSION_STRING}"
@@ -336,13 +336,13 @@ if(APPLE)
         src/main.cpp src/ui/atc_ui.cpp
         PROPERTIES COMPILE_DEFINITIONS "GL_SILENCE_DEPRECATION"
     )
-    target_compile_options(xp_wellys_atc PRIVATE
+    target_compile_options(xp_wellys_devfr_atc PRIVATE
         -Wall -Wextra -Wno-unused-parameter
         -fvisibility=hidden
     )
 
     set(SDK_MAC_LIBS "${CMAKE_SOURCE_DIR}/sdk/Libraries/Mac")
-    target_link_libraries(xp_wellys_atc PRIVATE
+    target_link_libraries(xp_wellys_devfr_atc PRIVATE
         "${SDK_MAC_LIBS}/XPLM.framework/Versions/Current/XPLM"
         "${SDK_MAC_LIBS}/XPWidgets.framework/Versions/Current/XPWidgets"
         "-framework OpenGL"
@@ -363,7 +363,7 @@ if(APPLE)
     )
 
     if(XPWELLYS_USE_LOCAL_INFERENCE)
-        target_link_libraries(xp_wellys_atc PRIVATE
+        target_link_libraries(xp_wellys_devfr_atc PRIVATE
             # Local inference: whisper.cpp + llama.cpp build static
             # and link in directly. Piper is shared (libpiper.dylib)
             # and is resolved at runtime via @loader_path — see rpath
@@ -378,7 +378,7 @@ if(APPLE)
         # the installed bundle finds them via @loader_path (Makefile
         # install target copies libpiper.dylib +
         # libonnxruntime.<ver>.dylib next to the .xpl).
-        set_target_properties(xp_wellys_atc PROPERTIES
+        set_target_properties(xp_wellys_devfr_atc PROPERTIES
             BUILD_WITH_INSTALL_RPATH FALSE
             BUILD_RPATH "${CMAKE_BINARY_DIR};${ONNXRUNTIME_LIB_DIR}"
             INSTALL_RPATH "@loader_path"
@@ -387,32 +387,32 @@ if(APPLE)
         # Stage the runtime dependencies next to the built .xpl so a
         # fresh `cmake --build` produces a directory the install step
         # can copy verbatim.
-        add_custom_command(TARGET xp_wellys_atc POST_BUILD
+        add_custom_command(TARGET xp_wellys_devfr_atc POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "$<TARGET_FILE:piper>"
                 "${CMAKE_BINARY_DIR}/$<TARGET_FILE_NAME:piper>"
             COMMAND ${CMAKE_COMMAND} -E echo
-                "Staged libpiper next to xp_wellys_atc.xpl"
-            COMMENT "Staging libpiper.dylib alongside xp_wellys_atc.xpl"
+                "Staged libpiper next to xp_wellys_devfr_atc.xpl"
+            COMMENT "Staging libpiper.dylib alongside xp_wellys_devfr_atc.xpl"
         )
         # Copy only the actual onnxruntime dylibs (not pkgconfig + dSYM).
         # The versioned + unversioned (symlink-style) names both need
         # to be present so libpiper's
         # @rpath/libonnxruntime.1.22.0.dylib resolves.
-        add_custom_command(TARGET xp_wellys_atc POST_BUILD
+        add_custom_command(TARGET xp_wellys_devfr_atc POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${ONNXRUNTIME_LIB_DIR}/libonnxruntime.1.22.0.dylib"
                 "${CMAKE_BINARY_DIR}/libonnxruntime.1.22.0.dylib"
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${ONNXRUNTIME_LIB_DIR}/libonnxruntime.dylib"
                 "${CMAKE_BINARY_DIR}/libonnxruntime.dylib"
-            COMMENT "Staging libonnxruntime dylibs alongside xp_wellys_atc.xpl"
+            COMMENT "Staging libonnxruntime dylibs alongside xp_wellys_devfr_atc.xpl"
         )
     else()
         # OpenAI-only build: no shared dylibs to stage. @loader_path
         # still applies for the install (so future shared libs would
         # be found), but nothing actually resolves through it.
-        set_target_properties(xp_wellys_atc PROPERTIES
+        set_target_properties(xp_wellys_devfr_atc PROPERTIES
             BUILD_WITH_INSTALL_RPATH FALSE
             INSTALL_RPATH "@loader_path"
         )

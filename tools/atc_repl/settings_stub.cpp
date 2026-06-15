@@ -1,5 +1,5 @@
 /*
- * xp_wellys_atc - headless CLI
+ * xp_wellys_devfr_atc - headless CLI
  *
  * Minimal settings::* implementations so the engine OBJECT library
  * links in the CLI without pulling in the plugin-only settings.cpp
@@ -60,7 +60,7 @@ std::string vrps_data_path() {
 }
 
 // Headless equivalent of the plugin's user_prefs_dir(). The plugin path
-// (<X-Plane>/Output/preferences/xp_wellys_atc) does not exist in CLI
+// (<X-Plane>/Output/preferences/xp_wellys_devfr_atc) does not exist in CLI
 // runs; XP_ATC_USER_PREFS_DIR overrides it for fixture-driven tests,
 // otherwise we fall back to a sibling of the data dir so REPL users can
 // drop overrides next to the bundle.

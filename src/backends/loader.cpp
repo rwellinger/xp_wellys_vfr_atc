@@ -1,5 +1,5 @@
 /*
- * xp_wellys_atc - AI-powered ATC voice communication for X-Plane 12
+ * xp_wellys_devfr_atc - AI-powered ATC voice communication for X-Plane 12
  * Copyright (C) 2026 thWelly & Claude (Anthropic)
  *
  * Licensed under the GNU GPL-3.0-or-later. See LICENSE.
@@ -486,7 +486,7 @@ void process_one(const model_manifest::Entry &e) {
 void load_openai_backends() {
   std::string api_key = settings::load_api_key();
   if (api_key.empty()) {
-    logging::error("[xp_wellys_atc] OpenAI mode active but no API key in "
+    logging::error("[xp_wellys_devfr_atc] OpenAI mode active but no API key in "
                    "Keychain. Open Settings to paste a key.");
     return;
   }
@@ -518,7 +518,7 @@ void load_openai_backends() {
 void load_mistral_backends() {
   std::string api_key = settings::load_mistral_api_key();
   if (api_key.empty()) {
-    logging::error("[xp_wellys_atc] Mistral mode active but no API key in "
+    logging::error("[xp_wellys_devfr_atc] Mistral mode active but no API key in "
                    "Keychain. Open Settings to paste a Mistral key.");
     return;
   }
@@ -561,7 +561,7 @@ void run_worker() {
       // Targeted: only one file (plus Piper sibling). Cloud modes
       // have nothing to verify on disk, so single-key requests are
       // ignored there — the cloud loader runs full anyway.
-      logging::info("[xp_wellys_atc] LOADER: targeted verify for key %s",
+      logging::info("[xp_wellys_devfr_atc] LOADER: targeted verify for key %s",
                     single_key.c_str());
       const model_manifest::Entry *target = nullptr;
       for (const auto &e : model_manifest::all()) {
@@ -587,7 +587,7 @@ void run_worker() {
     // OpenAI silently so the cockpit comes up usable, and persist
     // so the next launch starts clean.
     if (mode == "local") {
-      logging::info("[xp_wellys_atc] Local inference not compiled into this "
+      logging::info("[xp_wellys_devfr_atc] Local inference not compiled into this "
                     "build; switching backend_mode to openai.");
       settings::set_backend_mode("openai");
       settings::save();
@@ -595,16 +595,16 @@ void run_worker() {
     }
 #endif
     if (mode == "openai") {
-      logging::info("[xp_wellys_atc] BACKEND MODE: OPENAI (api.openai.com). "
+      logging::info("[xp_wellys_devfr_atc] BACKEND MODE: OPENAI (api.openai.com). "
                     "Audio + transcripts will be sent to OpenAI.");
       load_openai_backends();
     } else if (mode == "mistral") {
-      logging::info("[xp_wellys_atc] BACKEND MODE: MISTRAL (api.mistral.ai). "
+      logging::info("[xp_wellys_devfr_atc] BACKEND MODE: MISTRAL (api.mistral.ai). "
                     "Audio + transcripts will be sent to Mistral.");
       load_mistral_backends();
     } else {
 #ifdef XPWELLYS_USE_LOCAL_INFERENCE
-      logging::info("[xp_wellys_atc] BACKEND MODE: LOCAL (whisper.cpp + "
+      logging::info("[xp_wellys_devfr_atc] BACKEND MODE: LOCAL (whisper.cpp + "
                     "llama.cpp + Piper). No network traffic to AI APIs.");
       bool all_files_verified = verify_files();
       if (g_should_exit.load()) {
@@ -622,7 +622,7 @@ void run_worker() {
       // Cloud-only slice (e.g. x86_64 of the universal binary) but
       // settings still ask for Local. Surface this clearly — the
       // user has to switch to OpenAI in Settings.
-      logging::error("[xp_wellys_atc] BACKEND MODE: LOCAL requested but this "
+      logging::error("[xp_wellys_devfr_atc] BACKEND MODE: LOCAL requested but this "
                      "build has no local-inference backends. Switch to "
                      "OpenAI in Settings (Apple Silicon required for Local).");
 #endif

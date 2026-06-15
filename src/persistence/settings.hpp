@@ -1,5 +1,5 @@
 /*
- * xp_wellys_atc - AI-powered ATC voice communication for X-Plane 12
+ * xp_wellys_devfr_atc - AI-powered ATC voice communication for X-Plane 12
  * Copyright (C) 2026 thWelly & Claude (Anthropic)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -42,7 +42,7 @@ std::string atc_profile_data_dir();
 std::string vrps_data_path();
 
 // User preferences directory — under
-// <X-Plane>/Output/preferences/xp_wellys_atc/. Survives plugin re-installs.
+// <X-Plane>/Output/preferences/xp_wellys_devfr_atc/. Survives plugin re-installs.
 // Used for optional per-user data overrides (e.g. airport_vrps_<region>.json
 // sourced from Navigraph Charts). Created on first call if absent.
 std::string user_prefs_dir();
@@ -170,7 +170,7 @@ std::string load_api_key();
 void delete_api_key();
 
 // Mistral-side mirror of the OpenAI key helpers above. Uses a
-// separate Keychain entry (service "com.xp_wellys_atc.mistral") so
+// separate Keychain entry (service "com.xp_wellys_devfr_atc.mistral") so
 // both keys can persist in parallel and a Backend Mode flip does not
 // require re-pasting either one.
 bool save_mistral_api_key(const std::string &key);

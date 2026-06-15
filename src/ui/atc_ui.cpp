@@ -1,5 +1,5 @@
 /*
- * xp_wellys_atc - AI-powered ATC voice communication for X-Plane 12
+ * xp_wellys_devfr_atc - AI-powered ATC voice communication for X-Plane 12
  * Copyright (C) 2026 thWelly & Claude (Anthropic)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -1070,21 +1070,21 @@ static void draw_audio_tab() {
       if (!audio_test_wav_.empty()) {
         char log[128];
         std::snprintf(log, sizeof(log),
-                      "[xp_wellys_atc] Audio test playback - volume: %.2f, "
+                      "[xp_wellys_devfr_atc] Audio test playback - volume: %.2f, "
                       "wav: %zu bytes\n",
                       settings::volume(), audio_test_wav_.size());
         XPLMDebugString(log);
 
         // Save WAV to disk for debugging
         if (settings::debug_logging()) {
-          std::string path = "/tmp/xp_wellys_atc_test.wav";
+          std::string path = "/tmp/xp_wellys_devfr_atc_test.wav";
           FILE *f = std::fopen(path.c_str(), "wb");
           if (f) {
             std::fwrite(audio_test_wav_.data(), 1, audio_test_wav_.size(), f);
             std::fclose(f);
             char dbg[256];
             std::snprintf(dbg, sizeof(dbg),
-                          "[xp_wellys_atc] Debug: test WAV saved to %s\n",
+                          "[xp_wellys_devfr_atc] Debug: test WAV saved to %s\n",
                           path.c_str());
             XPLMDebugString(dbg);
           }
@@ -1094,7 +1094,7 @@ static void draw_audio_tab() {
         audio_player::play_wav(audio_test_wav_, settings::volume());
       } else {
         audio_test_state_ = AudioTestState::IDLE;
-        XPLMDebugString("[xp_wellys_atc] Audio test: WAV encode returned empty "
+        XPLMDebugString("[xp_wellys_devfr_atc] Audio test: WAV encode returned empty "
                         "- mic may not be working\n");
       }
     }
@@ -1111,7 +1111,7 @@ static void draw_audio_tab() {
       audio_test_timer_ = 0.0f;
       audio_test_wav_.clear();
       XPLMDebugString(
-          "[xp_wellys_atc] Audio test: starting 3s mic recording\n");
+          "[xp_wellys_devfr_atc] Audio test: starting 3s mic recording\n");
       audio_recorder::start_recording();
     }
     ImGui::TextDisabled("%s", ui_strings::tr("audio.test_hint"));
@@ -1900,7 +1900,7 @@ static void draw_pilot_actions(const xplane_context::XPlaneContext &ctx,
     if (ImGui::SmallButton(ui_strings::tr("btn.disregard"))) {
       atc_state_machine::disregard(ctx, phase,
                                    static_cast<double>(XPLMGetElapsedTime()));
-      XPLMDebugString("[xp_wellys_atc] Manual disregard\n");
+      XPLMDebugString("[xp_wellys_devfr_atc] Manual disregard\n");
     }
     if (ImGui::IsItemHovered()) {
       ImGui::SetTooltip("%s", ui_strings::tr("tooltip.disregard"));
@@ -2829,7 +2829,7 @@ void toggle() {
     if (settings::debug_logging()) {
       char dbg[256];
       std::snprintf(dbg, sizeof(dbg),
-                    "[xp_wellys_atc] Capture window created: "
+                    "[xp_wellys_devfr_atc] Capture window created: "
                     "bounds(%d,%d,%d,%d) wnd=%p\n",
                     gl, gt, gr, gb, static_cast<void *>(window_id));
       XPLMDebugString(dbg);

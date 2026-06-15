@@ -1,5 +1,5 @@
 /*
- * xp_wellys_atc - AI-powered ATC voice communication for X-Plane 12
+ * xp_wellys_devfr_atc - AI-powered ATC voice communication for X-Plane 12
  * Copyright (C) 2026 thWelly & Claude (Anthropic)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -111,7 +111,7 @@ static const char *kLegacyKeys[] = {
 
 void init() {
   // Resolve plugin path to find data/ directory
-  // Installed: .../plugins/xp_wellys_atc/mac_x64/xp_wellys_atc.xpl
+  // Installed: .../plugins/xp_wellys_devfr_atc/mac_x64/xp_wellys_devfr_atc.xpl
   // We need to go up 2 levels to reach the plugin root
   char plugin_path_raw[2048] = {};
   XPLMGetPluginInfo(XPLMGetMyID(), nullptr, plugin_path_raw, nullptr, nullptr);
@@ -163,7 +163,7 @@ void init() {
         }
       }
     } catch (...) {
-      XPLMDebugString("[xp_wellys_atc] Warning: failed to parse settings.json, "
+      XPLMDebugString("[xp_wellys_devfr_atc] Warning: failed to parse settings.json, "
                       "using defaults\n");
       cfg = default_config();
       needs_save = true;
@@ -209,7 +209,7 @@ void init() {
   if (needs_save)
     save();
 
-  XPLMDebugString("[xp_wellys_atc] Settings loaded\n");
+  XPLMDebugString("[xp_wellys_devfr_atc] Settings loaded\n");
 }
 
 void stop() {}
@@ -231,7 +231,7 @@ std::string user_prefs_dir() {
   // Sits under Output/preferences/ so it survives plugin re-installs.
   char xp_root[2048] = {};
   XPLMGetSystemPath(xp_root);
-  std::string path = std::string(xp_root) + "Output/preferences/xp_wellys_atc";
+  std::string path = std::string(xp_root) + "Output/preferences/xp_wellys_devfr_atc";
   mkdir(path.c_str(), 0755);
   return path;
 }
@@ -242,7 +242,7 @@ void save() {
   if (out.good()) {
     out << cfg.dump(2) << std::endl;
   } else {
-    XPLMDebugString("[xp_wellys_atc] Error: failed to write settings.json\n");
+    XPLMDebugString("[xp_wellys_devfr_atc] Error: failed to write settings.json\n");
   }
 }
 
@@ -443,7 +443,7 @@ void set_openai_tts_voice_ground(const std::string &v) {
 
 bool save_api_key(const std::string &key) {
   if (!persistence::keychain::save(key)) {
-    XPLMDebugString("[xp_wellys_atc] Error: failed to save API key to "
+    XPLMDebugString("[xp_wellys_devfr_atc] Error: failed to save API key to "
                     "Keychain\n");
     return false;
   }
@@ -467,7 +467,7 @@ void delete_api_key() {
 // needs the user to re-paste a key they already saved earlier.
 
 namespace {
-constexpr const char *kMistralKcService = "com.xp_wellys_atc.mistral";
+constexpr const char *kMistralKcService = "com.xp_wellys_devfr_atc.mistral";
 constexpr const char *kMistralKcAccount = "default";
 } // namespace
 
@@ -524,7 +524,7 @@ void set_mistral_tts_voice_ground(const std::string &v) {
 bool save_mistral_api_key(const std::string &key) {
   if (!persistence::keychain::save(kMistralKcService, kMistralKcAccount, key)) {
     XPLMDebugString(
-        "[xp_wellys_atc] Error: failed to save Mistral API key to Keychain\n");
+        "[xp_wellys_devfr_atc] Error: failed to save Mistral API key to Keychain\n");
     return false;
   }
   cfg["mistral_api_key_saved"] = true;

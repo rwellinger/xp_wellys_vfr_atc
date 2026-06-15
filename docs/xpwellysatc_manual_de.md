@@ -1,8 +1,8 @@
-# xp_wellys_atc — Benutzerhandbuch
+# xp_wellys_devfr_atc — Benutzerhandbuch
 
 ## 1. Einleitung
 
-**xp_wellys_atc** ist ein KI-gestütztes ATC-Sprachkommunikations-Plugin für X-Plane 12 auf macOS. Es ermöglicht realistische VFR-Funkkommunikation mit einer virtuellen Flugsicherung per Spracheingabe.
+**xp_wellys_devfr_atc** ist ein KI-gestütztes ATC-Sprachkommunikations-Plugin für X-Plane 12 auf macOS. Es ermöglicht realistische VFR-Funkkommunikation mit einer virtuellen Flugsicherung per Spracheingabe.
 
 ### Funktionsweise
 
@@ -90,7 +90,7 @@ Ein Regionswechsel im UI triggert einen Hot-Reload aller drei Dateien ohne X-Pla
 
 PTT kann über das X-Plane-Command-System zugewiesen werden:
 
-- **X-Plane Command:** `xp_wellys_atc/ptt`
+- **X-Plane Command:** `xp_wellys_devfr_atc/ptt`
 - Dieses Command in den X-Plane Tastatur-/Joystick-Einstellungen einer beliebigen Taste oder einem Joystick-Button zuweisen
 - Die Einstellungen `ptt_key_vk` und `ptt_joystick_button` in `settings.json` bieten eine alternative Direktzuweisung
 

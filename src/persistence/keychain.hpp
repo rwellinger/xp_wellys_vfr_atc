@@ -1,5 +1,5 @@
 /*
- * xp_wellys_atc - AI-powered ATC voice communication for X-Plane 12
+ * xp_wellys_devfr_atc - AI-powered ATC voice communication for X-Plane 12
  * Copyright (C) 2026 thWelly & Claude (Anthropic)
  *
  * Licensed under the GNU GPL-3.0-or-later. See LICENSE.
@@ -14,7 +14,7 @@ namespace persistence::keychain {
 
 // macOS Keychain wrapper for the OpenAI API key. The single-argument
 // overloads use the production service/account
-// ("com.xp_wellys_atc.openai" / "default"); the explicit overloads
+// ("com.xp_wellys_devfr_atc.openai" / "default"); the explicit overloads
 // take a service+account pair and exist so unit tests can target a
 // dedicated test entry without clobbering the user's real key.
 //

@@ -184,13 +184,13 @@ lokaler Inferenz.
 
 ## Schnellstart (vorgefertigtes Release)
 
-1. Lade `xp_wellys_atc-vX.Y.Z.zip` von der GitHub-Releases-Seite. Das
+1. Lade `xp_wellys_devfr_atc-vX.Y.Z.zip` von der GitHub-Releases-Seite. Das
    `.xpl` darin ist ein Universal Binary für arm64 und x86_64.
 2. Entpacke nach `X-Plane 12/Resources/plugins/`. Ergebnis:
    ```
-   X-Plane 12/Resources/plugins/xp_wellys_atc/
+   X-Plane 12/Resources/plugins/xp_wellys_devfr_atc/
      ├── mac_x64/
-     │     ├── xp_wellys_atc.xpl       (universal: arm64 + x86_64)
+     │     ├── xp_wellys_devfr_atc.xpl       (universal: arm64 + x86_64)
      │     ├── libpiper.dylib          (nur vom arm64-Slice genutzt)
      │     ├── libonnxruntime.1.22.0.dylib
      │     └── libonnxruntime.dylib
@@ -211,12 +211,12 @@ lokaler Inferenz.
      Feld **OpenAI API Key** in den Einstellungen ein (nutze den
      `[Paste]`-Button — Cmd+V im ImGui-Kontext von X-Plane ist
      unzuverlässig). Klicke **Save Key**. Der Key wird im macOS Keychain
-     unter dem Service `com.xp_wellys_atc.openai` gespeichert. PTT ist
+     unter dem Service `com.xp_wellys_devfr_atc.openai` gespeichert. PTT ist
      sofort aktiv; kein Modell-Download.
    - **Mistral Cloud** (jeder Mac): füge deinen Mistral-API-Key in das
      Feld **Mistral API key** ein (gleiches `[Paste]`-Muster). Klicke
      **Save Key##mistral**. Der Key wird unter einem separaten
-     Keychain-Eintrag `com.xp_wellys_atc.mistral` gespeichert, sodass
+     Keychain-Eintrag `com.xp_wellys_devfr_atc.mistral` gespeichert, sodass
      der OpenAI-Key (falls vorhanden) unberührt bleibt und du ohne
      erneutes Einfügen zwischen Anbietern wechseln kannst. PTT ist
      sofort aktiv.
@@ -246,9 +246,9 @@ Nachvollziehen, welcher Modus eine Anfrage bedient hat: `Log.txt` grepen.
 
 | Tag in `Log.txt` | Bedeutung |
 |---|---|
-| `[xp_wellys_atc] BACKEND MODE: LOCAL ...` | Der Loader hat die lokale Pipeline hochgefahren. |
-| `[xp_wellys_atc] BACKEND MODE: OPENAI (api.openai.com) ...` | Der Loader hat die OpenAI-Cloud-Pipeline hochgefahren. |
-| `[xp_wellys_atc] BACKEND MODE: MISTRAL (api.mistral.ai) ...` | Der Loader hat die Mistral-Cloud-Pipeline hochgefahren. |
+| `[xp_wellys_devfr_atc] BACKEND MODE: LOCAL ...` | Der Loader hat die lokale Pipeline hochgefahren. |
+| `[xp_wellys_devfr_atc] BACKEND MODE: OPENAI (api.openai.com) ...` | Der Loader hat die OpenAI-Cloud-Pipeline hochgefahren. |
+| `[xp_wellys_devfr_atc] BACKEND MODE: MISTRAL (api.mistral.ai) ...` | Der Loader hat die Mistral-Cloud-Pipeline hochgefahren. |
 | `[STT-LOCAL] / [LM-LOCAL] / [TTS-LOCAL]` | Per-Aufruf-Audit für jede lokale Inferenz. |
 | `[STT-OPENAI] / [LM-OPENAI] / [TTS-OPENAI]` | Per-Aufruf-Audit für jede OpenAI-Cloud-Inferenz. Der API-Key wird auf seine letzten 4 Zeichen gekürzt (`sk-...ABCD`). |
 | `[STT-MISTRAL] / [LM-MISTRAL] / [TTS-MISTRAL]` | Per-Aufruf-Audit für jede Mistral-Cloud-Inferenz. Der API-Key wird auf seine letzten 4 Zeichen gekürzt (`...ABCD`; kein `sk-`-Präfix — Mistral-Keys sind nicht OpenAI-formatiert). |
@@ -323,7 +323,7 @@ Implementierung:
 git clone --recurse-submodules <repo-url>
 cd xp_wellys_vfr_atc
 make setup     # X-Plane SDK, Dear ImGui, nlohmann/json, Catch2, Spike-Submodule
-make build     # Universal-Release-Build → build/xp_wellys_atc.xpl (arm64
+make build     # Universal-Release-Build → build/xp_wellys_devfr_atc.xpl (arm64
                # mit allen drei Backends + x86_64 cloud-only, zu einem
                # .xpl lipo'd). Das ist das einzige Build-Target — es gibt
                # keinen arm64-only-Schnellpfad mehr.
@@ -420,7 +420,7 @@ beginnt.
 Die Einstellungen liegen in `<plugin>/data/settings.json`. Die OpenAI-
 und Mistral-API-Keys sind die einzigen Geheimnisse — beide liegen im
 macOS Keychain unter separaten Service-Einträgen
-(`com.xp_wellys_atc.openai`, `com.xp_wellys_atc.mistral`), nie in dieser
+(`com.xp_wellys_devfr_atc.openai`, `com.xp_wellys_devfr_atc.mistral`), nie in dieser
 Datei.
 
 Das Plugin ist fest auf das **DE-Profil** (NfL DACH-VFR) eingestellt; es
@@ -444,12 +444,12 @@ Backend-Sprache konstant `de`).
 | `debug_text_input` | `false` | Zeigt unter dem Transkript im Status-Tab ein InputText-Feld. Getippter Text wird direkt in `engine::process_transcript` via `atc_session::submit_text()` eingespeist — STT wird übersprungen, LM + State-Machine + TTS laufen wie im Sprachpfad. Hilfreich ohne Headset und zum Isolieren von ATC-Logik-Bugs von STT-Fehlern. PTT bleibt parallel aktiv; das Kürzel `REG` expandiert zum phonetischen Rufzeichen. |
 | `traffic_features_enabled` | `true` | Hauptschalter für das Verkehrs-Subsystem (Hinweise, Lande-Sequenzierung, Durchstart-Trigger). Aus → `traffic_context::update()` liefert einen leeren Snapshot und jeder nachgelagerte Konsument wird zum No-op. Braucht ohnehin einen Verkehrs-Provider (LiveTraffic, xPilot, swift, X-IvAp, native AI). |
 | `backend_mode` | `local` | `local` (whisper + llama + Piper, nur arm64), `openai` (Whisper API + Chat Completions + TTS API) oder `mistral` (Voxtral STT + Mistral Chat Completions + Voxtral TTS). Der x86_64-Slice schreibt `local` beim Start still auf `openai` um, da Local dort nicht verfügbar ist; `mistral` wird auf beiden Slices honoriert. |
-| `api_key_saved` | `false` | Nur Flag — automatisch gesetzt, wenn der Nutzer in den Einstellungen **Save Key** klickt. Der echte OpenAI-Key liegt im macOS Keychain unter Service `com.xp_wellys_atc.openai` / Account `default`. Durch **Delete Key** gelöscht. |
+| `api_key_saved` | `false` | Nur Flag — automatisch gesetzt, wenn der Nutzer in den Einstellungen **Save Key** klickt. Der echte OpenAI-Key liegt im macOS Keychain unter Service `com.xp_wellys_devfr_atc.openai` / Account `default`. Durch **Delete Key** gelöscht. |
 | `openai_stt_model` | `whisper-1` | OpenAI-Whisper-Modell-ID für den STT-Aufruf. |
 | `openai_lm_model` | `gpt-4o-mini` | OpenAI-Chat-Completions-Modell-ID für den Absichts-Classifier. JSON-Modus wird automatisch aktiviert. |
 | `openai_tts_model` | `tts-1` | OpenAI-TTS-Modell-ID. Setze `tts-1-hd` für höhere (langsamere) Qualität. |
 | `openai_tts_voice_atis` / `openai_tts_voice_tower` / `openai_tts_voice_ground` | `onyx` / `echo` / `alloy` | OpenAI-Stimme je Rolle. Eine von `alloy / echo / fable / onyx / nova / shimmer`. `onyx` kommt echtem ATC am nächsten. |
-| `mistral_api_key_saved` | `false` | Nur Flag — gesetzt, wenn **Save Key##mistral** geklickt wird. Der echte Mistral-Key liegt im macOS Keychain unter Service `com.xp_wellys_atc.mistral` / Account `default`, getrennt vom OpenAI-Eintrag. |
+| `mistral_api_key_saved` | `false` | Nur Flag — gesetzt, wenn **Save Key##mistral** geklickt wird. Der echte Mistral-Key liegt im macOS Keychain unter Service `com.xp_wellys_devfr_atc.mistral` / Account `default`, getrennt vom OpenAI-Eintrag. |
 | `mistral_stt_model` | `voxtral-mini-2507` | Voxtral-STT-Modell-ID. |
 | `mistral_lm_model` | `mistral-small-latest` | Mistral-Chat-Completions-Modell-ID für den Absichts-Classifier. JSON-Modus automatisch. `ministral-3b-latest` / `ministral-8b-latest` funktionieren ebenfalls und sind günstiger. |
 | `mistral_tts_model` | `voxtral-mini-tts-2603` | Voxtral-TTS-Modell-ID. |
@@ -490,7 +490,7 @@ Mit einem **Navigraph-Charts**-Abo kannst du eigene VRP-Koordinaten
 liefern, ohne das Plugin zu forken:
 
 1. Lege eine JSON-Datei unter
-   `<X-Plane>/Output/preferences/xp_wellys_atc/airport_vrps.json` ab. Das
+   `<X-Plane>/Output/preferences/xp_wellys_devfr_atc/airport_vrps.json` ab. Das
    Verzeichnis wird beim ersten Plugin-Start erstellt. Dieser Pfad
    übersteht Plugin-Neuinstallationen.
 2. Nutze dasselbe Schema wie die mitgelieferte Datei. Pro-ICAO-Einträge
@@ -548,7 +548,7 @@ die lokale Pipeline füttert diesen Prompt unverändert an Llama 3.2.
 
 **Push-to-Talk** wird über die Tastatur- oder Joystick-Einstellungen von
 X-Plane konfiguriert. Das Plugin registriert den Befehl
-`xp_wellys_atc/ptt`, der an eine beliebige Taste oder einen
+`xp_wellys_devfr_atc/ptt`, der an eine beliebige Taste oder einen
 Joystick-Button gebunden werden kann.
 
 ## Benutzung
@@ -644,7 +644,7 @@ lässt sich über `disable_default_atc` unterdrücken.
 
 **Kann ich am Steuerhorn fliegen, ohne das Plugin-Fenster zu fokussieren?**
 Ja — so ist es gedacht. Binde Push-to-Talk einmal an einen Yoke-Button
-oder eine Taste (X-Plane-Befehl `xp_wellys_atc/ptt`). Danach ist jede
+oder eine Taste (X-Plane-Befehl `xp_wellys_devfr_atc/ptt`). Danach ist jede
 Interaktion Sprache: PTT drücken, sprechen, loslassen, ATC-Antwort hören.
 Das Plugin-Fenster braucht im Flug keinen Tastaturfokus, und jede
 Inferenz läuft auf Hintergrund-Threads, sodass X-Plane nie stockt.

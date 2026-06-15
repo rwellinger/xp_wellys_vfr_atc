@@ -1,5 +1,5 @@
 /*
- * xp_wellys_atc - AI-powered ATC voice communication for X-Plane 12
+ * xp_wellys_devfr_atc - AI-powered ATC voice communication for X-Plane 12
  * Copyright (C) 2026 thWelly & Claude (Anthropic)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -65,7 +65,7 @@ static void play_pcm16(std::vector<int16_t> pcm16, int freq_hz, int channels,
   is_playing_ = false;
 
   if (pcm16.empty()) {
-    XPLMDebugString("[xp_wellys_atc] play_pcm16: empty buffer\n");
+    XPLMDebugString("[xp_wellys_devfr_atc] play_pcm16: empty buffer\n");
     return;
   }
 
@@ -79,7 +79,7 @@ static void play_pcm16(std::vector<int16_t> pcm16, int freq_hz, int channels,
       /*loop=*/0, bus, pcm_complete_cb, nullptr);
 
   if (!ch) {
-    XPLMDebugString("[xp_wellys_atc] XPLMPlayPCMOnBus failed\n");
+    XPLMDebugString("[xp_wellys_devfr_atc] XPLMPlayPCMOnBus failed\n");
     return;
   }
 
@@ -103,7 +103,7 @@ static void play_pcm16(std::vector<int16_t> pcm16, int freq_hz, int channels,
     char log[128];
     std::snprintf(
         log, sizeof(log),
-        "[xp_wellys_atc][DEBUG] Playback started: %zu samples, %d Hz, "
+        "[xp_wellys_devfr_atc][DEBUG] Playback started: %zu samples, %d Hz, "
         "%s bus\n",
         active_pcm16_.size() / channels, freq_hz, bus_name);
     XPLMDebugString(log);
@@ -121,7 +121,7 @@ static bool decode_wav_to_pcm16(const std::vector<uint8_t> &wav_data,
   if (wav_data[0] != 'R' || wav_data[1] != 'I' || wav_data[2] != 'F' ||
       wav_data[3] != 'F' || wav_data[8] != 'W' || wav_data[9] != 'A' ||
       wav_data[10] != 'V' || wav_data[11] != 'E') {
-    XPLMDebugString("[xp_wellys_atc] WAV: bad magic\n");
+    XPLMDebugString("[xp_wellys_devfr_atc] WAV: bad magic\n");
     return false;
   }
 
@@ -150,7 +150,7 @@ static bool decode_wav_to_pcm16(const std::vector<uint8_t> &wav_data,
     pos += 8;
     if (std::strcmp(id, "fmt ") == 0 && chunk_size >= 16) {
       if (read_u16(pos) != 1) {
-        XPLMDebugString("[xp_wellys_atc] WAV: not PCM\n");
+        XPLMDebugString("[xp_wellys_devfr_atc] WAV: not PCM\n");
         return false;
       }
       channels = read_u16(pos + 2);
@@ -167,7 +167,7 @@ static bool decode_wav_to_pcm16(const std::vector<uint8_t> &wav_data,
   if (data_offset == 0 || channels == 0 || bits_per_sample != 16) {
     char log[128];
     std::snprintf(log, sizeof(log),
-                  "[xp_wellys_atc] WAV: invalid (ch=%u sr=%u bps=%u)\n",
+                  "[xp_wellys_devfr_atc] WAV: invalid (ch=%u sr=%u bps=%u)\n",
                   channels, sample_rate, bits_per_sample);
     XPLMDebugString(log);
     return false;
@@ -183,7 +183,7 @@ static bool decode_wav_to_pcm16(const std::vector<uint8_t> &wav_data,
 
   char log[128];
   std::snprintf(log, sizeof(log),
-                "[xp_wellys_atc] WAV decoded: %zu frames, %d ch, %d Hz\n",
+                "[xp_wellys_devfr_atc] WAV decoded: %zu frames, %d ch, %d Hz\n",
                 num_samples / channels, out_channels, out_sample_rate);
   XPLMDebugString(log);
   return true;
@@ -195,7 +195,7 @@ void init() {
   is_playing_ = false;
   active_channel_ = nullptr;
   XPLMDebugString(
-      "[xp_wellys_atc] Audio player initialized (FMOD radio bus)\n");
+      "[xp_wellys_devfr_atc] Audio player initialized (FMOD radio bus)\n");
 }
 
 void stop() {
@@ -259,11 +259,11 @@ void play_pcm(std::vector<int16_t> pcm16, uint32_t sample_rate_hz, int channels,
 void play_pcm_on_com(int com, std::vector<int16_t> pcm16,
                      uint32_t sample_rate_hz, int channels, float volume) {
   if (pcm16.empty()) {
-    XPLMDebugString("[xp_wellys_atc] play_pcm() called with empty buffer\n");
+    XPLMDebugString("[xp_wellys_devfr_atc] play_pcm() called with empty buffer\n");
     return;
   }
   if (sample_rate_hz == 0 || channels < 1) {
-    XPLMDebugString("[xp_wellys_atc] play_pcm() called with invalid format\n");
+    XPLMDebugString("[xp_wellys_devfr_atc] play_pcm() called with invalid format\n");
     return;
   }
 
@@ -358,7 +358,7 @@ void play_squelch_burst(int com) {
 
 void play_wav(const std::vector<uint8_t> &wav_data, float volume) {
   if (wav_data.empty()) {
-    XPLMDebugString("[xp_wellys_atc] play_wav() called with empty data\n");
+    XPLMDebugString("[xp_wellys_devfr_atc] play_wav() called with empty data\n");
     return;
   }
 
@@ -366,7 +366,7 @@ void play_wav(const std::vector<uint8_t> &wav_data, float volume) {
   int channels = 0;
   int sample_rate = 0;
   if (!decode_wav_to_pcm16(wav_data, pcm16, channels, sample_rate)) {
-    XPLMDebugString("[xp_wellys_atc] WAV decode failed\n");
+    XPLMDebugString("[xp_wellys_devfr_atc] WAV decode failed\n");
     return;
   }
 

@@ -8,7 +8,7 @@ tust.
 
 ## Projektüberblick
 
-**xp_wellys_atc** ist ein C++17-Plugin für X-Plane 12 (**macOS 13.3+**),
+**xp_wellys_devfr_atc** ist ein C++17-Plugin für X-Plane 12 (**macOS 13.3+**),
 das KI-gestützte ATC-Sprechfunk-Kommunikation für die VFR-Flugsimulation
 bereitstellt. Es ist ein **reines Deutschland-VFR-Plugin**: modelliert
 ausschliesslich deutsche Phraseologie nach NfL Sprechfunk 2024 (DACH-VFR)
@@ -34,12 +34,12 @@ den Einstellungen:
 - **OpenAI Cloud** (jeder Mac, eigener API-Key): Whisper API (STT) + Chat
   Completions `gpt-4o-mini` JSON-Modus (LM) + TTS API (TTS, sechs
   Stimmen). API-Key im macOS Keychain über `Security.framework` unter dem
-  Service `com.xp_wellys_atc.openai`, nie in `settings.json`.
+  Service `com.xp_wellys_devfr_atc.openai`, nie in `settings.json`.
 - **Mistral Cloud** (jeder Mac, eigener API-Key): Voxtral STT
   (`voxtral-mini-2507`) + Mistral Chat Completions
   (`mistral-small-latest`, JSON-Modus) + Voxtral TTS
   (`voxtral-mini-tts-2603`). Separater Keychain-Eintrag
-  `com.xp_wellys_atc.mistral`, sodass der OpenAI-Key unberührt bleibt.
+  `com.xp_wellys_devfr_atc.mistral`, sodass der OpenAI-Key unberührt bleibt.
   Multilinguales TTS — der einzige Cloud-Modus, der Deutsch ohne
   US-Akzent spricht.
 
@@ -61,7 +61,7 @@ gebündelte `libpiper.dylib` des `arm64`-Slice gelinkt).
 
 ```bash
 make setup     # X-Plane SDK, Dear ImGui, nlohmann/json, Catch2, Spike-Submodule
-make build     # Universal-Release-Build → build/xp_wellys_atc.xpl (arm64+x86_64 lipo'd)
+make build     # Universal-Release-Build → build/xp_wellys_devfr_atc.xpl (arm64+x86_64 lipo'd)
 make install   # Code-Signing + Installation ins X-Plane-Plugins-Verzeichnis
 make all       # clean + format + build + lint + test (volle lokale CI)
 make repl      # headless atc_repl-Tool (kein X-Plane / kein Audio / keine Modelle)
@@ -72,7 +72,7 @@ make sanitize  # ASan- + UBSan-Build der Engine-OBJECT-Lib + atc_repl + Tests
 `make build` erzeugt stets das Universal Binary: CMake läuft zweimal —
 arm64 mit `XPWELLYS_USE_LOCAL_INFERENCE=ON` (build-arm64/), x86_64 mit
 demselben Flag `OFF` (build-x86_64/) — und `lipo`-merged die zwei `.xpl`s
-zu `build/xp_wellys_atc.xpl`. Das `libpiper.dylib` und
+zu `build/xp_wellys_devfr_atc.xpl`. Das `libpiper.dylib` und
 `libonnxruntime.{1.22.0,}.dylib` des arm64-Slice werden neben das
 lipo'd Binary gestaged, damit `make install` sie findet.
 `make release-build` ist derselbe Build mit durchgereichtem
@@ -90,7 +90,7 @@ angehängt an den X-Plane-Prozess, für Laufzeit-Leak-Jagd im Live-Plugin.
   kompiliert und gelinkt werden. Für den x86_64-Slice auf `OFF`; das
   resultierende Binary hat null lokalen Inferenz-Code.
 - Toolchain: Homebrew LLVM (`/opt/homebrew/opt/llvm`), `ccache` automatisch erkannt
-- Ausgabe: `build/xp_wellys_atc.xpl`; auf dem arm64-Slice zusätzlich
+- Ausgabe: `build/xp_wellys_devfr_atc.xpl`; auf dem arm64-Slice zusätzlich
   gestaged `libpiper.dylib` + `libonnxruntime.{1.22.0,}.dylib` neben dem
   `.xpl`, zur Laufzeit über `@loader_path`-rpath aufgelöst. Der
   x86_64-Slice hat keine dieser dylibs — ein deutlich kleineres Artefakt.
@@ -274,7 +274,7 @@ liefert konstant `"DE"`, `backend_language()` konstant `"de"`. **Kein
 API-Key liegt je in `settings.json`** — nur die Flags `api_key_saved` und
 `mistral_api_key_saved` werden persistiert; die echten Geheimnisse liegen
 im macOS Keychain unter zwei separaten Services
-(`com.xp_wellys_atc.openai` und `com.xp_wellys_atc.mistral`, beide mit
+(`com.xp_wellys_devfr_atc.openai` und `com.xp_wellys_devfr_atc.mistral`, beide mit
 Account `default`) via `persistence/keychain`.
 
 **`keychain`** — Plugin-only. Umhüllt macOS `Security.framework`
@@ -291,7 +291,7 @@ und die Download-Liste im Models-Tab werden davon getrieben. Einmal beim
 Start gelesen; nach dem Editieren der JSON X-Plane neu starten.
 
 **`ptt_input`** — Erkennt die PTT-Aktivierung über den X-Plane-Befehl
-`xp_wellys_atc/ptt`. Benachrichtigt `atc_session` bei Press/Release.
+`xp_wellys_devfr_atc/ptt`. Benachrichtigt `atc_session` bei Press/Release.
 
 **`audio_recorder`** — Core-Audio-`AudioUnit` erfasst das Mic mit 16 kHz
 mono 16-bit PCM in `std::vector<int16_t>`. Bei PTT-Release übergibt es den
@@ -609,7 +609,7 @@ Intents überspringen sie ganz. Jede Inferenz läuft auf `std::thread`s mit
 
   "backend_mode": "local",                  // "local" | "openai" | "mistral"
 
-  // OpenAI-Key im Keychain @ com.xp_wellys_atc.openai / default
+  // OpenAI-Key im Keychain @ com.xp_wellys_devfr_atc.openai / default
   "api_key_saved": false,
   "openai_stt_model": "whisper-1",
   "openai_lm_model": "gpt-4o-mini",
@@ -618,7 +618,7 @@ Intents überspringen sie ganz. Jede Inferenz läuft auf `std::thread`s mit
   "openai_tts_voice_tower": "echo",
   "openai_tts_voice_ground": "alloy",
 
-  // Mistral-Key im Keychain @ com.xp_wellys_atc.mistral / default
+  // Mistral-Key im Keychain @ com.xp_wellys_devfr_atc.mistral / default
   "mistral_api_key_saved": false,
   "mistral_stt_model": "voxtral-mini-2507",
   "mistral_lm_model": "mistral-small-latest",
@@ -632,10 +632,10 @@ Intents überspringen sie ganz. Jede Inferenz läuft auf `std::thread`s mit
 `settings.json` **ist eingecheckt** mit sinnvollen Standards und enthält
 in keiner Revision Geheimnisse. **Kein API-Key wird je hier persistiert**
 — sowohl der OpenAI- als auch der Mistral-Key liegen im macOS Keychain
-unter separaten Services (`com.xp_wellys_atc.openai` und
-`com.xp_wellys_atc.mistral`, Account `default`) und werden über die
+unter separaten Services (`com.xp_wellys_devfr_atc.openai` und
+`com.xp_wellys_devfr_atc.mistral`, Account `default`) und werden über die
 `[Paste]` / `Save Key` / `Delete Key`-Buttons im Settings-Tab verwaltet.
-Push-to-Talk ist über den X-Plane-Befehl `xp_wellys_atc/ptt` (Tastatur
+Push-to-Talk ist über den X-Plane-Befehl `xp_wellys_devfr_atc/ptt` (Tastatur
 oder Joystick) gebunden.
 
 Die Modell- und Voice-Dropdowns im Settings-Tab werden aus

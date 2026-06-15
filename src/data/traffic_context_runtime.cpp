@@ -1,5 +1,5 @@
 /*
- * xp_wellys_atc - AI-powered ATC voice communication for X-Plane 12
+ * xp_wellys_devfr_atc - AI-powered ATC voice communication for X-Plane 12
  * Copyright (C) 2026 thWelly & Claude (Anthropic)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -100,7 +100,7 @@ void init() {
     char log[256];
     std::snprintf(
         log, sizeof(log),
-        "[xp_wellys_atc] traffic_context init: x=%p modeS=%p flight=%p "
+        "[xp_wellys_devfr_atc] traffic_context init: x=%p modeS=%p flight=%p "
         "wake_cat=%p\n",
         static_cast<void *>(dr_x), static_cast<void *>(dr_modeS),
         static_cast<void *>(dr_flight_id), static_cast<void *>(dr_wake_cat));

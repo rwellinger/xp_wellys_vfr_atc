@@ -41,7 +41,7 @@ jobs:
 
       - name: Build (universal)
         # `make build` always produces a universal .xpl: two CMake configures
-        # lipo'd into one build/xp_wellys_atc.xpl that carries an arm64 slice
+        # lipo'd into one build/xp_wellys_devfr_atc.xpl that carries an arm64 slice
         # (whisper + llama + Piper + OpenAI) and an x86_64 slice (OpenAI-only).
         # Tag pushes flip -DRELEASE=ON so VERSION.txt gets baked into both
         # slices. libpiper.dylib + libonnxruntime.* are staged into build/
@@ -57,27 +57,27 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           set -euo pipefail
-          STAGE=dist/xp_wellys_atc
+          STAGE=dist/xp_wellys_devfr_atc
           mkdir -p "$STAGE/mac_x64"
           mkdir -p "$STAGE/Resources/espeak-ng-data"
           mkdir -p "$STAGE/Resources/models"
           mkdir -p "$STAGE/data/atc_profiles/de"
           mkdir -p "$STAGE/data/vrps"
 
-          cp build/xp_wellys_atc.xpl           "$STAGE/mac_x64/"
+          cp build/xp_wellys_devfr_atc.xpl           "$STAGE/mac_x64/"
           cp build/libpiper.dylib              "$STAGE/mac_x64/"
           cp build/libonnxruntime.1.22.0.dylib "$STAGE/mac_x64/"
           cp build/libonnxruntime.dylib        "$STAGE/mac_x64/"
 
-          for rp in $(otool -l "$STAGE/mac_x64/xp_wellys_atc.xpl" \
+          for rp in $(otool -l "$STAGE/mac_x64/xp_wellys_devfr_atc.xpl" \
                       | awk '/LC_RPATH/{flag=1; next} flag && /path/ {print $2; flag=0}'); do
-            install_name_tool -delete_rpath "$rp" "$STAGE/mac_x64/xp_wellys_atc.xpl" 2>/dev/null || true
+            install_name_tool -delete_rpath "$rp" "$STAGE/mac_x64/xp_wellys_devfr_atc.xpl" 2>/dev/null || true
           done
-          install_name_tool -add_rpath "@loader_path" "$STAGE/mac_x64/xp_wellys_atc.xpl"
+          install_name_tool -add_rpath "@loader_path" "$STAGE/mac_x64/xp_wellys_devfr_atc.xpl"
 
           codesign --force --deep --sign - "$STAGE/mac_x64/libonnxruntime.1.22.0.dylib"
           codesign --force --deep --sign - "$STAGE/mac_x64/libpiper.dylib"
-          codesign --force --deep --sign - "$STAGE/mac_x64/xp_wellys_atc.xpl"
+          codesign --force --deep --sign - "$STAGE/mac_x64/xp_wellys_devfr_atc.xpl"
 
           rsync -a --delete \
             build/espeak_ng-install/share/espeak-ng-data/ \
@@ -95,11 +95,11 @@ jobs:
 
           cp -r docs "$STAGE/docs"
 
-          cd dist && zip -r xp_wellys_atc.zip xp_wellys_atc/
+          cd dist && zip -r xp_wellys_devfr_atc.zip xp_wellys_devfr_atc/
 
       - name: Create release with assets
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/xp_wellys_atc.zip
+          files: dist/xp_wellys_devfr_atc.zip
           generate_release_notes: true

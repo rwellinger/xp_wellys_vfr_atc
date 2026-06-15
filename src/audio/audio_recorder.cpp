@@ -1,5 +1,5 @@
 /*
- * xp_wellys_atc - AI-powered ATC voice communication for X-Plane 12
+ * xp_wellys_devfr_atc - AI-powered ATC voice communication for X-Plane 12
  * Copyright (C) 2026 thWelly & Claude (Anthropic)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -60,7 +60,7 @@ static OSStatus render_callback(void * /*inRefCon*/,
   if (call_count == 1) {
     if (settings::debug_logging())
       XPLMDebugString(
-          "[xp_wellys_atc][DEBUG] Render callback firing (first call)\n");
+          "[xp_wellys_devfr_atc][DEBUG] Render callback firing (first call)\n");
   }
 
   AudioBufferList buf_list;
@@ -77,7 +77,7 @@ static OSStatus render_callback(void * /*inRefCon*/,
     if (call_count <= 3) {
       char log[128];
       std::snprintf(log, sizeof(log),
-                    "[xp_wellys_atc] AudioUnitRender error: %d (call #%d)\n",
+                    "[xp_wellys_devfr_atc] AudioUnitRender error: %d (call #%d)\n",
                     static_cast<int>(status), call_count);
       XPLMDebugString(log);
     }
@@ -103,7 +103,7 @@ static void log_default_input_device() {
   OSStatus err = AudioObjectGetPropertyData(kAudioObjectSystemObject, &prop, 0,
                                             nullptr, &size, &dev_id);
   if (err != noErr || dev_id == kAudioDeviceUnknown) {
-    XPLMDebugString("[xp_wellys_atc] No default input device found\n");
+    XPLMDebugString("[xp_wellys_devfr_atc] No default input device found\n");
     return;
   }
 
@@ -121,7 +121,7 @@ static void log_default_input_device() {
     CFRelease(name_ref);
     char log[320];
     std::snprintf(log, sizeof(log),
-                  "[xp_wellys_atc] Default input device: \"%s\" (id=%u)\n",
+                  "[xp_wellys_devfr_atc] Default input device: \"%s\" (id=%u)\n",
                   name, static_cast<unsigned>(dev_id));
     XPLMDebugString(log);
   }
@@ -129,7 +129,7 @@ static void log_default_input_device() {
 
 void init() {
   if (!mic_permission::check_and_request()) {
-    XPLMDebugString("[xp_wellys_atc] Audio recorder: no microphone permission, "
+    XPLMDebugString("[xp_wellys_devfr_atc] Audio recorder: no microphone permission, "
                     "recording will not work\n");
   }
 
@@ -143,13 +143,13 @@ void init() {
   AudioComponent component = AudioComponentFindNext(nullptr, &desc);
   if (!component) {
     XPLMDebugString(
-        "[xp_wellys_atc] Error: no HALOutput audio component found\n");
+        "[xp_wellys_devfr_atc] Error: no HALOutput audio component found\n");
     return;
   }
 
   OSStatus status = AudioComponentInstanceNew(component, &audio_unit_);
   if (status != noErr) {
-    XPLMDebugString("[xp_wellys_atc] Error: failed to create AudioUnit\n");
+    XPLMDebugString("[xp_wellys_devfr_atc] Error: failed to create AudioUnit\n");
     return;
   }
 
@@ -159,7 +159,7 @@ void init() {
                                 kAudioUnitScope_Input, 1, &enable_input,
                                 sizeof(enable_input));
   if (status != noErr) {
-    XPLMDebugString("[xp_wellys_atc] Error: failed to enable audio input\n");
+    XPLMDebugString("[xp_wellys_devfr_atc] Error: failed to enable audio input\n");
     AudioComponentInstanceDispose(audio_unit_);
     audio_unit_ = nullptr;
     return;
@@ -186,7 +186,7 @@ void init() {
         kAudioUnitScope_Global, 0, &input_device, sizeof(input_device));
     char log[128];
     std::snprintf(log, sizeof(log),
-                  "[xp_wellys_atc] Set AudioUnit input device id=%u: %s\n",
+                  "[xp_wellys_devfr_atc] Set AudioUnit input device id=%u: %s\n",
                   static_cast<unsigned>(input_device),
                   status == noErr ? "OK" : "FAILED");
     XPLMDebugString(log);
@@ -201,7 +201,7 @@ void init() {
   if (status == noErr) {
     char log[256];
     std::snprintf(log, sizeof(log),
-                  "[xp_wellys_atc] Hardware input format: %.0f Hz, %u ch, "
+                  "[xp_wellys_devfr_atc] Hardware input format: %.0f Hz, %u ch, "
                   "%u bps, formatFlags=0x%X\n",
                   hw_fmt.mSampleRate,
                   static_cast<unsigned>(hw_fmt.mChannelsPerFrame),
@@ -231,7 +231,7 @@ void init() {
       AudioUnitSetProperty(audio_unit_, kAudioUnitProperty_StreamFormat,
                            kAudioUnitScope_Output, 1, &format, sizeof(format));
   if (status != noErr) {
-    XPLMDebugString("[xp_wellys_atc] Error: failed to set audio format\n");
+    XPLMDebugString("[xp_wellys_devfr_atc] Error: failed to set audio format\n");
     AudioComponentInstanceDispose(audio_unit_);
     audio_unit_ = nullptr;
     return;
@@ -247,7 +247,7 @@ void init() {
     actual_sample_rate_ = static_cast<unsigned>(actual_fmt.mSampleRate);
     char log[192];
     std::snprintf(log, sizeof(log),
-                  "[xp_wellys_atc] Audio format: device %.0f Hz, client %u Hz "
+                  "[xp_wellys_devfr_atc] Audio format: device %.0f Hz, client %u Hz "
                   "(%u ch, %u bps)\n",
                   device_rate, actual_sample_rate_,
                   static_cast<unsigned>(actual_fmt.mChannelsPerFrame),
@@ -264,7 +264,7 @@ void init() {
       audio_unit_, kAudioOutputUnitProperty_SetInputCallback,
       kAudioUnitScope_Global, 0, &callback, sizeof(callback));
   if (status != noErr) {
-    XPLMDebugString("[xp_wellys_atc] Error: failed to set render callback\n");
+    XPLMDebugString("[xp_wellys_devfr_atc] Error: failed to set render callback\n");
     AudioComponentInstanceDispose(audio_unit_);
     audio_unit_ = nullptr;
     return;
@@ -272,7 +272,7 @@ void init() {
 
   status = AudioUnitInitialize(audio_unit_);
   if (status != noErr) {
-    XPLMDebugString("[xp_wellys_atc] Error: failed to initialize AudioUnit\n");
+    XPLMDebugString("[xp_wellys_devfr_atc] Error: failed to initialize AudioUnit\n");
     AudioComponentInstanceDispose(audio_unit_);
     audio_unit_ = nullptr;
     return;
@@ -283,7 +283,7 @@ void init() {
     char log[128];
     std::snprintf(
         log, sizeof(log),
-        "[xp_wellys_atc] Audio recorder initialized (%uHz mono 16-bit)\n",
+        "[xp_wellys_devfr_atc] Audio recorder initialized (%uHz mono 16-bit)\n",
         actual_sample_rate_);
     XPLMDebugString(log);
   }
@@ -305,7 +305,7 @@ void stop() {
 void start_recording() {
   if (!initialized_ || !audio_unit_) {
     XPLMDebugString(
-        "[xp_wellys_atc] Warning: audio recorder not initialized\n");
+        "[xp_wellys_devfr_atc] Warning: audio recorder not initialized\n");
     return;
   }
 
@@ -320,13 +320,13 @@ void start_recording() {
   if (status != noErr) {
     char log[128];
     std::snprintf(log, sizeof(log),
-                  "[xp_wellys_atc] Error: AudioOutputUnitStart failed: %d\n",
+                  "[xp_wellys_devfr_atc] Error: AudioOutputUnitStart failed: %d\n",
                   static_cast<int>(status));
     XPLMDebugString(log);
     recording_ = false;
   } else {
     if (settings::debug_logging())
-      XPLMDebugString("[xp_wellys_atc][DEBUG] AudioUnit started OK\n");
+      XPLMDebugString("[xp_wellys_devfr_atc][DEBUG] AudioUnit started OK\n");
   }
 }
 
@@ -350,7 +350,7 @@ void stop_recording() {
       char log[256];
       std::snprintf(
           log, sizeof(log),
-          "[xp_wellys_atc][DEBUG] Recording stopped: %zu samples captured, "
+          "[xp_wellys_devfr_atc][DEBUG] Recording stopped: %zu samples captured, "
           "render callbacks: %d, peak: %d (%.1f%%)\n",
           buffer_.size(), render_call_count_.load(), static_cast<int>(peak),
           peak_pct);
@@ -358,7 +358,7 @@ void stop_recording() {
     }
     if (buffer_.empty() && render_call_count_.load() == 0) {
       XPLMDebugString(
-          "[xp_wellys_atc] ERROR: No audio captured. Check: System Settings "
+          "[xp_wellys_devfr_atc] ERROR: No audio captured. Check: System Settings "
           "> Privacy & Security > Microphone > enable X-Plane\n");
     }
   }
@@ -367,7 +367,7 @@ void stop_recording() {
 #else
 
 void init() {
-  XPLMDebugString("[xp_wellys_atc] Warning: audio recorder not supported on "
+  XPLMDebugString("[xp_wellys_devfr_atc] Warning: audio recorder not supported on "
                   "this platform\n");
 }
 void stop() {}

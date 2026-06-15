@@ -322,10 +322,10 @@ Dann Phase 4 + 5 wie oben.
 Strict-Mode loggt jede Verletzung:
 
 ```
-[xp_wellys_atc] BZF strict: readback missing qnh
-[xp_wellys_atc] BZF strict: readback missing runway,qnh
-[xp_wellys_atc] BZF strict: readback missing callsign
-[xp_wellys_atc] BZF strict: readback missing frequency
+[xp_wellys_devfr_atc] BZF strict: readback missing qnh
+[xp_wellys_devfr_atc] BZF strict: readback missing runway,qnh
+[xp_wellys_devfr_atc] BZF strict: readback missing callsign
+[xp_wellys_devfr_atc] BZF strict: readback missing frequency
 ```
 
 Diese Zeilen siehst du nur wenn der Strict-Mode aktiv ist (DE-Profil + Toggle an)
@@ -382,7 +382,7 @@ falls du zwischendurch nachgucken willst (z. B. „Piste 24 oder 06?").
 
 1. **Strict-Mode-Toggle ist nicht sichtbar** → Profile auf `DE/BZF` setzen (Toggle ist DE-only).
 2. **Strict-Mode greift nicht** → `Log.txt` checken auf:
-   - `[xp_wellys_atc] BACKEND MODE: ...` — Plugin überhaupt aktiv?
+   - `[xp_wellys_devfr_atc] BACKEND MODE: ...` — Plugin überhaupt aktiv?
    - `BZF strict: readback missing ...` — Strict-Check läuft?
    - Wenn das Plugin den READBACK gar nicht erkennt: prüfe ob `Verstanden` / `Roger` / Callsign im Pilot-Transkript sind (`intent_rules.json:98`).
 3. **Tower wiederholt sich endlos** → State-Machine wartet auf sauberen Readback. Setze Disregard (UI-Reset-Button) und versuche nochmal.

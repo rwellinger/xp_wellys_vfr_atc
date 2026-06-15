@@ -1,7 +1,7 @@
 # Third-Party Dependencies
 
 This document lists every third-party component bundled with, statically
-linked into, or dynamically loaded by `xp_wellys_atc`. The plugin itself
+linked into, or dynamically loaded by `xp_wellys_devfr_atc`. The plugin itself
 is licensed under **GNU GPL-3.0-or-later**; the table below shows that
 all dependencies are GPLv3-compatible.
 

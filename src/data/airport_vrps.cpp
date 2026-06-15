@@ -1,5 +1,5 @@
 /*
- * xp_wellys_atc - AI-powered ATC voice communication for X-Plane 12
+ * xp_wellys_devfr_atc - AI-powered ATC voice communication for X-Plane 12
  * Copyright (C) 2026 thWelly & Claude (Anthropic)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -135,7 +135,7 @@ static void load_from_file() {
     logging::info("Warning: airport_vrps.json not found at %s",
                   plugin_path.c_str());
 
-  // Optional user override under <X-Plane>/Output/preferences/xp_wellys_atc/
+  // Optional user override under <X-Plane>/Output/preferences/xp_wellys_devfr_atc/
   // (plugin) or $XP_ATC_USER_PREFS_DIR (REPL/tests). Per-ICAO replacement -
   // any airport defined in the override file fully replaces the plugin
   // default for that ICAO. Missing file is silent (the override is purely
