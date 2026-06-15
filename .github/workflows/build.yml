@@ -1,0 +1,117 @@
+name: Build
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    if: github.event_name == 'push' || github.event.pull_request.merged == true
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Rewrite SSH submodule URLs to HTTPS
+        run: git config --global url."https://github.com/".insteadOf "git@github.com:"
+
+      - name: Setup dependencies
+        run: make setup
+
+      - name: Set up ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ runner.os }}-${{ github.job }}-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'debug' }}
+          max-size: 1500M
+          variant: ccache
+
+      - name: Run tests
+        # Builds the default arm64 tree (build/) with BUILD_TESTS=ON
+        # and runs the Catch2 + scenario suite. This is the local
+        # path's regression gate — fails loudly before we burn time
+        # on the universal-binary build.
+        run: make test
+
+      - name: Build (universal)
+        # `make build` always produces a universal .xpl: two CMake configures
+        # lipo'd into one build/xp_wellys_atc.xpl that carries an arm64 slice
+        # (whisper + llama + Piper + OpenAI) and an x86_64 slice (OpenAI-only).
+        # Tag pushes flip -DRELEASE=ON so VERSION.txt gets baked into both
+        # slices. libpiper.dylib + libonnxruntime.* are staged into build/
+        # from the arm64 slice so the existing release-bundle step finds
+        # them unchanged.
+        run: |
+          RELEASE_FLAG=""
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then RELEASE_FLAG="-DRELEASE=ON"; fi
+          make build RELEASE_FLAG="$RELEASE_FLAG"
+          ccache --show-stats
+
+      - name: Stage release bundle
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -euo pipefail
+          STAGE=dist/xp_wellys_atc
+          mkdir -p "$STAGE/mac_x64"
+          mkdir -p "$STAGE/Resources/espeak-ng-data"
+          mkdir -p "$STAGE/Resources/models"
+          mkdir -p "$STAGE/data/atc_profiles/eu"
+          mkdir -p "$STAGE/data/atc_profiles/us"
+          mkdir -p "$STAGE/data/atc_profiles/de"
+          mkdir -p "$STAGE/data/vrps"
+
+          cp build/xp_wellys_atc.xpl           "$STAGE/mac_x64/"
+          cp build/libpiper.dylib              "$STAGE/mac_x64/"
+          cp build/libonnxruntime.1.22.0.dylib "$STAGE/mac_x64/"
+          cp build/libonnxruntime.dylib        "$STAGE/mac_x64/"
+
+          for rp in $(otool -l "$STAGE/mac_x64/xp_wellys_atc.xpl" \
+                      | awk '/LC_RPATH/{flag=1; next} flag && /path/ {print $2; flag=0}'); do
+            install_name_tool -delete_rpath "$rp" "$STAGE/mac_x64/xp_wellys_atc.xpl" 2>/dev/null || true
+          done
+          install_name_tool -add_rpath "@loader_path" "$STAGE/mac_x64/xp_wellys_atc.xpl"
+
+          codesign --force --deep --sign - "$STAGE/mac_x64/libonnxruntime.1.22.0.dylib"
+          codesign --force --deep --sign - "$STAGE/mac_x64/libpiper.dylib"
+          codesign --force --deep --sign - "$STAGE/mac_x64/xp_wellys_atc.xpl"
+
+          rsync -a --delete \
+            build/espeak_ng-install/share/espeak-ng-data/ \
+            "$STAGE/Resources/espeak-ng-data/"
+
+          cp data/atc_prompt_templates.json         "$STAGE/data/"
+          cp data/models_catalog.json               "$STAGE/data/"
+          cp data/settings.json                     "$STAGE/data/"
+          cp data/atc_profiles/eu/atc_templates.json     "$STAGE/data/atc_profiles/eu/"
+          cp data/atc_profiles/eu/flight_rules.json      "$STAGE/data/atc_profiles/eu/"
+          cp data/atc_profiles/eu/intent_rules.json      "$STAGE/data/atc_profiles/eu/"
+          cp data/atc_profiles/eu/phraseology_hints.json "$STAGE/data/atc_profiles/eu/"
+          cp data/atc_profiles/eu/ui_strings.json        "$STAGE/data/atc_profiles/eu/"
+          cp data/atc_profiles/us/atc_templates.json     "$STAGE/data/atc_profiles/us/"
+          cp data/atc_profiles/us/flight_rules.json      "$STAGE/data/atc_profiles/us/"
+          cp data/atc_profiles/us/intent_rules.json      "$STAGE/data/atc_profiles/us/"
+          cp data/atc_profiles/us/phraseology_hints.json "$STAGE/data/atc_profiles/us/"
+          cp data/atc_profiles/us/ui_strings.json        "$STAGE/data/atc_profiles/us/"
+          cp data/atc_profiles/de/atc_templates.json     "$STAGE/data/atc_profiles/de/"
+          cp data/atc_profiles/de/flight_rules.json      "$STAGE/data/atc_profiles/de/"
+          cp data/atc_profiles/de/intent_rules.json      "$STAGE/data/atc_profiles/de/"
+          cp data/atc_profiles/de/phraseology_hints.json "$STAGE/data/atc_profiles/de/"
+          cp data/atc_profiles/de/ui_strings.json        "$STAGE/data/atc_profiles/de/"
+          cp data/vrps/airport_vrps.json                 "$STAGE/data/vrps/"
+
+          cp -r docs "$STAGE/docs"
+
+          cd dist && zip -r xp_wellys_atc.zip xp_wellys_atc/
+
+      - name: Create release with assets
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/xp_wellys_atc.zip
+          generate_release_notes: true

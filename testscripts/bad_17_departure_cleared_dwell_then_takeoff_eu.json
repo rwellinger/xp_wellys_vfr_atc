@@ -1,0 +1,39 @@
+{
+  "_comment": "Bad case 17 — DEPARTURE_CLEARED bleibt ueber lange Standzeit erhalten (kein on_parked-Auto-Revoke). Nach Takeoff -> on_airborne -> PATTERN_ENTRY -> Downwind-Report im richtigen Template. Schliesst die Luecke wo on_parked nach 10s zu IDLE zurueckgesetzt hat und der Folge-Downwind-Call ins _INVALID-Template fiel.",
+  "name": "Bad case 17 — DEPARTURE_CLEARED dwell + takeoff + downwind",
+  "region": "EU",
+  "context": {
+    "airport": "LSZG",
+    "airport_name": "Grenchen",
+    "towered": true,
+    "tower_only": false,
+    "on_ground": true,
+    "com": 121.800,
+    "freq_type": "GROUND",
+    "runway": "06",
+    "callsign": "Hotel Bravo Whiskey Romeo Oscar"
+  },
+  "say": [
+    { "note": "Setup — Ground taxi clearance -> TAXI_CLEARED",
+      "text": "Grenchen Ground Hotel Bravo Whiskey Romeo Oscar at parking request taxi runway 06",
+      "expect": "holding point",
+      "expect_state": "TAXI_CLEARED" },
+    { "set": {"com": 120.100, "freq_type": "TOWER"} },
+    { "note": "Tower clearance",
+      "text": "Grenchen Tower Hotel Bravo Whiskey Romeo Oscar ready for departure",
+      "expect": "cleared for takeoff",
+      "expect_state": "Pattern/DEPARTURE_CLEARED" },
+    { "note": "Pilot steht 30s parked (Run-up) — State MUSS DEPARTURE_CLEARED bleiben (kein on_parked-Revoke)",
+      "wait_sec": 30,
+      "expect_state": "Pattern/DEPARTURE_CLEARED" },
+    { "note": "Takeoff",
+      "set": {"on_ground": false, "agl_ft": 800, "altitude_ft": 1700, "groundspeed_kt": 80} },
+    { "note": "6s airborne -> on_airborne feuert -> PATTERN_ENTRY",
+      "wait_sec": 6,
+      "expect_state": "Pattern/PATTERN_ENTRY" },
+    { "note": "Downwind report -> PATTERN_ENTRY-Template (NICHT IDLE._INVALID 'say again')",
+      "text": "Hotel Bravo Whiskey Romeo Oscar midfield left downwind",
+      "expect": "continue approach",
+      "expect_state": "Pattern/PATTERN_ENTRY" }
+  ]
+}

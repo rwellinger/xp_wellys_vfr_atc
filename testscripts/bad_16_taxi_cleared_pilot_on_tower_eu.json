@@ -1,0 +1,27 @@
+{
+  "_comment": "Bad case 16 — TAXI_CLEARED + pilot tunes Tower vorzeitig (LSZG EU). Frequency-auto-correction muss State auf TOWER_CONTACT vorruecken, damit READY_FOR_DEPARTURE im richtigen Template landet (cleared for takeoff), nicht im 'contact Tower on X'-Template.",
+  "name": "Bad case 16 — TAXI_CLEARED -> TOWER (frequency auto-correction)",
+  "region": "EU",
+  "context": {
+    "airport": "LSZG",
+    "airport_name": "Grenchen",
+    "towered": true,
+    "tower_only": false,
+    "on_ground": true,
+    "com": 121.800,
+    "freq_type": "GROUND",
+    "runway": "06",
+    "callsign": "Hotel Bravo Whiskey Romeo Oscar"
+  },
+  "say": [
+    { "note": "Step 1 — Ground request taxi -> TAXI_CLEARED",
+      "text": "Grenchen Ground Hotel Bravo Whiskey Romeo Oscar at parking request taxi runway 06",
+      "expect": "holding point",
+      "expect_state": "TAXI_CLEARED" },
+    { "set": {"com": 120.100, "freq_type": "TOWER"} },
+    { "note": "Step 2 — auf Tower 'ready for departure' -> cleared for takeoff (NICHT 'contact Tower')",
+      "text": "Grenchen Tower Hotel Bravo Whiskey Romeo Oscar holding short ready for departure",
+      "expect": "cleared for takeoff",
+      "expect_state": "Pattern/DEPARTURE_CLEARED" }
+  ]
+}

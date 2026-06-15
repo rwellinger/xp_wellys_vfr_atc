@@ -1,0 +1,331 @@
+{
+  "_comment": "Flight phase detection rules and ATC state machine guards (US/Canada region). Structure identical to the EU variant. Phase thresholds and hysteresis are physical and unchanged. intent_preconditions adds REQUEST_FLIGHT_FOLLOWING (US-specific VFR advisory service). intent_frequency routes REQUEST_FLIGHT_FOLLOWING to APPROACH. pilot_phraseology uses FAA/NAV CANADA style: 'altimeter' instead of QNH, 'hold short' taxi clearances, CTAF self-announce with airport name as both prefix and suffix.",
+  "phase_thresholds": {
+    "taxi_min_gs_kt": 5.0,
+    "roll_min_gs_kt": 40.0,
+    "climb_min_vs_fpm": 300.0,
+    "pattern_max_agl_ft": 3000.0,
+    "near_airport_nm": 5.0,
+    "runway_aligned_deg": 30.0,
+    "final_descent_rate_fpm": -200.0
+  },
+  "hysteresis": {
+    "ground_to_airborne_sec": 0.5,
+    "airborne_to_landing_sec": 0.3,
+    "auto_correction_delay_sec": 3.0
+  },
+  "intent_preconditions": {
+    "INITIAL_CALL_GROUND": {
+      "allowed_phases": ["PARKED", "TAXI"],
+      "rejection_airborne": "{callsign}, unable, you appear to be airborne. Say intentions."
+    },
+    "INITIAL_CALL_TOWER": {
+      "allowed_phases": ["PARKED", "TAXI"],
+      "rejection_airborne": "{callsign}, you are already airborne, say position."
+    },
+    "INITIAL_CALL_INBOUND": {
+      "allowed_phases": ["CLIMB", "PATTERN", "FINAL_APPROACH", "CRUISE"],
+      "rejection_ground": "{callsign}, unable, you appear to be on the ground."
+    },
+    "INITIAL_CALL_APPROACH": {
+      "allowed_phases": ["CLIMB", "CRUISE", "PATTERN", "FINAL_APPROACH"],
+      "rejection_ground": "{callsign}, unable, you appear to be on the ground."
+    },
+    "REQUEST_TAXI": {
+      "allowed_phases": ["PARKED", "TAXI"],
+      "rejection_airborne": "{callsign}, unable, you appear to be airborne."
+    },
+    "REQUEST_TAXI_PARKING": {
+      "allowed_phases": ["PARKED", "TAXI", "LANDING_ROLL"],
+      "rejection_airborne": "{callsign}, unable, you appear to be airborne."
+    },
+    "READY_FOR_DEPARTURE": {
+      "allowed_phases": ["PARKED", "TAXI"],
+      "rejection_airborne": "{callsign}, you are already airborne."
+    },
+    "READY_FOR_DEPARTURE_VFR": {
+      "allowed_phases": ["PARKED", "TAXI"],
+      "rejection_airborne": "{callsign}, you are already airborne."
+    },
+    "REPORT_POSITION": {
+      "allowed_phases": ["CLIMB", "PATTERN", "FINAL_APPROACH", "CRUISE"],
+      "rejection_ground": "{callsign}, unable, you appear to be on the ground."
+    },
+    "REPORT_POSITION_DOWNWIND": {
+      "allowed_phases": ["CLIMB", "PATTERN", "FINAL_APPROACH", "CRUISE"],
+      "rejection_ground": "{callsign}, unable, you appear to be on the ground."
+    },
+    "REPORT_POSITION_BASE": {
+      "allowed_phases": ["CLIMB", "PATTERN", "FINAL_APPROACH", "CRUISE"],
+      "rejection_ground": "{callsign}, unable, you appear to be on the ground."
+    },
+    "REPORT_POSITION_FINAL": {
+      "allowed_phases": ["CLIMB", "PATTERN", "FINAL_APPROACH", "CRUISE"],
+      "rejection_ground": "{callsign}, unable, you appear to be on the ground."
+    },
+    "REQUEST_LANDING": {
+      "allowed_phases": ["CLIMB", "PATTERN", "FINAL_APPROACH", "CRUISE"],
+      "rejection_ground": "{callsign}, unable, you appear to be on the ground."
+    },
+    "REQUEST_TOUCH_AND_GO": {
+      "allowed_phases": ["CLIMB", "PATTERN", "FINAL_APPROACH", "CRUISE"],
+      "rejection_ground": "{callsign}, unable, you appear to be on the ground."
+    },
+    "REQUEST_FLIGHT_FOLLOWING": {
+      "allowed_phases": ["CLIMB", "CRUISE", "PATTERN"],
+      "rejection_ground": "{callsign}, unable, request flight following once airborne.",
+      "rejection_parked": "{callsign}, unable, request flight following once airborne."
+    },
+    "GO_AROUND": {
+      "allowed_phases": ["PATTERN", "FINAL_APPROACH", "LANDING_ROLL"],
+      "rejection_ground": "{callsign}, unable."
+    },
+    "RUNWAY_VACATED": {
+      "allowed_phases": ["LANDING_ROLL", "TAXI", "PARKED"],
+      "rejection_airborne": "{callsign}, unable, you appear to still be airborne."
+    },
+    "LEAVING_FREQUENCY": {
+      "allowed_phases": ["CLIMB", "PATTERN", "CRUISE"],
+      "rejection_ground": "{callsign}, unable, you are still on the ground."
+    }
+  },
+  "auto_corrections": {
+    "Pattern/DEPARTURE_CLEARED": {
+      "on_airborne": {
+        "phases": ["CLIMB", "PATTERN", "FINAL_APPROACH", "CRUISE"],
+        "next_state": "Pattern/PATTERN_ENTRY",
+        "delay_sec": 5.0
+      }
+    },
+    "Pattern/PATTERN_ENTRY": {
+      "on_ground": {
+        "phases": ["LANDING_ROLL", "TAXI", "PARKED"],
+        "next_state": "IDLE",
+        "delay_sec": 3.0
+      }
+    },
+    "Pattern/LANDING_CLEARED": {
+      "on_ground": {
+        "phases": ["TAXI", "PARKED"],
+        "next_state": "IDLE",
+        "delay_sec": 90.0
+      }
+    },
+    "Pattern/TOUCH_AND_GO_CLEARED": {
+      "on_airborne": {
+        "phases": ["CLIMB", "PATTERN"],
+        "next_state": "Pattern/PATTERN_ENTRY",
+        "delay_sec": 3.0
+      },
+      "on_ground": {
+        "phases": ["TAXI", "PARKED"],
+        "next_state": "IDLE",
+        "delay_sec": 3.0
+      }
+    },
+    "GROUND_CONTACT": {
+      "on_airborne": {
+        "phases": ["CLIMB", "PATTERN", "FINAL_APPROACH", "CRUISE", "TAKEOFF_ROLL"],
+        "next_state": "IDLE",
+        "delay_sec": 5.0
+      }
+    },
+    "TAXI_CLEARED": {
+      "on_airborne": {
+        "phases": ["CLIMB", "PATTERN", "FINAL_APPROACH", "CRUISE", "TAKEOFF_ROLL"],
+        "next_state": "IDLE",
+        "delay_sec": 5.0
+      }
+    },
+    "XC/EN_ROUTE": {
+      "on_ground": {
+        "phases": ["TAXI", "PARKED"],
+        "next_state": "IDLE",
+        "delay_sec": 3.0
+      }
+    }
+  },
+  "frequency_auto_corrections": {
+    "TAXI_CLEARED": {
+      "on_tower_freq": {
+        "frequencies": ["TOWER"],
+        "next_state": "TOWER_CONTACT",
+        "log": "pilot tuned Tower while taxi-cleared, advancing handoff"
+      }
+    },
+    "GROUND_CONTACT": {
+      "on_tower_freq": {
+        "frequencies": ["TOWER"],
+        "next_state": "TOWER_CONTACT",
+        "log": "pilot tuned Tower from GROUND_CONTACT, advancing"
+      }
+    }
+  },
+  "intent_frequency": {
+    "INITIAL_CALL_GROUND": {
+      "allowed": ["GROUND"],
+      "rejection": "{callsign}, contact Ground."
+    },
+    "REQUEST_TAXI": {
+      "allowed": ["GROUND"],
+      "rejection": "{callsign}, contact Ground for taxi."
+    },
+    "REQUEST_TAXI_PARKING": {
+      "allowed": ["GROUND"],
+      "rejection": "{callsign}, contact Ground for taxi to parking."
+    },
+    "INITIAL_CALL_TOWER": {
+      "allowed": ["TOWER"],
+      "rejection": "{callsign}, contact Tower."
+    },
+    "INITIAL_CALL_INBOUND": {
+      "allowed": ["TOWER"],
+      "rejection": "{callsign}, contact Tower for inbound."
+    },
+    "INITIAL_CALL_APPROACH": {
+      "allowed": ["APPROACH"],
+      "rejection": "{callsign}, contact Approach."
+    },
+    "REQUEST_FLIGHT_FOLLOWING": {
+      "allowed": ["APPROACH"],
+      "rejection": "{callsign}, contact Approach for flight following."
+    },
+    "READY_FOR_DEPARTURE": {
+      "allowed": ["TOWER", "GROUND"],
+      "rejection": "{callsign}, contact Tower when ready for departure."
+    },
+    "READY_FOR_DEPARTURE_VFR": {
+      "allowed": ["TOWER", "GROUND"],
+      "rejection": "{callsign}, contact Tower when ready for departure."
+    },
+    "REPORT_POSITION": {
+      "allowed": ["TOWER"],
+      "rejection": "{callsign}, contact Tower for position report."
+    },
+    "REPORT_POSITION_DOWNWIND": {
+      "allowed": ["TOWER"],
+      "rejection": "{callsign}, contact Tower for position report."
+    },
+    "REPORT_POSITION_BASE": {
+      "allowed": ["TOWER"],
+      "rejection": "{callsign}, contact Tower for position report."
+    },
+    "REPORT_POSITION_FINAL": {
+      "allowed": ["TOWER"],
+      "rejection": "{callsign}, contact Tower for position report."
+    },
+    "REQUEST_LANDING": {
+      "allowed": ["TOWER"],
+      "rejection": "{callsign}, contact Tower for landing."
+    },
+    "REQUEST_TOUCH_AND_GO": {
+      "allowed": ["TOWER"],
+      "rejection": "{callsign}, contact Tower for touch and go."
+    },
+    "GO_AROUND": {
+      "allowed": ["TOWER"],
+      "rejection": "{callsign}, contact Tower."
+    },
+    "RUNWAY_VACATED": {
+      "allowed": ["TOWER"],
+      "rejection": "{callsign}, contact Tower."
+    },
+    "READBACK": {
+      "allowed": ["GROUND", "TOWER", "APPROACH"],
+      "rejection": "{callsign}, unable."
+    },
+    "RADIO_CHECK": {
+      "allowed": ["GROUND", "TOWER"],
+      "rejection": "{callsign}, unable."
+    },
+    "SELF_ANNOUNCE": {
+      "allowed": ["UNICOM", "CTAF"],
+      "rejection": "{callsign}, self-announce is for CTAF only."
+    },
+    "REQUEST_FREQUENCY": {
+      "allowed": ["GROUND", "TOWER", "APPROACH"],
+      "rejection": "{callsign}, unable on this frequency."
+    },
+    "LEAVING_FREQUENCY": {
+      "allowed": ["TOWER", "APPROACH"],
+      "rejection": "{callsign}, unable on this frequency."
+    }
+  },
+  "pilot_phraseology": {
+    "INITIAL_CALL_GROUND": "{airport} {taxi_controller}, {callsign}{aircraft_type_phrase}, at the ramp with information {atis_letter}, ready to taxi",
+    "INITIAL_CALL_TOWER": "{airport} Tower, {callsign}{aircraft_type_phrase}, holding short runway {runway}, ready for takeoff",
+    "INITIAL_CALL_INBOUND": "{airport} Tower, {callsign}{aircraft_type_phrase}, (position) inbound, with information {atis_letter}",
+    "INITIAL_CALL_APPROACH": "{airport} Approach, {callsign}{aircraft_type_phrase}, (altitude), VFR, request flight following",
+    "REQUEST_TAXI": "{airport} {taxi_controller}, {callsign}, ramp, taxi to runway {runway}",
+    "REQUEST_TAXI_PARKING": "{airport} {taxi_controller}, {callsign}, clear of runway {runway}, taxi to the ramp",
+    "READY_FOR_DEPARTURE": "{airport} Tower, {callsign}, runway {runway}, ready for takeoff",
+    "READY_FOR_DEPARTURE_VFR": "{airport} Tower, {callsign}, runway {runway}, ready for takeoff, on course",
+    "REPORT_POSITION": "{airport} Tower, {callsign}, in the pattern runway {runway}",
+    "REPORT_POSITION_DOWNWIND": "{airport} Tower, {callsign}, midfield downwind runway {runway}",
+    "REPORT_POSITION_BASE": "{airport} Tower, {callsign}, turning base runway {runway}",
+    "REPORT_POSITION_FINAL": "{airport} Tower, {callsign}, final runway {runway}",
+    "REQUEST_LANDING": "{airport} Tower, {callsign}, request full stop landing",
+    "REQUEST_TOUCH_AND_GO": "{airport} Tower, {callsign}, request touch and go",
+    "REQUEST_FLIGHT_FOLLOWING": "(Center/Approach), {callsign}, (altitude), VFR to (destination), request flight following",
+    "GO_AROUND": "{callsign}, going around",
+    "RUNWAY_VACATED": "{airport} Tower, {callsign}, clear of runway {runway}",
+    "READBACK": "(read back the last ATC clearance)",
+    "RADIO_CHECK": "{airport}, {callsign}, radio check",
+    "SELF_ANNOUNCE": "{airport} traffic, {callsign}, (position and intentions), {airport}",
+    "LEAVING_FREQUENCY": "{callsign}, squawk 1200, good day"
+  },
+
+  "_state_machine_guards_comment": "See EU/flight_rules.json for the schema description. US uses the same allowlists today; can diverge later without C++ changes.",
+
+  "state_frequency_validity": {
+    "GROUND":   ["IDLE", "GROUND_CONTACT", "TAXI_CLEARED"],
+    "TOWER":    ["IDLE", "TAXI_CLEARED", "TOWER_CONTACT",
+                 "Pattern/DEPARTURE_CLEARED", "XC/DEPARTURE_CLEARED",
+                 "Pattern/PATTERN_ENTRY", "Pattern/LANDING_CLEARED",
+                 "Pattern/TOUCH_AND_GO_CLEARED", "XC/APPROACH_CONTACT"],
+    "APPROACH": ["IDLE", "XC/EN_ROUTE", "XC/APPROACH_CONTACT"]
+  },
+
+  "idle_redirects": [
+    {
+      "intent_in": ["REQUEST_TAXI", "REQUEST_TAXI_PARKING"],
+      "freq_type": "TOWER",
+      "unless_flag": "tower_only",
+      "response": "{callsign}, contact ground for taxi.",
+      "log": "REQUEST_TAXI on Tower freq -> redirect to ground"
+    },
+    {
+      "intent_in": ["READY_FOR_DEPARTURE", "READY_FOR_DEPARTURE_VFR"],
+      "freq_type": "GROUND",
+      "response": "{callsign}, contact tower when ready for departure.",
+      "log": "READY_FOR_DEPARTURE on Ground freq -> redirect to tower"
+    }
+  ],
+
+  "state_reverts": [
+    {
+      "on_intent_in": ["READY_FOR_DEPARTURE", "READY_FOR_DEPARTURE_VFR"],
+      "in_state": "Pattern/DEPARTURE_CLEARED",
+      "revert_to": "TOWER_CONTACT",
+      "reset_departure_type": true,
+      "log": "Re-clearance: reverting Pattern/DEPARTURE_CLEARED -> TOWER_CONTACT for re-evaluation"
+    },
+    {
+      "on_intent_in": ["READY_FOR_DEPARTURE", "READY_FOR_DEPARTURE_VFR"],
+      "in_state": "XC/DEPARTURE_CLEARED",
+      "revert_to": "TOWER_CONTACT",
+      "reset_departure_type": true,
+      "log": "Re-clearance: reverting XC/DEPARTURE_CLEARED -> TOWER_CONTACT for re-evaluation"
+    }
+  ],
+
+  "tower_only_auto_advance": {
+    "TAXI_CLEARED": "TOWER_CONTACT"
+  },
+
+  "frequency_hint": {
+    "ground_intents": ["INITIAL_CALL_GROUND", "REQUEST_TAXI", "REQUEST_TAXI_PARKING"],
+    "ground_response": "{callsign}, you are not on the correct frequency. Contact {airport} Ground on {ground_frequency}.",
+    "tower_response":  "{callsign}, you are not on the correct frequency. Contact {airport} Tower on {tower_frequency}."
+  }
+}

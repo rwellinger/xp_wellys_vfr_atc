@@ -1,0 +1,33 @@
+{
+  "_comment": "Bad case 18 — Nach Landing+Runway-Vacated bleibt der Pilot kurz auf dem Taxiway stehen (groundspeed=0 -> Phase=PARKED), wechselt auf Ground und fragt 'request taxi to parking'. Phase guard darf REQUEST_TAXI_PARKING in PARKED NICHT blocken (Pilot ist auf Taxiway, nicht am Gate). Schliesst auch ab: Parser muss REQUEST_TAXI_PARKING ueber RUNWAY_VACATED priorisieren, falls beide Phrasen vorkommen.",
+  "name": "Bad case 18 — Taxi to parking after landing + brief stop",
+  "region": "EU",
+  "context": {
+    "airport": "LSZG",
+    "airport_name": "Grenchen",
+    "towered": true,
+    "tower_only": false,
+    "on_ground": true,
+    "com": 120.100,
+    "freq_type": "TOWER",
+    "runway": "06",
+    "callsign": "Hotel Bravo Delta Sierra Victor"
+  },
+  "say": [
+    { "note": "Setup — Pilot ist gerade gelandet, runway vacated auf Tower",
+      "set": {"on_ground": true, "agl_ft": 0, "altitude_ft": 1400, "groundspeed_kt": 12} },
+    { "_state_setup": "Wir simulieren post-landing direkt: state ist IDLE wenn der Pilot auf Tower runway vacated meldet",
+      "text": "Grenchen Tower Hotel Bravo Delta Sierra Victor runway vacated",
+      "expect": "contact ground",
+      "expect_state": "IDLE" },
+    { "set": {"com": 121.800, "freq_type": "GROUND"} },
+    { "note": "Pilot bleibt kurz auf dem Taxiway stehen (groundspeed=0 -> PARKED)",
+      "set": {"groundspeed_kt": 0} },
+    { "note": "Auf Ground 'request taxi to parking' MUSS klappen (war frueher mit 'you are already at the parking position' rejected)",
+      "text": "Grenchen Ground Hotel Bravo Delta Sierra Victor at end of runway 06 request taxi to the parking",
+      "expect": "taxi to general aviation parking" },
+    { "note": "Parser-Prio: 'runway vacated, request taxi to the parking' soll als REQUEST_TAXI_PARKING verstanden werden (nicht als RUNWAY_VACATED).",
+      "text": "Grenchen Ground Hotel Bravo Delta Sierra Victor runway vacated request taxi to the parking",
+      "expect": "taxi to general aviation parking" }
+  ]
+}
