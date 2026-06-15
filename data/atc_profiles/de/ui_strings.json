@@ -164,8 +164,6 @@
   "settings.callsign_label": "Rufzeichen (Kennzeichen)",
   "settings.callsign_hint": "  (Kennzeichen eingeben, z. B. HB-WRO oder DEABC)",
   "settings.pattern_dir_label": "Platzrundenrichtung",
-  "settings.region_label": "Sprechfunk-Phraseologie",
-  "settings.region_feedback_format": "Phraseologie auf %s gewechselt - Templates neu geladen",
   "settings.start_mode_label": "Start-Modus",
   "settings.debug_log": "Debug-Logging",
   "settings.debug_text_input": "Debug: Texteingabe statt Mikrofon",
@@ -190,7 +188,6 @@
   "startmode.ready_takeoff": "Startbereit",
 
   "tooltip.backend": "Lokal: laeuft auf diesem Mac (Apple Silicon, ~2 GB Modelle).\nOpenAI Cloud: Audio + Transkripte werden an api.openai.com gesendet.\nUmschalten laedt die Inferenz-Pipeline neu.",
-  "tooltip.region": "EU/ICAO: ICAO Doc 4444 + EU 2020/469, QNH in hPa, VRP-basierte Anflugmeldungen.\nUS/FAA: FAA AIM / NAV-CANADA, Altimeter in inHg, CTAF-Selbstmeldung.\nDE/BZF: DACH-Phraseologie (DE/AT/CH) mit ziffernweiser Aussprache und BZF-Begriffen. Realistische Simulation, keine BZF-Pruefungsvorbereitung.\nUmschalten laedt Templates und Flugregeln neu.",
   "tooltip.start_mode": "Kalt und dunkel: stromloses Cockpit am Parkplatz.\nMotoren laufen: warmes Cockpit am Parkplatz, bereit fuer Ground-Anruf.\nStartbereit: am Haltepunkt, wartet auf Tower-Freigabe.\nGilt ab dem naechsten Sim-Start.",
   "tooltip.skip_radio_power": "Aktivieren, falls Ihr Luftfahrzeug den Funk-Strom nicht korrekt meldet.\nFunk-Tasten und PTT funktionieren ohne Bordstrom.",
   "tooltip.recovery": "Wenn Sie eine ATC-Meldung vergessen (z. B. 'Bahn frei' nach der Landung),\nsetzt das System sich nach dieser Zeit automatisch zurueck.\n\nAnfaenger: 50-60 Sek. (mehr Zeit zum Nachdenken)\nErfahrene: 15-20 Sek. (haelt den Fluss eng)",

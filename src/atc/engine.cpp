@@ -426,10 +426,8 @@ void process_transcript(Input in, Done done) {
     valid_list += v;
   }
 
-  const std::string prompt_key = (settings::backend_language() == "de")
-                                     ? "gpt_classify_prompt_de"
-                                     : "gpt_classify_prompt";
-  std::string sys_prompt = atc_templates::get_prompt(prompt_key);
+  // German-VFR-only build: always use the German classifier prompt.
+  std::string sys_prompt = atc_templates::get_prompt("gpt_classify_prompt_de");
   if (sys_prompt.empty()) {
     sys_prompt = "You are an ATC intent classifier. State: {state}. "
                  "Valid intents: {valid_intents}. Hint: {hint_intent}. "

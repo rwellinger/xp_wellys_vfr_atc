@@ -62,7 +62,8 @@ TEST_CASE("traffic_dialog: TRAFFIC_IN_SIGHT acks and clears state",
       build_msg(intent_parser::PilotIntent::TRAFFIC_IN_SIGHT, "in sight"), ctx);
   REQUIRE(reply.handled);
   REQUIRE(reply.acknowledged_with_visual);
-  REQUIRE(reply.text.find("maintain visual separation") != std::string::npos);
+  REQUIRE(reply.text.find("halten Sie visuelle Staffelung") !=
+          std::string::npos);
   REQUIRE_FALSE(traffic_dialog::is_awaiting_ack());
 }
 
@@ -87,8 +88,8 @@ TEST_CASE("traffic_dialog: NEGATIVE_CONTACT re-issues with refreshed geometry",
       ctx);
   REQUIRE(reply.handled);
   REQUIRE_FALSE(reply.acknowledged_with_visual);
-  REQUIRE(reply.text.find("traffic now 2 o'clock") != std::string::npos);
-  REQUIRE(reply.text.find("3 miles") != std::string::npos);
+  REQUIRE(reply.text.find("Verkehr jetzt 2 Uhr") != std::string::npos);
+  REQUIRE(reply.text.find("3 Meilen") != std::string::npos);
   REQUIRE_FALSE(traffic_dialog::is_awaiting_ack());
 
   // Reset shared snapshot so neighbouring tests don't see leakage.

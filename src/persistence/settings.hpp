@@ -32,11 +32,8 @@ void save();
 // Data directory path (plugin-relative <plugin>/data)
 std::string get_data_dir();
 
-// ATC-profile-scoped data directory
-// (e.g. <data>/atc_profiles/eu, <data>/atc_profiles/us,
-// <data>/atc_profiles/de). The ATC profile is a *user-selected ATC style to
-// train against*, not a geographic region — the pilot picks DE to train DACH
-// phraseology even when flying KSFO.
+// ATC-profile-scoped data directory. German-VFR-only build: always
+// <data>/atc_profiles/de (NfL DACH-VFR phraseology bundle).
 std::string atc_profile_data_dir();
 
 // Global, profile-independent VRP file path (<data>/vrps/airport_vrps.json).
@@ -61,18 +58,15 @@ bool skip_radio_power_check();
 bool show_phraseology_hints();
 float auto_correction_factor();
 
-// Active ATC training profile — "EU", "US" or "DE". Drives which
-// data/atc_profiles/<code>/*.json bundle is loaded (templates, intent
-// rules, phraseology hints, flight rules, UI strings) and therefore
-// which phraseology the controller speaks back. NOT tied to the
-// pilot's geographic location — a user flying KSFO with profile DE
-// gets German DACH-style phraseology by design.
+// Active ATC training profile. German-VFR-only build: always returns
+// "DE" (NfL DACH-VFR phraseology). Kept as a function for API
+// stability across the codebase.
 std::string atc_profile();
 
-// ISO-639-1 language code derived from atc_profile(). "DE" -> "de",
-// every other profile -> "en". Used by the OpenAI backends as the
-// Whisper `language` parameter and as the suffix that selects the
-// German variants of the LM prompts in atc_prompt_templates.json.
+// ISO-639-1 language code. German-VFR-only build: always "de". Used by
+// the cloud STT backends as the Whisper/Voxtral `language` parameter
+// and as the suffix that selects the German LM prompts in
+// atc_prompt_templates.json.
 std::string backend_language();
 // Cockpit start state assumed at plugin boot. Drives the initial
 // ATCState the state machine adopts. One of:
@@ -93,13 +87,12 @@ bool debug_traffic();
 // functional in parallel.
 bool debug_text_input();
 
-// BZF strict mode (DE profile only). When true, the tower performs
-// pilot-utterance conformance checks against NfL Sprechfunk 2024 §25 b)
-// Nr. 1 readback obligations (QNH, runway, frequency, squawk, callsign)
-// and surfaces missing elements via corrective tower responses
+// BZF strict mode. When true, the tower performs pilot-utterance
+// conformance checks against NfL Sprechfunk 2024 §25 b) Nr. 1 readback
+// obligations (QNH, runway, frequency, squawk, callsign) and surfaces
+// missing elements via corrective tower responses
 // (data/atc_profiles/de/atc_templates.json :: bzf_strict.*). Default
-// false — simulation mode stays tolerant. UI toggle only visible when
-// atc_profile() == "DE".
+// false — simulation mode stays tolerant.
 bool bzf_strict_mode();
 
 // Master switch for the traffic subsystem (Phase 2/3/4 advisories,
@@ -197,11 +190,10 @@ void set_skip_radio_power_check(bool v);
 void set_show_phraseology_hints(bool v);
 void set_auto_correction_factor(float v);
 
-// Set the ATC training profile. Writes BOTH the canonical "atc_profile"
-// key AND the legacy "flow_region" key into settings.json with the
-// same value, so a user who rolls back to a pre-rename plugin version
-// keeps their profile choice. The legacy key will be removed in a
-// later release once rollback is no longer plausible.
+// Set the ATC training profile. German-VFR-only build: there is exactly
+// one profile, so this always resolves to "DE" regardless of the
+// argument. Kept for API stability (tests and the headless REPL call
+// it).
 void set_atc_profile(const std::string &v);
 
 void set_debug_traffic(bool v);

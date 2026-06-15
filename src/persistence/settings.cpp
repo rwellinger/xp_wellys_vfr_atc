@@ -51,13 +51,11 @@ static json default_config() {
       {"skip_radio_power_check", false},
       {"show_phraseology_hints", true},
       {"auto_correction_factor", 1.0},
-      // atc_profile is the canonical key as of the region->atc-profile
-      // rename. flow_region is written in parallel with the same value
-      // for rollback safety (an older binary will read flow_region and
-      // keep the user's profile). Drop flow_region in a later release
-      // when nobody plausibly rolls back to a pre-rename binary.
-      {"atc_profile", "EU"},
-      {"flow_region", "EU"},
+      // German-VFR-only build: the ATC profile is hardwired to "DE"
+      // (NfL DACH-VFR phraseology). The key is kept so an existing
+      // settings.json stays schema-stable, but it has no other valid
+      // value.
+      {"atc_profile", "DE"},
       {"debug_traffic", false},
       {"debug_text_input", false},
       {"traffic_features_enabled", true},
@@ -84,10 +82,13 @@ static json default_config() {
       {"mistral_tts_voice_atis", "gb_oliver_neutral"},
       {"mistral_tts_voice_tower", "en_paul_confident"},
       {"mistral_tts_voice_ground", "en_paul_neutral"},
-      {"voice_atis", model_manifest::default_voice_for(VoiceRole::Atis)},
-      {"voice_tower", model_manifest::default_voice_for(VoiceRole::Tower)},
-      {"voice_ground", model_manifest::default_voice_for(VoiceRole::Ground)},
-      {"voice_center", model_manifest::default_voice_for(VoiceRole::Center)},
+      {"voice_atis", model_manifest::default_voice_for(VoiceRole::Atis, "de")},
+      {"voice_tower",
+       model_manifest::default_voice_for(VoiceRole::Tower, "de")},
+      {"voice_ground",
+       model_manifest::default_voice_for(VoiceRole::Ground, "de")},
+      {"voice_center",
+       model_manifest::default_voice_for(VoiceRole::Center, "de")},
       {"window_x", -1.0},
       {"window_y", -1.0},
       {"window_w", -1.0},
@@ -179,17 +180,16 @@ void init() {
     }
   }
 
-  // Migrate the pre-rename "flow_region" key into the canonical
-  // "atc_profile" key. We do NOT delete the legacy key here — leaving
-  // it in settings.json keeps an older plugin binary functional if the
-  // user rolls back. set_atc_profile() also writes both keys in
-  // parallel on every save.
+  // German-VFR-only build: drop any legacy "flow_region" mirror and
+  // force the profile to "DE". A settings.json carried over from a
+  // multi-profile build (EU/US) is normalised here on first load.
   if (cfg.contains("flow_region")) {
-    const std::string fr = cfg.value("flow_region", std::string("EU"));
-    if (!cfg.contains("atc_profile")) {
-      cfg["atc_profile"] = fr;
-      needs_save = true;
-    }
+    cfg.erase("flow_region");
+    needs_save = true;
+  }
+  if (cfg.value("atc_profile", std::string{}) != "DE") {
+    cfg["atc_profile"] = "DE";
+    needs_save = true;
   }
 
   // Mistral-default bump (v3.1): users on the previous hardcoded
@@ -217,14 +217,9 @@ void stop() {}
 std::string get_data_dir() { return data_dir_path; }
 
 std::string atc_profile_data_dir() {
-  std::string profile = atc_profile();
-  std::string lower;
-  lower.reserve(profile.size());
-  for (char c : profile)
-    lower += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-  if (lower != "eu" && lower != "us" && lower != "de")
-    lower = "eu";
-  return data_dir_path + "/atc_profiles/" + lower;
+  // German-VFR-only build: the single shipped profile bundle lives in
+  // data/atc_profiles/de.
+  return data_dir_path + "/atc_profiles/de";
 }
 
 std::string vrps_data_path() {
@@ -264,9 +259,7 @@ std::string pilot_callsign() {
   std::string raw = cfg.value("pilot_callsign_raw", std::string(""));
   if (raw.empty())
     return cfg.value("pilot_callsign", std::string(""));
-  if (atc_profile() == "DE")
-    return de_phraseology::expand_callsign_phonetic(raw);
-  return to_icao_phonetic(raw);
+  return de_phraseology::expand_callsign_phonetic(raw);
 }
 int active_com() { return cfg.value("active_com", 1); }
 float volume() { return cfg.value("volume", 1.0f); }
@@ -285,23 +278,10 @@ float auto_correction_factor() {
   return cfg.value("auto_correction_factor", 1.0f);
 }
 std::string atc_profile() {
-  // Prefer the canonical key. Fall back to the legacy "flow_region"
-  // key so an older settings.json (pre-rename) still resolves until
-  // the next save normalises both keys via set_atc_profile().
-  std::string v = cfg.value("atc_profile", std::string{});
-  if (v.empty())
-    v = cfg.value("flow_region", std::string("EU"));
-  if (v == "eu")
-    v = "EU";
-  else if (v == "us")
-    v = "US";
-  else if (v == "de")
-    v = "DE";
-  if (v != "EU" && v != "US" && v != "DE")
-    v = "EU";
-  return v;
+  // German-VFR-only build: the ATC profile is hardwired to "DE".
+  return "DE";
 }
-std::string backend_language() { return atc_profile() == "DE" ? "de" : "en"; }
+std::string backend_language() { return "de"; }
 bool debug_traffic() { return cfg.value("debug_traffic", false); }
 bool debug_text_input() { return cfg.value("debug_text_input", false); }
 bool bzf_strict_mode() { return cfg.value("bzf_strict_mode", false); }
@@ -398,7 +378,7 @@ std::string to_icao_phonetic(const std::string &raw) {
 
 void set_pilot_callsign_raw(const std::string &raw) {
   cfg["pilot_callsign_raw"] = raw;
-  cfg["pilot_callsign"] = to_icao_phonetic(raw);
+  cfg["pilot_callsign"] = de_phraseology::expand_callsign_phonetic(raw);
 }
 void set_volume(float v) { cfg["volume"] = v; }
 void set_debug_logging(bool v) { cfg["debug_logging"] = v; }
@@ -416,25 +396,12 @@ void set_auto_correction_factor(float v) {
     v = 2.0f;
   cfg["auto_correction_factor"] = v;
 }
-// Forward declaration — defined alongside voice_for_role() below.
-static void migrate_voices_for_language();
-
 void set_atc_profile(const std::string &v) {
-  std::string prev_lang = backend_language();
-  std::string normalized;
-  if (v == "US" || v == "us")
-    normalized = "US";
-  else if (v == "DE" || v == "de")
-    normalized = "DE";
-  else
-    normalized = "EU";
-  // Write BOTH the canonical key AND the legacy mirror so a user who
-  // rolls back to a pre-rename plugin binary still finds their profile
-  // under "flow_region". Remove the legacy mirror in a later release.
-  cfg["atc_profile"] = normalized;
-  cfg["flow_region"] = normalized;
-  if (backend_language() != prev_lang)
-    migrate_voices_for_language();
+  // German-VFR-only build: there is exactly one profile. The setter is
+  // kept for API stability (tests and the headless REPL toggle it), but
+  // it always resolves to "DE".
+  (void)v;
+  cfg["atc_profile"] = "DE";
 }
 void set_debug_traffic(bool v) { cfg["debug_traffic"] = v; }
 void set_debug_text_input(bool v) { cfg["debug_text_input"] = v; }
@@ -647,21 +614,6 @@ void set_voice_for_role(model_manifest::VoiceRole role,
   if (!voice_id_is_known(voice_id))
     return;
   cfg[voice_key(role)] = voice_id;
-}
-
-// Rewrite voice_atis/tower/ground/center to a language-matched default
-// when the active backend language no longer matches what is stored.
-// Called from set_atc_profile() on a real profile change. Keeps cfg in
-// sync with the runtime so the UI dropdown and the loader read the
-// same voice id.
-static void migrate_voices_for_language() {
-  const std::string lang = backend_language();
-  for (auto role : model_manifest::all_roles()) {
-    const std::string cur = cfg.value(voice_key(role), std::string{});
-    if (cur.empty() || model_manifest::voice_language(cur) != lang) {
-      cfg[voice_key(role)] = model_manifest::default_voice_for(role, lang);
-    }
-  }
 }
 
 float window_x() { return cfg.value("window_x", -1.0f); }

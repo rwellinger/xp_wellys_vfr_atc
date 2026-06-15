@@ -267,21 +267,7 @@ install:
 	@# happens via Settings, not by hand-editing this file.
 	@cp data/models_catalog.json "$(PLUGIN_DIR)/data/"
 	@echo "Installed: $(PLUGIN_DIR)/data/models_catalog.json"
-	@mkdir -p "$(PLUGIN_DIR)/data/atc_profiles/eu" \
-	          "$(PLUGIN_DIR)/data/atc_profiles/us" \
-	          "$(PLUGIN_DIR)/data/atc_profiles/de"
-	@cp data/atc_profiles/eu/atc_templates.json     "$(PLUGIN_DIR)/data/atc_profiles/eu/"
-	@cp data/atc_profiles/eu/flight_rules.json      "$(PLUGIN_DIR)/data/atc_profiles/eu/"
-	@cp data/atc_profiles/eu/intent_rules.json      "$(PLUGIN_DIR)/data/atc_profiles/eu/"
-	@cp data/atc_profiles/eu/phraseology_hints.json "$(PLUGIN_DIR)/data/atc_profiles/eu/"
-	@cp data/atc_profiles/eu/ui_strings.json        "$(PLUGIN_DIR)/data/atc_profiles/eu/"
-	@echo "Installed: $(PLUGIN_DIR)/data/atc_profiles/eu/*.json"
-	@cp data/atc_profiles/us/atc_templates.json     "$(PLUGIN_DIR)/data/atc_profiles/us/"
-	@cp data/atc_profiles/us/flight_rules.json      "$(PLUGIN_DIR)/data/atc_profiles/us/"
-	@cp data/atc_profiles/us/intent_rules.json      "$(PLUGIN_DIR)/data/atc_profiles/us/"
-	@cp data/atc_profiles/us/phraseology_hints.json "$(PLUGIN_DIR)/data/atc_profiles/us/"
-	@cp data/atc_profiles/us/ui_strings.json        "$(PLUGIN_DIR)/data/atc_profiles/us/"
-	@echo "Installed: $(PLUGIN_DIR)/data/atc_profiles/us/*.json"
+	@mkdir -p "$(PLUGIN_DIR)/data/atc_profiles/de"
 	@cp data/atc_profiles/de/atc_templates.json     "$(PLUGIN_DIR)/data/atc_profiles/de/"
 	@cp data/atc_profiles/de/flight_rules.json      "$(PLUGIN_DIR)/data/atc_profiles/de/"
 	@cp data/atc_profiles/de/intent_rules.json      "$(PLUGIN_DIR)/data/atc_profiles/de/"

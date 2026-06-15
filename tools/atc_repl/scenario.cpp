@@ -138,12 +138,14 @@ Scenario load(const std::string &path) {
   Scenario scn;
   scn.name = j.value("name", basename_no_ext(path));
   {
-    std::string r = j.value("region", std::string{"EU"});
+    std::string r = j.value("region", std::string{"DE"});
     std::string up;
     for (char c : r)
       up += (c >= 'a' && c <= 'z') ? static_cast<char>(c - 'a' + 'A') : c;
-    if (up != "EU" && up != "US" && up != "DE") {
-      throw std::runtime_error("region must be \"EU\", \"US\" or \"DE\": " + r);
+    // German-VFR-only build: "DE" is the only valid profile.
+    if (up != "DE") {
+      throw std::runtime_error(
+          "region must be \"DE\" (German-VFR-only build): " + r);
     }
     scn.region = up;
   }
@@ -310,17 +312,13 @@ Scenario load(const std::string &path) {
 // ── Runner ─────────────────────────────────────────────────────────
 
 RunResult run(const Scenario &scn) {
-  // Apply scenario-level region override *before* loading CLI context.
-  // reload() re-reads data/atc_profiles/<region>/{atc_templates,flight_rules}.json.
-  const std::string region = scn.region.empty() ? "EU" : scn.region;
+  // German-VFR-only build: the single profile is always "DE".
+  // reload() re-reads data/atc_profiles/de/{atc_templates,flight_rules}.json.
+  const std::string region = scn.region.empty() ? "DE" : scn.region;
   settings::set_atc_profile(region);
   atc_templates::reload();
   flight_phase::reload();
   airport_vrps::reload();
-  // intent_rules caches its DE/EU/US table on first parse(); without an
-  // explicit reload here, a DE scenario after an EU scenario would
-  // still classify against the EU rule table and German phraseology
-  // (abflugbereit / Piste / Rollhalt) would land on UNKNOWN.
   intent_rules::reload();
 
   // Scenario callsign drives intent_parser::matches_configured_callsign —

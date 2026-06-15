@@ -1,385 +1,388 @@
-# Welly's ATC — AI Voice ATC for X-Plane 12
+# Welly's ATC — KI-Sprechfunk-ATC für X-Plane 12
 
-![Welly's ATC panel with ATIS broadcast at LSZB Bern-Belp](images/atc-atis-example.jpg)
+![Welly's ATC Panel mit ATIS-Ansage in LSZB Bern-Belp](images/atc-atis-example.jpg)
 
-> **Triple-backend X-Plane 12 ATC plugin: local inference, OpenAI Cloud, or Mistral Cloud — your choice.**
+> **Deutschland-VFR-ATC-Plugin für X-Plane 12 mit drei Backends: lokale Inferenz, OpenAI Cloud oder Mistral Cloud — deine Wahl.**
 >
-> - **Local (Apple Silicon, default)** — `whisper.cpp` (Metal) + `llama.cpp`
->   (Metal) + Piper TTS, fully offline once the models are downloaded.
->   No daemons, no helper apps, no API keys.
-> - **OpenAI Cloud (any Mac)** — Whisper API + Chat Completions +
->   TTS API. Bring your own API key (stored in the macOS Keychain).
-> - **Mistral Cloud (any Mac)** — Voxtral STT + Mistral Chat
->   Completions + Voxtral TTS. Bring your own API key (separate
->   Keychain entry so OpenAI and Mistral keys coexist). Cheaper per
->   token than OpenAI; the only mode where ATIS speaks German natively
->   without a US accent (Voxtral TTS is multilingual).
+> Das Plugin modelliert ausschliesslich **deutsche VFR-Phraseologie** nach
+> NfL Sprechfunk 2024 (DACH-VFR), mit optionalem **BZF-Strict-Mode**.
 >
-> The plugin ships as a **universal binary**: the arm64 slice carries
-> all three backends, the x86_64 slice is cloud-only (OpenAI or
-> Mistral). The user picks the mode at runtime in Settings.
+> - **Local (Apple Silicon, Standard)** — `whisper.cpp` (Metal) + `llama.cpp`
+>   (Metal) + Piper TTS, nach dem Modell-Download vollständig offline.
+>   Keine Daemons, keine Hilfs-Apps, keine API-Keys.
+> - **OpenAI Cloud (jeder Mac)** — Whisper API + Chat Completions +
+>   TTS API. Eigener API-Key (im macOS Keychain gespeichert).
+> - **Mistral Cloud (jeder Mac)** — Voxtral STT + Mistral Chat
+>   Completions + Voxtral TTS. Eigener API-Key (separater
+>   Keychain-Eintrag, sodass OpenAI- und Mistral-Key koexistieren).
+>   Pro Token günstiger als OpenAI; der einzige Cloud-Modus, in dem die
+>   ATIS Deutsch ohne US-Akzent spricht (Voxtral TTS ist multilingual).
 >
-> The spike-phase architecture and per-backend measurements are archived in
-> [`docs/architecture-analysis.md`](docs/architecture-analysis.md) and
-> [`spikes/spike_e2e/RESULTS.md`](spikes/spike_e2e/RESULTS.md).
+> Das Plugin wird als **Universal Binary** ausgeliefert: der arm64-Slice
+> trägt alle drei Backends, der x86_64-Slice ist Cloud-only (OpenAI oder
+> Mistral). Den Modus wählst du zur Laufzeit in den Einstellungen.
 >
-> **Measured pipeline latency** (warm, M4, local inference, end-to-end spike):
-> STT 321 ms · LM 634 ms · TTS 200 ms · **total ≈ 1.16 s per request** —
-> well under the 3 s acceptance target with > 1.8 s of headroom for the
-> M4-vs-M1 generational gap and the plugin's main-thread / Core Audio
-> overhead. Cloud modes (OpenAI / Mistral) are typically slower: 2–3 s
-> warm round-trip dominated by API latency. M1 local re-validation:
-> pending real-flight smoke test.
+> **Gemessene Pipeline-Latenz** (warm, M4, lokale Inferenz, End-to-End-Spike):
+> STT 321 ms · LM 634 ms · TTS 200 ms · **gesamt ≈ 1,16 s pro Anfrage** —
+> deutlich unter dem 3-s-Akzeptanzziel. Die Cloud-Modi (OpenAI / Mistral)
+> sind typischerweise langsamer: 2–3 s warm, dominiert von der API-Latenz.
 
 ---
 
-AI-powered ATC voice communication plugin for X-Plane 12 VFR flights.
+KI-gestütztes Sprechfunk-ATC-Plugin für VFR-Flüge in X-Plane 12.
 
-Talk to ATC using your microphone via push-to-talk. The plugin
-transcribes your speech (locally with whisper.cpp, via the OpenAI
-Whisper API, or via Mistral's Voxtral STT — your pick), interprets
-your intent through a rule-based ATC state machine — with a
-low-confidence fallback to a local Llama 3.2 3B classifier, OpenAI's
-`gpt-4o-mini`, or Mistral Small, again your pick — and plays back ATC
-responses synthesised locally with Piper or via OpenAI's / Mistral's
-TTS API.
+Sprich per Push-to-Talk über dein Mikrofon mit dem ATC. Das Plugin
+transkribiert deine Sprache (lokal mit whisper.cpp, über die OpenAI
+Whisper API oder über Mistrals Voxtral STT — deine Wahl), interpretiert
+deine Absicht über eine regelbasierte ATC-State-Machine — mit einem
+Fallback bei geringer Konfidenz auf einen lokalen Llama-3.2-3B-Classifier,
+OpenAIs `gpt-4o-mini` oder Mistral Small — und spielt die ATC-Antworten
+zurück, lokal mit Piper synthetisiert oder über die TTS-API von OpenAI /
+Mistral.
 
-## Table of Contents
+## Inhaltsverzeichnis
 
-- [Features](#features)
-- [Hardware Requirements](#hardware-requirements)
-- [Software Requirements](#software-requirements)
-- [Quick Start](#quick-start-pre-built-release)
-- [Backend Modes](#backend-modes)
-- [Radio glitch recovery (TTS-failure guard)](#radio-glitch-recovery-tts-failure-guard)
-- [Build From Source](#build-from-source)
-- [Local Inference Models](#local-inference-models)
-- [Configuration](#configuration)
-- [Usage](#usage)
-- [Make Targets](#make-targets)
-- [Known Limitations](#known-limitations)
+- [Funktionen](#funktionen)
+- [Hardware-Anforderungen](#hardware-anforderungen)
+- [Software-Anforderungen](#software-anforderungen)
+- [Schnellstart](#schnellstart-vorgefertigtes-release)
+- [Backend-Modi](#backend-modi)
+- [Funkstörungs-Wiederherstellung (TTS-Fehler-Schutz)](#funkstörungs-wiederherstellung-tts-fehler-schutz)
+- [Aus Quellcode bauen](#aus-quellcode-bauen)
+- [Lokale Inferenz-Modelle](#lokale-inferenz-modelle)
+- [Konfiguration](#konfiguration)
+- [Benutzung](#benutzung)
+- [Make-Targets](#make-targets)
+- [Bekannte Einschränkungen](#bekannte-einschränkungen)
 - [FAQ](#faq)
-- [Project Structure](#project-structure)
-- [Third-Party Dependencies](#third-party-dependencies)
-- [Development Workflow](#development-workflow)
-- [License](#license)
+- [Projektstruktur](#projektstruktur)
+- [Drittanbieter-Abhängigkeiten](#drittanbieter-abhängigkeiten)
+- [Entwicklungs-Workflow](#entwicklungs-workflow)
+- [Lizenz](#lizenz)
 
-## Features
+## Funktionen
 
-- **Push-to-Talk** — bound via X-Plane command binding (keyboard or joystick)
-- **Triple-backend inference** — pick **Local** (Apple Silicon only),
-  **OpenAI Cloud**, or **Mistral Cloud** (both any Mac, BYO API key)
-  in the Settings tab. Switch at runtime, no plugin restart. Every
-  inference call is tagged with `[STT-LOCAL]` / `[STT-OPENAI]` /
-  `[STT-MISTRAL]` (and equivalent for LM/TTS) in X-Plane's `Log.txt`
-  so you can audit which side served each request.
-- **Local Speech-to-Text** — `whisper.cpp` `small.en-q5_1`, Metal-accelerated
-- **Local LLM** — `llama.cpp` running Llama 3.2 3B Instruct (Q4_K_M),
-  Metal-accelerated; used for intent disambiguation when the rule-based
-  parser is uncertain. Repair output is digit-validated to suppress
-  hallucinated runways or frequencies.
-- **Local Text-to-Speech** — Piper, neutral US accent (`en_US-lessac-medium`),
-  CPU + onnxruntime
-- **OpenAI Cloud option** — `whisper-1` for STT, `gpt-4o-mini` for the
-  intent classifier (JSON-mode for constrained output), `tts-1` with
-  six selectable voices (`alloy/echo/fable/onyx/nova/shimmer`; `onyx`
-  is closest to real ATC). Key stored in the macOS Keychain via
-  `Security.framework`, never in `settings.json`, never logged in full
-  (only the last 4 characters appear in audit lines).
-- **Mistral Cloud option** — `voxtral-mini-2507` for STT (with
-  `context_bias[]` airport biasing), `mistral-small-latest` for the
-  intent classifier (JSON-mode), `voxtral-mini-tts-2603` with 30
-  preset voices across British, American and French speakers in 7-9
-  emotional registers (default per role: `gb_oliver_neutral` for ATIS,
-  `en_paul_confident` for Tower, `en_paul_neutral` for Ground —
-  British neutral reads closest to ICAO broadcast cadence). Separate
-  Keychain entry so the OpenAI and Mistral keys coexist; switching
-  modes never requires re-pasting.
-- **ATC State Machine** — VFR phraseology for towered and non-towered airports
-- **Flight Phase Detection** — context-aware guards prevent unrealistic ATC
-  interactions based on aircraft state (parked, taxi, airborne, etc.)
-- **Live Traffic Awareness (v2.1) + Landing Sequencing (v2.2)** —
-  provider-agnostic `sim/cockpit2/tcas/targets/...` reader feeding a
-  2 Hz `TrafficContext` snapshot. EU-phraseology en-route advisories
-  with voice acknowledgement (`"Traffic in sight"` / `"Negative
-  contact"` / `"Looking"`) on a side-channel that does not interfere
-  with the main ATC flow. **v2.2 adds VFR landing sequencing** —
-  *"number N, follow the [type] on left base, cleared to land runway X"*
-  when other traffic is on Final or Pattern, *"continue approach,
-  traffic on the runway"* when the active runway is blocked, and an
-  unsolicited Tower-issued go-around within 1 NM of the threshold when
-  the runway stays occupied. Master switch `traffic_features_enabled`
-  in Settings turns the whole subsystem off in one click.
-- **ATIS Generation** — automatic ATIS broadcasts from live sim weather
-  data, on COM1 *or* COM2 (active or standby). Aborts mid-broadcast if
-  the pilot retunes the COM that's playing.
-- **Radio discipline coaching** — ATC issues a polite reminder when the pilot
-  uses inappropriate language, escalating on repeats
-- **Phraseology Hints** — context-aware cheat sheet with full ICAO phraseology
-  on hover
-- **Cross-Country Support** — full VFR departure, en-route frequency change,
-  and inbound flow between airports. Approach controller proactively
-  hands off to Tower with the destination frequency.
-- **Aircraft registration display** — pilot callsign linked to the
-  cockpit's actual tail number read from X-Plane
-- **"Disregard" recovery** — flow-aware reset (PATTERN_ENTRY when
-  airborne near the home airport, EN_ROUTE in transit, IDLE on the
-  ground)
-- **TTS-failure recovery (radio glitch guard)** — when speech synthesis
-  or playback fails (OpenAI timeout, dropped network, Piper IO error),
-  the plugin does not strand the pilot in a state the tower never
-  actually announced. A snapshot of the ATC state machine is taken
-  before each pilot transmission; on failure the plugin plays a short
-  in-process squelch burst on the active COM and either rolls the
-  state back ("re-issue your call") or — if an auto-correction has
-  moved things on in the meantime — keeps the unsent clearance
-  accessible via `REQUEST_REPEAT` ("Wiederholen Sie" / "Say again").
-  See [Radio glitch recovery](#radio-glitch-recovery-tts-failure-guard).
-- **Radio Power Awareness** — ATC panel disables when COM radio has no
-  electrical power, with optional bypass for exotic aircraft
-- **In-plugin model downloader** — first launch surfaces an ImGui dialog,
-  HTTPS-resumable downloads from HuggingFace, SHA256-verified before use
-- **ImGui UI** — in-sim ATC panel with frequency management, phraseology
-  hints, transcript history, a Models tab for download / re-verify, and
-  an optional Traffic tab (debug) listing the 10 nearest aircraft
+- **Push-to-Talk** — über X-Plane-Befehlsbindung (Tastatur oder Joystick)
+- **Drei-Backend-Inferenz** — wähle **Local** (nur Apple Silicon),
+  **OpenAI Cloud** oder **Mistral Cloud** (beide auf jedem Mac, eigener
+  API-Key) im Einstellungs-Tab. Umschaltung zur Laufzeit, kein
+  Plugin-Neustart. Jeder Inferenz-Aufruf wird in der `Log.txt` von
+  X-Plane mit `[STT-LOCAL]` / `[STT-OPENAI]` / `[STT-MISTRAL]` (und
+  entsprechend für LM/TTS) getaggt, sodass du nachvollziehen kannst,
+  welche Seite jede Anfrage bedient hat.
+- **Lokales Speech-to-Text** — `whisper.cpp` `small-q5_1` (multilingual,
+  Deutsch), Metal-beschleunigt
+- **Lokales LLM** — `llama.cpp` mit Llama 3.2 3B Instruct (Q4_K_M),
+  Metal-beschleunigt; dient zur Absichts-Disambiguierung, wenn der
+  regelbasierte Parser unsicher ist. Die Reparatur-Ausgabe wird
+  ziffernvalidiert, um halluzinierte Pisten oder Frequenzen zu
+  unterdrücken.
+- **Lokales Text-to-Speech** — Piper, deutsche Stimme
+  (`de_DE-thorsten-medium`), CPU + onnxruntime
+- **OpenAI-Cloud-Option** — `whisper-1` für STT, `gpt-4o-mini` für den
+  Absichts-Classifier (JSON-Modus für eingeschränkte Ausgabe), `tts-1`
+  mit sechs wählbaren Stimmen (`alloy/echo/fable/onyx/nova/shimmer`;
+  `onyx` kommt echtem ATC am nächsten). Key im macOS Keychain über
+  `Security.framework`, nie in `settings.json`, nie vollständig
+  geloggt (nur die letzten 4 Zeichen erscheinen in Audit-Zeilen).
+- **Mistral-Cloud-Option** — `voxtral-mini-2507` für STT (mit
+  `context_bias[]` Flugplatz-Biasing), `mistral-small-latest` für den
+  Absichts-Classifier (JSON-Modus), `voxtral-mini-tts-2603` mit 30
+  Preset-Stimmen britischer, amerikanischer und französischer Sprecher
+  in 7–9 emotionalen Registern (Standard je Rolle: `gb_oliver_neutral`
+  für ATIS, `en_paul_confident` für Tower, `en_paul_neutral` für
+  Ground). Voxtral TTS ist multilingual und spricht Deutsch ohne
+  US-Akzent. Separater Keychain-Eintrag, sodass OpenAI- und
+  Mistral-Key koexistieren; ein Moduswechsel erfordert nie erneutes
+  Einfügen.
+- **ATC-State-Machine** — VFR-Phraseologie für kontrollierte und
+  unkontrollierte Flugplätze
+- **Flugphasen-Erkennung** — kontextbewusste Guards verhindern
+  unrealistische ATC-Interaktionen je nach Flugzeugzustand (geparkt,
+  Rollen, in der Luft usw.)
+- **Live-Verkehrserkennung (v2.1) + Lande-Sequenzierung (v2.2)** —
+  Provider-unabhängiger `sim/cockpit2/tcas/targets/...`-Reader, der
+  einen 2-Hz-`TrafficContext`-Snapshot speist. Verkehrshinweise mit
+  Sprachbestätigung („in Sicht" / „negativ" / „Ausschau") auf einem
+  Seitenkanal, der den ATC-Hauptablauf nicht stört. **v2.2 ergänzt
+  VFR-Lande-Sequenzierung** — Folgenummer und „folgen Sie dem Verkehr"
+  wenn anderer Verkehr im Endteil oder in der Platzrunde ist, „setzen
+  Sie den Anflug fort, Verkehr auf der Piste" wenn die aktive Piste
+  blockiert ist, und ein unaufgeforderter, vom Tower angewiesener
+  Durchstart innerhalb von 1 NM zur Schwelle, wenn die Piste belegt
+  bleibt. Der Hauptschalter `traffic_features_enabled` in den
+  Einstellungen deaktiviert das ganze Subsystem mit einem Klick.
+- **ATIS-Generierung** — automatische ATIS-Ansagen aus Live-Wetterdaten
+  des Sims, auf COM1 *oder* COM2 (aktiv oder Standby). Bricht die
+  laufende Ansage ab, wenn der Pilot die spielende COM umstimmt.
+- **Funkdisziplin-Coaching** — ATC erinnert höflich, wenn der Pilot
+  unangemessene Sprache verwendet, mit Eskalation bei Wiederholung
+- **Phraseologie-Hinweise** — kontextbewusster Spickzettel mit voller
+  Phraseologie beim Überfahren
+- **Cross-Country-Unterstützung** — vollständiger VFR-Abflug,
+  En-route-Frequenzwechsel und Anflug-Ablauf zwischen Flugplätzen. Der
+  Anflug-Lotse übergibt proaktiv mit der Zielfrequenz an den Tower.
+- **Anzeige des Luftfahrzeugkennzeichens** — Piloten-Rufzeichen mit dem
+  tatsächlichen, aus X-Plane gelesenen Kennzeichen verknüpft
+- **„Disregard"-Wiederherstellung** — ablaufbewusstes Zurücksetzen
+  (PATTERN_ENTRY in der Luft nahe dem Heimatplatz, EN_ROUTE im Transit,
+  IDLE am Boden)
+- **TTS-Fehler-Wiederherstellung (Funkstörungs-Schutz)** — wenn
+  Sprachsynthese oder Wiedergabe scheitert (OpenAI-Timeout,
+  Netzabbruch, Piper-IO-Fehler), strandet das Plugin den Piloten nicht
+  in einem Zustand, den der Tower nie angesagt hat. Vor jeder
+  Pilotenübertragung wird ein Snapshot der ATC-State-Machine erstellt;
+  bei einem Fehler spielt das Plugin einen kurzen Squelch-Burst auf der
+  aktiven COM und setzt entweder den Zustand zurück („Funkspruch
+  wiederholen") oder — falls inzwischen eine Auto-Korrektur weitergelaufen
+  ist — hält die ungesendete Freigabe über `REQUEST_REPEAT`
+  („Wiederholen Sie") erreichbar. Siehe
+  [Funkstörungs-Wiederherstellung](#funkstörungs-wiederherstellung-tts-fehler-schutz).
+- **Funkstrom-Erkennung** — das ATC-Panel deaktiviert sich, wenn das
+  COM-Funkgerät keinen Strom hat, mit optionalem Bypass für exotische
+  Flugzeuge
+- **Plugin-interner Modell-Downloader** — der erste Start zeigt einen
+  ImGui-Dialog, HTTPS-fortsetzbare Downloads von HuggingFace,
+  SHA256-verifiziert vor der Nutzung
+- **ImGui-UI** — In-Sim-ATC-Panel mit Frequenzverwaltung,
+  Phraseologie-Hinweisen, Transkript-Historie, einem Models-Tab für
+  Download / Neuverifizierung und einem optionalen Traffic-Tab (Debug),
+  der die 10 nächsten Flugzeuge auflistet
 
-## Hardware Requirements
+## Hardware-Anforderungen
 
-The plugin ships as a **universal binary** — one `.xpl`, two slices.
-X-Plane automatically loads whichever matches the host.
+Das Plugin wird als **Universal Binary** ausgeliefert — ein `.xpl`, zwei
+Slices. X-Plane lädt automatisch den passenden.
 
-| Mac | Slice loaded | Backends available |
+| Mac | Geladener Slice | Verfügbare Backends |
 |---|---|---|
-| Apple Silicon (M1 / M2 / M3 / M4) | `arm64` | **Local**, **OpenAI Cloud**, *or* **Mistral Cloud** |
-| Intel (x86_64) | `x86_64` | **Cloud only** — **OpenAI** or **Mistral** (local inference needs Metal + Apple Silicon) |
+| Apple Silicon (M1 / M2 / M3 / M4) | `arm64` | **Local**, **OpenAI Cloud** *oder* **Mistral Cloud** |
+| Intel (x86_64) | `x86_64` | **Nur Cloud** — **OpenAI** oder **Mistral** (lokale Inferenz braucht Metal + Apple Silicon) |
 
-| Resource | Local mode | OpenAI / Mistral Cloud mode |
+| Ressource | Local-Modus | OpenAI- / Mistral-Cloud-Modus |
 |---|---|---|
-| RAM | 32 GB recommended (X-Plane 12 + ~3 GB headroom for the inference stack) | 16 GB (no model in RAM — calls are stateless HTTP requests) |
-| Disk | ~2.5 GB free for the bundled models | ~50 MB for the plugin bundle (no models downloaded) |
-| GPU | Any Metal-capable GPU on the same Apple Silicon chip | not used |
-| Network | not used at runtime (one-time model download from HuggingFace) | required — every PTT release triggers HTTPS calls to `api.openai.com` or `api.mistral.ai` |
+| RAM | 32 GB empfohlen (X-Plane 12 + ~3 GB Reserve für den Inferenz-Stack) | 16 GB (kein Modell im RAM — Aufrufe sind zustandslose HTTP-Requests) |
+| Disk | ~2,5 GB frei für die Modelle | ~50 MB für das Plugin-Bundle (keine Modelle geladen) |
+| GPU | jede Metal-fähige GPU auf demselben Apple-Silicon-Chip | nicht genutzt |
+| Netzwerk | zur Laufzeit nicht genutzt (einmaliger Modell-Download von HuggingFace) | erforderlich — jeder PTT-Release löst HTTPS-Aufrufe an `api.openai.com` oder `api.mistral.ai` aus |
 
-Both cloud modes cost money per request (STT + LM + TTS APIs).
-Mistral is typically cheaper per token than OpenAI (`mistral-small`
-≈ 33 % cheaper input / 50 % cheaper output than `gpt-4o-mini`). STT
-and TTS are roughly at price parity. Latency for both clouds is
-typically 2–3 s warm vs. 1–1.5 s warm for local inference. Plan
-accordingly.
+Beide Cloud-Modi kosten Geld pro Anfrage (STT- + LM- + TTS-APIs).
+Mistral ist pro Token typischerweise günstiger als OpenAI
+(`mistral-small` ≈ 33 % günstigerer Input / 50 % günstigerer Output als
+`gpt-4o-mini`). STT und TTS liegen etwa auf Preisparität. Die Latenz
+beider Clouds liegt typischerweise bei 2–3 s warm vs. 1–1,5 s warm bei
+lokaler Inferenz.
 
-## Software Requirements
+## Software-Anforderungen
 
-| Item | Requirement |
+| Punkt | Anforderung |
 |---|---|
-| macOS | **13.3 or later** (onnxruntime 1.22.0 requires this on the arm64 slice; the x86_64 slice inherits the same deployment target so the lipo'd binary stays consistent) |
-| X-Plane | X-Plane 12 (12.0 or later) |
-| OpenAI / Mistral account | Only if you want to use a cloud mode — needs an API key with billing enabled for the respective provider. Local mode has no cloud dependency. |
-| For building from source | CMake 3.26+, Homebrew LLVM (`brew install llvm`), Xcode Command Line Tools |
+| macOS | **13.3 oder neuer** (onnxruntime 1.22.0 verlangt dies auf dem arm64-Slice; der x86_64-Slice erbt dasselbe Deployment-Target, damit das lipo'd Binary konsistent bleibt) |
+| X-Plane | X-Plane 12 (12.0 oder neuer) |
+| OpenAI-/Mistral-Konto | Nur falls du einen Cloud-Modus nutzen willst — braucht einen API-Key mit aktivierter Abrechnung beim jeweiligen Anbieter. Der Local-Modus hat keine Cloud-Abhängigkeit. |
+| Zum Bauen aus Quellcode | CMake 3.26+, Homebrew LLVM (`brew install llvm`), Xcode Command Line Tools |
 
-## Quick Start (pre-built release)
+## Schnellstart (vorgefertigtes Release)
 
-1. Download `xp_wellys_atc-vX.Y.Z.zip` from the GitHub Releases page.
-   The `.xpl` inside is a universal binary covering arm64 and x86_64.
-2. Extract into `X-Plane 12/Resources/plugins/`. Result:
+1. Lade `xp_wellys_atc-vX.Y.Z.zip` von der GitHub-Releases-Seite. Das
+   `.xpl` darin ist ein Universal Binary für arm64 und x86_64.
+2. Entpacke nach `X-Plane 12/Resources/plugins/`. Ergebnis:
    ```
    X-Plane 12/Resources/plugins/xp_wellys_atc/
      ├── mac_x64/
      │     ├── xp_wellys_atc.xpl       (universal: arm64 + x86_64)
-     │     ├── libpiper.dylib          (used by arm64 slice only)
+     │     ├── libpiper.dylib          (nur vom arm64-Slice genutzt)
      │     ├── libonnxruntime.1.22.0.dylib
      │     └── libonnxruntime.dylib
      ├── Resources/
-     │     └── espeak-ng-data/   (~19 MB, used by arm64 slice only)
+     │     └── espeak-ng-data/   (~19 MB, nur vom arm64-Slice genutzt)
      └── data/
-           └── (ATC profile bundles, prompt templates, VRP database, etc.)
+           └── (ATC-Profil-Bundle, Prompt-Templates, VRP-Datenbank, etc.)
    ```
-3. Launch X-Plane. Open the plugin window via *Plugins → Welly's ATC*.
-4. **Pick your backend** in the **Settings** tab:
-   - **Local** (Apple Silicon, default): the **Models** tab shows three
-     rows in red. Click **Download all missing** — the plugin pulls
-     ~2.0 GB from HuggingFace over HTTPS. Resumable; cancellable;
-     SHA256-verified after each file. Once all rows show **Ready**
-     (green), the PTT-disabled banner on the Status tab disappears.
-   - **OpenAI Cloud** (any Mac): paste your OpenAI API key into the
-     **OpenAI API Key** field in Settings (use the `[Paste]` button —
-     Cmd+V inside X-Plane's ImGui context is unreliable). Click
-     **Save Key**. The key is stored in the macOS Keychain under
-     service `com.xp_wellys_atc.openai`. PTT is enabled immediately;
-     no model download.
-   - **Mistral Cloud** (any Mac): paste your Mistral API key into the
-     **Mistral API key** field in Settings (same `[Paste]` button
-     pattern). Click **Save Key##mistral**. The key is stored under a
-     separate Keychain entry `com.xp_wellys_atc.mistral`, so the
-     OpenAI key (if any) stays untouched and you can flip-flop
-     between providers without re-pasting. PTT is enabled
-     immediately; the three voice slots default to ICAO-friendly
-     British / American Voxtral preset voices and can be changed in
-     the same panel.
-5. Fly. The Status tab's banner will tell you which mode is active and
-   `Log.txt` carries a one-line `BACKEND MODE: ...` banner on every
-   load so you can prove after the fact which side served the session.
+3. Starte X-Plane. Öffne das Plugin-Fenster über *Plugins → Welly's ATC*.
+4. **Wähle dein Backend** im **Settings**-Tab:
+   - **Local** (Apple Silicon, Standard): der **Models**-Tab zeigt die
+     Zeilen rot. Klicke **Download all missing** — das Plugin lädt
+     ~2,0 GB von HuggingFace über HTTPS. Fortsetzbar; abbrechbar; nach
+     jeder Datei SHA256-verifiziert. Sobald alle Zeilen **Ready**
+     (grün) zeigen, verschwindet das PTT-deaktiviert-Banner im
+     Status-Tab.
+   - **OpenAI Cloud** (jeder Mac): füge deinen OpenAI-API-Key in das
+     Feld **OpenAI API Key** in den Einstellungen ein (nutze den
+     `[Paste]`-Button — Cmd+V im ImGui-Kontext von X-Plane ist
+     unzuverlässig). Klicke **Save Key**. Der Key wird im macOS Keychain
+     unter dem Service `com.xp_wellys_atc.openai` gespeichert. PTT ist
+     sofort aktiv; kein Modell-Download.
+   - **Mistral Cloud** (jeder Mac): füge deinen Mistral-API-Key in das
+     Feld **Mistral API key** ein (gleiches `[Paste]`-Muster). Klicke
+     **Save Key##mistral**. Der Key wird unter einem separaten
+     Keychain-Eintrag `com.xp_wellys_atc.mistral` gespeichert, sodass
+     der OpenAI-Key (falls vorhanden) unberührt bleibt und du ohne
+     erneutes Einfügen zwischen Anbietern wechseln kannst. PTT ist
+     sofort aktiv.
+5. Fliege. Das Banner im Status-Tab zeigt dir den aktiven Modus, und
+   die `Log.txt` trägt bei jedem Laden ein einzeiliges
+   `BACKEND MODE: ...`-Banner, sodass du im Nachhinein belegen kannst,
+   welche Seite die Sitzung bedient hat.
 
-## Backend Modes
+## Backend-Modi
 
-You can switch at any time in the Settings tab — the plugin tears
-down the active inference stack and brings up another one, no X-Plane
-restart. Source-level invariant: each backend family lives in its
-own set of `.cpp` files and the three families share no headers and
-no code path. The local backends (`whisper_stt.cpp`, `llama_lm.cpp`,
-`piper_tts.cpp`) contain no `#include` of any cloud client and zero
-`curl_easy_perform` calls; the OpenAI clients (`openai_stt.cpp`,
-`openai_lm.cpp`, `openai_tts.cpp`) contain no `#include` of
-`whisper.h` / `llama.h` / `piper.h` and none of the Mistral
-endpoints; the Mistral clients (`mistral_stt.cpp`, `mistral_lm.cpp`,
-`mistral_tts.cpp`) carry neither local headers nor `api.openai.com`.
-So in any one mode no code path can call into the other two —
-verified at compile time and grep-time by
-`tests/test_audit_logging.cpp`.
+Du kannst jederzeit im Settings-Tab umschalten — das Plugin fährt den
+aktiven Inferenz-Stack herunter und einen anderen hoch, ohne
+X-Plane-Neustart. Invariante auf Quellcode-Ebene: jede Backend-Familie
+lebt in ihrem eigenen Satz `.cpp`-Dateien, und die drei Familien teilen
+sich weder Header noch Code-Pfad. Die lokalen Backends
+(`whisper_stt.cpp`, `llama_lm.cpp`, `piper_tts.cpp`) enthalten keinen
+`#include` eines Cloud-Clients und null `curl_easy_perform`-Aufrufe; die
+OpenAI-Clients (`openai_stt.cpp`, `openai_lm.cpp`, `openai_tts.cpp`)
+enthalten keinen `#include` von `whisper.h` / `llama.h` / `piper.h` und
+keine Mistral-Endpunkte; die Mistral-Clients (`mistral_stt.cpp`,
+`mistral_lm.cpp`, `mistral_tts.cpp`) tragen weder lokale Header noch
+`api.openai.com`. So kann in einem Modus kein Code-Pfad in die anderen
+zwei aufrufen — zur Compile- und Grep-Zeit durch
+`tests/test_audit_logging.cpp` verifiziert.
 
-Auditing which mode served a request: grep `Log.txt`.
+Nachvollziehen, welcher Modus eine Anfrage bedient hat: `Log.txt` grepen.
 
-| Tag in `Log.txt` | What it means |
+| Tag in `Log.txt` | Bedeutung |
 |---|---|
-| `[xp_wellys_atc] BACKEND MODE: LOCAL ...` | Loader brought up the local pipeline. |
-| `[xp_wellys_atc] BACKEND MODE: OPENAI (api.openai.com) ...` | Loader brought up the OpenAI cloud pipeline. |
-| `[xp_wellys_atc] BACKEND MODE: MISTRAL (api.mistral.ai) ...` | Loader brought up the Mistral cloud pipeline. |
-| `[STT-LOCAL] / [LM-LOCAL] / [TTS-LOCAL]` | Per-call audit for each local inference. |
-| `[STT-OPENAI] / [LM-OPENAI] / [TTS-OPENAI]` | Per-call audit for each OpenAI cloud inference. API key is truncated to its last 4 chars (`sk-...ABCD`). |
-| `[STT-MISTRAL] / [LM-MISTRAL] / [TTS-MISTRAL]` | Per-call audit for each Mistral cloud inference. API key is truncated to its last 4 chars (`...ABCD`; no `sk-` prefix — Mistral keys are not OpenAI-formatted). |
+| `[xp_wellys_atc] BACKEND MODE: LOCAL ...` | Der Loader hat die lokale Pipeline hochgefahren. |
+| `[xp_wellys_atc] BACKEND MODE: OPENAI (api.openai.com) ...` | Der Loader hat die OpenAI-Cloud-Pipeline hochgefahren. |
+| `[xp_wellys_atc] BACKEND MODE: MISTRAL (api.mistral.ai) ...` | Der Loader hat die Mistral-Cloud-Pipeline hochgefahren. |
+| `[STT-LOCAL] / [LM-LOCAL] / [TTS-LOCAL]` | Per-Aufruf-Audit für jede lokale Inferenz. |
+| `[STT-OPENAI] / [LM-OPENAI] / [TTS-OPENAI]` | Per-Aufruf-Audit für jede OpenAI-Cloud-Inferenz. Der API-Key wird auf seine letzten 4 Zeichen gekürzt (`sk-...ABCD`). |
+| `[STT-MISTRAL] / [LM-MISTRAL] / [TTS-MISTRAL]` | Per-Aufruf-Audit für jede Mistral-Cloud-Inferenz. Der API-Key wird auf seine letzten 4 Zeichen gekürzt (`...ABCD`; kein `sk-`-Präfix — Mistral-Keys sind nicht OpenAI-formatiert). |
 
-## Radio glitch recovery (TTS-failure guard)
+## Funkstörungs-Wiederherstellung (TTS-Fehler-Schutz)
 
-The pilot-driven TTS path is wrapped in a snapshot/revert guard so a
-synthesis or playback failure (OpenAI `curl error: Timeout`, transient
-5xx, dropped Wi-Fi, local Piper IO error, audio bus glitch) cannot
-leave the ATC state machine ahead of what the pilot actually heard.
-The mechanic is uniform across both backend modes — the same code path
-handles Local and Cloud.
+Der pilotengetriebene TTS-Pfad ist in einen Snapshot/Revert-Guard
+gewickelt, sodass ein Synthese- oder Wiedergabefehler (OpenAI
+`curl error: Timeout`, transientes 5xx, abgebrochenes WLAN, lokaler
+Piper-IO-Fehler, Audio-Bus-Störung) die ATC-State-Machine nicht über das
+hinaus bringen kann, was der Pilot tatsächlich gehört hat. Der
+Mechanismus ist über alle Backend-Modi einheitlich — derselbe Code-Pfad
+behandelt Local und Cloud.
 
-How it works:
+So funktioniert es:
 
-- Before each pilot transmission goes into `atc_state_machine::process()`,
-  the plugin captures an opaque snapshot of the full machine state
-  (current state, transition history, runway lock, readback flag,
-  departure type, last clearance text, last tower utterance). A
-  monotonic generation counter is bumped on every semantic mutation —
-  per-frame heartbeats (timestamps, auto-correction timers) are not
-  counted so they cannot invalidate the snapshot.
-- On TTS success: nothing else happens. The state advances as before,
-  the pilot hears the reply, the snapshot is dropped.
-- On TTS failure: a short squelch burst (~350 ms pink noise plus a
-  click) is played on the active COM. The burst is generated
-  in-process from a deterministic seeded PRNG — it cannot fail in the
-  same way the TTS call just did, and it works in VR or under the
-  IFR-hood when the panel is not in view. Then one of two branches
-  runs:
-  - **Restore branch** — no third party mutated the state machine in
-    the meantime. The pre-transmission snapshot is restored, the
-    transcript panel shows a dim-amber System entry `-- Funkstörung —
-    bitte den Funkspruch wiederholen --`, and the pilot can re-issue
-    the same call cleanly.
-  - **Stale branch** — a later auto-correction (or another callback)
-    already advanced the generation counter past the snapshot's
-    expected value. Rolling back would silently undo that legitimate
-    transition, so the rollback is rejected. The clearance text the
-    pilot never heard is still parked in `last_tower_response_text_`,
-    a System entry `-- Funkstörung — sagen Sie 'Wiederholen Sie' für
-    die verpasste Anweisung --` steers the pilot toward the
-    `REQUEST_REPEAT` path, which replays the missed clearance
-    verbatim. After the replay the pilot reads back normally and the
-    state machine re-synchronises.
+- Bevor jede Pilotenübertragung in `atc_state_machine::process()` geht,
+  erfasst das Plugin einen opaken Snapshot des vollständigen
+  Maschinenzustands (aktueller State, Übergangshistorie, Pisten-Lock,
+  Readback-Flag, Abflugtyp, letzter Freigabetext, letzte Tower-Äusserung).
+  Ein monotoner Generations-Zähler wird bei jeder semantischen Mutation
+  erhöht — Per-Frame-Heartbeats (Zeitstempel, Auto-Korrektur-Timer)
+  werden nicht gezählt, sodass sie den Snapshot nicht invalidieren können.
+- Bei TTS-Erfolg: nichts weiter passiert. Der State läuft wie zuvor
+  weiter, der Pilot hört die Antwort, der Snapshot wird verworfen.
+- Bei TTS-Fehler: ein kurzer Squelch-Burst (~350 ms rosa Rauschen plus
+  ein Klick) wird auf der aktiven COM gespielt. Der Burst wird in-process
+  aus einem deterministisch geseedeten PRNG erzeugt — er kann nicht auf
+  dieselbe Weise scheitern wie der TTS-Aufruf gerade, und er
+  funktioniert in VR oder unter der IFR-Haube, wenn das Panel nicht
+  sichtbar ist. Dann läuft einer von zwei Zweigen:
+  - **Restore-Zweig** — niemand sonst hat die State-Machine inzwischen
+    verändert. Der Vor-Übertragungs-Snapshot wird wiederhergestellt, das
+    Transkript-Panel zeigt einen gedämpft-bernsteinfarbenen
+    System-Eintrag `-- Funkstörung — bitte den Funkspruch wiederholen --`,
+    und der Pilot kann denselben Funkspruch sauber erneut absetzen.
+  - **Stale-Zweig** — eine spätere Auto-Korrektur (oder ein anderer
+    Callback) hat den Generations-Zähler bereits über den vom Snapshot
+    erwarteten Wert hinaus bewegt. Ein Rollback würde diesen legitimen
+    Übergang stillschweigend rückgängig machen, also wird der Rollback
+    abgelehnt. Der Freigabetext, den der Pilot nie gehört hat, liegt
+    weiterhin in `last_tower_response_text_` geparkt; ein System-Eintrag
+    `-- Funkstörung — sagen Sie 'Wiederholen Sie' für die verpasste
+    Anweisung --` lenkt den Piloten zum `REQUEST_REPEAT`-Pfad, der die
+    verpasste Freigabe wortgetreu wiederholt. Nach der Wiederholung
+    liest der Pilot normal zurück und die State-Machine synchronisiert
+    sich neu.
 
-ATIS broadcasts, traffic advisories, and the unsolicited go-around
-prompt use the unguarded TTS path — they are stateless render-only
-events. If a tick drops, the next tick simply tries again.
+ATIS-Ansagen, Verkehrshinweise und der unaufgeforderte
+Durchstart-Prompt nutzen den ungeschützten TTS-Pfad — sie sind
+zustandslose Render-only-Ereignisse. Fällt ein Tick aus, versucht es der
+nächste Tick einfach erneut.
 
-Implementation:
+Implementierung:
 
 - `src/atc/atc_state_machine.{hpp,cpp}` — `AtcStateSnapshot`,
   `capture_snapshot()`, `current_gen()`, `restore_snapshot_if_gen()`,
-  generation-counter discipline (banner comment in the cpp file
-  spells out which fields bump gen and which are heartbeat-only).
-- `src/atc/atc_session.cpp` — `speak_response_guarded()` wraps the
-  `engine::process_transcript` callback for state-mutating tower
-  replies.
-- `src/audio/audio_player.{hpp,cpp}` — `play_squelch_burst(com)`, no
-  WAV asset, no network.
-- `tests/test_state_revert_guard.cpp` — four behavioural cases:
-  snapshot+restore round-trip, generation monotonicity, stale-branch
-  rejection, `REQUEST_REPEAT`-after-stale recovery.
+  Generations-Zähler-Disziplin (ein Banner-Kommentar in der cpp-Datei
+  legt dar, welche Felder gen erhöhen und welche nur Heartbeat sind).
+- `src/atc/atc_session.cpp` — `speak_response_guarded()` umhüllt den
+  `engine::process_transcript`-Callback für zustandsändernde
+  Tower-Antworten.
+- `src/audio/audio_player.{hpp,cpp}` — `play_squelch_burst(com)`, kein
+  WAV-Asset, kein Netzwerk.
+- `tests/test_state_revert_guard.cpp` — vier Verhaltensfälle:
+  Snapshot+Restore-Round-Trip, Generations-Monotonie,
+  Stale-Zweig-Ablehnung, `REQUEST_REPEAT`-nach-Stale-Wiederherstellung.
 
-## Build From Source
+## Aus Quellcode bauen
 
 ```sh
 git clone --recurse-submodules <repo-url>
-cd xp_welly_llm_atc
-make setup     # X-Plane SDK, Dear ImGui, nlohmann/json, Catch2, spike submodules
-make build     # Universal Release build → build/xp_wellys_atc.xpl (arm64
-               # with all three backends + x86_64 cloud-only, lipo'd into
-               # one .xpl). This is now the only build target — there is
-               # no arm64-only fast-path anymore.
-make install   # Code-sign + install to X-Plane plugins directory
+cd xp_wellys_vfr_atc
+make setup     # X-Plane SDK, Dear ImGui, nlohmann/json, Catch2, Spike-Submodule
+make build     # Universal-Release-Build → build/xp_wellys_atc.xpl (arm64
+               # mit allen drei Backends + x86_64 cloud-only, zu einem
+               # .xpl lipo'd). Das ist das einzige Build-Target — es gibt
+               # keinen arm64-only-Schnellpfad mehr.
+make install   # Code-Signing + Installation ins X-Plane-Plugins-Verzeichnis
 ```
 
-`make build` runs CMake twice (arm64 with `XPWELLYS_USE_LOCAL_INFERENCE=ON`
-in `build-arm64/`, x86_64 with the same flag `OFF` in `build-x86_64/`)
-and `lipo`-merges the two `.xpl`s into one universal binary. Build
-time is roughly double a single-arch build; that is the deliberate
-trade-off so dev and release artifacts are byte-for-byte identical in
-shape. For tag-driven release builds pass `RELEASE_FLAG=-DRELEASE=ON`
-(`make release-build` does this for you — embeds the version from
-`VERSION.txt`).
+`make build` führt CMake zweimal aus (arm64 mit
+`XPWELLYS_USE_LOCAL_INFERENCE=ON` in `build-arm64/`, x86_64 mit demselben
+Flag `OFF` in `build-x86_64/`) und `lipo`-merged die zwei `.xpl`s zu
+einem Universal Binary. Die Build-Zeit ist etwa doppelt so lang wie ein
+Single-Arch-Build; das ist der bewusste Kompromiss, damit Dev- und
+Release-Artefakte in ihrer Form Byte-für-Byte identisch sind. Für
+Tag-getriebene Release-Builds übergibst du `RELEASE_FLAG=-DRELEASE=ON`
+(`make release-build` erledigt das für dich — bettet die Version aus
+`VERSION.txt` ein).
 
-The build downloads onnxruntime's prebuilt arm64 dylib (≈ 33 MB) into
-`spikes/spike_piper/third_party/piper1-gpl/libpiper/lib/` on first
-configure. After that everything is local. The x86_64 slice has no
-onnxruntime / Piper / whisper / llama dependency at all — it links
-only against libcurl + the system frameworks (Security, AudioToolbox,
-etc.) and the OpenAI clients.
+Der Build lädt beim ersten Konfigurieren onnxruntimes vorgebautes
+arm64-dylib (≈ 33 MB) nach
+`spikes/spike_piper/third_party/piper1-gpl/libpiper/lib/`. Danach ist
+alles lokal. Der x86_64-Slice hat keinerlei onnxruntime- / Piper- /
+whisper- / llama-Abhängigkeit; er linkt nur gegen libcurl + die
+System-Frameworks (Security, AudioToolbox usw.) und die Cloud-Clients.
 
-## Local Inference Models
+## Lokale Inferenz-Modelle
 
-The plugin ships **without** the model files (~2.0 GB combined). They live
-under `<plugin>/Resources/models/` and are downloaded on first launch via
-the **Models** tab. Each download is HTTPS, resumable (`Range` header),
-streamed directly to the install volume (no temp roundtrip via the system
-disk — important for users running X-Plane on an external SSD), and
-SHA256-verified before being renamed from `<file>.part` to its final
-filename.
+Das Plugin wird **ohne** die Modell-Dateien ausgeliefert (~2,0 GB
+zusammen). Sie liegen unter `<plugin>/Resources/models/` und werden beim
+ersten Start über den **Models**-Tab geladen. Jeder Download ist HTTPS,
+fortsetzbar (`Range`-Header), direkt auf das Installationsvolume
+gestreamt (kein Temp-Umweg über die System-Disk — wichtig für Nutzer,
+die X-Plane auf einer externen SSD betreiben) und SHA256-verifiziert,
+bevor er von `<file>.part` zum finalen Dateinamen umbenannt wird.
 
-### Manual fallback (restrictive networks)
+### Manueller Fallback (restriktive Netzwerke)
 
-If the in-plugin downloader cannot reach HuggingFace (corporate proxy,
-captive portal, etc.), download these files manually and drop them into
-`<plugin>/Resources/models/`. The plugin re-verifies on the next launch
-and loads them automatically if the hashes match.
+Falls der Plugin-Downloader HuggingFace nicht erreicht (Firmen-Proxy,
+Captive Portal etc.), lade diese Dateien manuell und lege sie in
+`<plugin>/Resources/models/`. Das Plugin verifiziert beim nächsten Start
+erneut und lädt sie automatisch, wenn die Hashes passen.
 
-| Model | Lang | Size | SHA256 | URL |
+| Modell | Sprache | Grösse | SHA256 | URL |
 |---|---|---:|---|---|
-| `ggml-small.en-q5_1.bin` | en | 181 MB | `bfdff4894dcb76bbf647d56263ea2a96645423f1669176f4844a1bf8e478ad30` | [`huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en-q5_1.bin`](https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en-q5_1.bin) |
 | `ggml-small-q5_1.bin` | de (multilingual) | 181 MB | `ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb` | [`huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_1.bin`](https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_1.bin) |
 | `Llama-3.2-3B-Instruct-Q4_K_M.gguf` | — | 1.88 GB | `6c1a2b41161032677be168d354123594c0e6e67d2b9227c84f296ad037c728ff` | [`huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf`](https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf) |
-| `en_US-lessac-medium.onnx` | en | 60 MB | `5efe09e69902187827af646e1a6e9d269dee769f9877d17b16b1b46eeaaf019f` | [`huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx`](https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx) |
-| `en_US-lessac-medium.onnx.json` | en | 4.9 KB | `efe19c417bed055f2d69908248c6ba650fa135bc868b0e6abb3da181dab690a0` | [`huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json`](https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json) |
 | `de_DE-thorsten-medium.onnx` | de | 60 MB | `7e64762d8e5118bb578f2eea6207e1a35a8e0c30595010b666f983fc87bb7819` | [`huggingface.co/rhasspy/piper-voices/resolve/main/de/de_DE/thorsten/medium/de_DE-thorsten-medium.onnx`](https://huggingface.co/rhasspy/piper-voices/resolve/main/de/de_DE/thorsten/medium/de_DE-thorsten-medium.onnx) |
 | `de_DE-thorsten-medium.onnx.json` | de | 4.7 KB | `974adee790533adb273a1ac88f49027d2a1b8f0f2cf4905954a4791e79264e85` | [`huggingface.co/rhasspy/piper-voices/resolve/main/de/de_DE/thorsten/medium/de_DE-thorsten-medium.onnx.json`](https://huggingface.co/rhasspy/piper-voices/resolve/main/de/de_DE/thorsten/medium/de_DE-thorsten-medium.onnx.json) |
 
-Lang column: `en` files are required for the EU/US ATC profiles, `de`
-files for the DE ATC profile. Llama is multilingual and shared. The
-Models tab
-filters rows by `settings::backend_language()` by default and exposes
-a **Show all languages** toggle for power users who want to keep both
-sets on disk.
+Das Whisper-Modell ist die multilinguale Variante (`ggml-small-q5_1.bin`),
+da das DE-Profil deutsche Transkription braucht. Llama ist multilingual
+und wird geteilt. Die Piper-Stimme ist die deutsche `de_DE-thorsten-medium`.
 
-After dropping the files in, reopen the plugin window — the Models tab
-runs SHA256 verification in the background and flips the rows to **Ready**
-once each hash matches.
+Nachdem du die Dateien abgelegt hast, öffne das Plugin-Fenster erneut —
+der Models-Tab führt die SHA256-Verifizierung im Hintergrund aus und
+schaltet die Zeilen auf **Ready**, sobald jeder Hash passt.
 
-### M6 SHA256 verification procedure (DE models)
+### SHA256-Verifizierungs-Prozedur (DE-Modelle)
 
-The three DE-row hashes above were captured on 2026-06-04 against
-HuggingFace `main`. To re-verify (or repin after an upstream model
-update) run:
+Die DE-Hashes oben wurden am 2026-06-04 gegen HuggingFace `main` erfasst.
+Zum erneuten Verifizieren (oder Neu-Pinnen nach einem Upstream-Update):
 
 ```bash
 # Whisper small multilingual (~184 MB)
@@ -397,175 +400,195 @@ shasum -a 256 /tmp/de_DE-thorsten-medium.onnx /tmp/de_DE-thorsten-medium.onnx.js
 stat -f%z /tmp/de_DE-thorsten-medium.onnx /tmp/de_DE-thorsten-medium.onnx.json
 ```
 
-Paste the three SHA256 hashes + three sizes into:
-- `src/persistence/model_manifest.cpp` `voice_catalog()` (Thorsten row:
-  two hashes + two sizes)
-- `src/persistence/model_manifest.cpp` `manifest()` (multilingual Whisper:
-  one hash + one size)
-- The table above (three rows)
+Trage die Hashes + Grössen ein in:
+- `src/persistence/model_manifest.cpp` `voice_catalog()` (Thorsten-Zeile:
+  zwei Hashes + zwei Grössen)
+- `src/persistence/model_manifest.cpp` `manifest()` (multilinguales
+  Whisper: ein Hash + eine Grösse)
+- Die Tabelle oben
 
-### Expected first-run download time
+### Erwartete Download-Zeit beim ersten Start
 
-5–30 minutes on typical home internet; the bottleneck is HuggingFace's
-download throughput, not the plugin. The downloader resumes via HTTP
-`Range` if your link drops, so a Wi-Fi blip mid-Llama does not restart
-the 1.88 GB pull from scratch.
+5–30 Minuten bei typischem Heim-Internet; der Flaschenhals ist
+HuggingFaces Download-Durchsatz, nicht das Plugin. Der Downloader setzt
+über HTTP-`Range` fort, wenn die Verbindung abbricht, sodass ein
+WLAN-Aussetzer mitten im Llama-Download den 1,88-GB-Pull nicht von vorn
+beginnt.
 
-## Configuration
+## Konfiguration
 
-Settings live in `<plugin>/data/settings.json`. The OpenAI and Mistral
-API keys are the only secrets — both live in the macOS Keychain under
-separate service entries (`com.xp_wellys_atc.openai`,
-`com.xp_wellys_atc.mistral`), never in this file.
+Die Einstellungen liegen in `<plugin>/data/settings.json`. Die OpenAI-
+und Mistral-API-Keys sind die einzigen Geheimnisse — beide liegen im
+macOS Keychain unter separaten Service-Einträgen
+(`com.xp_wellys_atc.openai`, `com.xp_wellys_atc.mistral`), nie in dieser
+Datei.
 
-| Setting | Default | Description |
+Das Plugin ist fest auf das **DE-Profil** (NfL DACH-VFR) eingestellt; es
+gibt keine Profilauswahl mehr (`atc_profile` ist konstant `DE`, die
+Backend-Sprache konstant `de`).
+
+| Einstellung | Standard | Beschreibung |
 |---|---|---|
-| `pilot_callsign` | *(empty)* | Phonetic callsign (set in plugin settings, written from the registration via ICAO conversion) |
-| `active_com` | `1` | Active COM radio (1 or 2) |
-| `volume` | `1.0` | Playback volume (0.0–1.0) |
-| `pattern_direction` | `left` | Default traffic pattern direction (left/right) — overridden per airport/runway by `airport_vrps.json` |
-| `disable_default_atc` | `false` | Suppress X-Plane's built-in default ATC |
-| `skip_radio_power_check` | `false` | Bypass radio power detection (workaround for exotic aircraft) |
-| `show_phraseology_hints` | `true` | Show phraseology cheat sheet in ATC panel |
-| `auto_correction_factor` | `1.0` | ATC recovery time multiplier (0.5 = faster, 2.0 = slower) |
-| `start_mode` | `engines_running` | Starting condition assumed by the ATC state machine. `engines_running` (default) puts the pilot on the apron with engines hot → first call is Ground for taxi; `cold_and_dark` allows a clearance-delivery / engine-start sequence before taxi. Aviation-realistic; affects which initial intents the Tower expects. |
-| `bzf_strict_mode` | `false` | DE-profile only. When `true`, the Tower checks every READBACK against the NfL §25 b) Nr. 1 mandatory list (runway, QNH, frequency, squawk, callsign) and replies with a corrective callout if anything is missing — the state does **not** advance until the readback is clean. Settings-tab toggle is hidden unless `atc_profile=DE`. See [DE-Profil & BZF-Phraseologie](#de-profil--bzf-phraseologie). |
-| `atc_profile` | `EU` | ATC training profile: `EU` (ICAO/QNH/hPa), `US` (FAA-TC/altimeter/inHg), or `DE` (NfL DACH-VFR with optional BZF strict mode). The profile is a phraseology style, not a geographic restriction — you can fly the DE profile anywhere in the world; VRPs only render where AIP data exists in `data/vrps/airport_vrps.json`. The legacy key `flow_region` is mirrored in parallel for rollback safety and will be dropped in a later release. |
-| `debug_logging` | `false` | Enable verbose debug output |
-| `debug_traffic` | `false` | Show the Traffic tab in the ATC panel (lists the 10 nearest aircraft from the TCAS DataRefs) |
-| `traffic_features_enabled` | `true` | Master switch for the traffic subsystem (advisories, landing sequencing, go-around trigger). Off → `traffic_context::update()` returns an empty snapshot and every downstream consumer becomes a no-op. Requires a traffic provider (LiveTraffic, xPilot, swift, X-IvAp, native AI) to do anything anyway. |
-| `backend_mode` | `local` | `local` (whisper + llama + Piper, arm64 only), `openai` (Whisper API + Chat Completions + TTS API), or `mistral` (Voxtral STT + Mistral Chat Completions + Voxtral TTS). The x86_64 slice silently rewrites `local` to `openai` at startup since Local is not available there; `mistral` is honored on both slices. |
-| `api_key_saved` | `false` | Flag only — set automatically when the user clicks **Save Key** in Settings. The actual OpenAI key sits in the macOS Keychain under service `com.xp_wellys_atc.openai` / account `default`. Cleared by **Delete Key**. |
-| `openai_stt_model` | `whisper-1` | OpenAI Whisper model ID for the STT call. |
-| `openai_lm_model` | `gpt-4o-mini` | OpenAI Chat Completions model ID for the intent classifier. JSON mode is enabled automatically. |
-| `openai_tts_model` | `tts-1` | OpenAI TTS model ID. Set to `tts-1-hd` for higher-quality (slower) output. |
-| `openai_tts_voice_atis` / `openai_tts_voice_tower` / `openai_tts_voice_ground` | `onyx` / `echo` / `alloy` | Per-role OpenAI voice. One of `alloy / echo / fable / onyx / nova / shimmer`. `onyx` is closest to real ATC. |
-| `mistral_api_key_saved` | `false` | Flag only — set when **Save Key##mistral** is clicked. The actual Mistral key sits in the macOS Keychain under service `com.xp_wellys_atc.mistral` / account `default`, separate from the OpenAI entry. |
-| `mistral_stt_model` | `voxtral-mini-2507` | Voxtral STT model ID. The newer `voxtral-mini-2602` (Voxtral Mini Transcribe 2) is also valid and slightly more expensive. |
-| `mistral_lm_model` | `mistral-small-latest` | Mistral Chat Completions model ID for the intent classifier. JSON mode is enabled automatically. `ministral-3b-latest` / `ministral-8b-latest` work too and are cheaper. |
-| `mistral_tts_model` | `voxtral-mini-tts-2603` | Voxtral TTS model ID. |
-| `mistral_tts_voice_atis` / `mistral_tts_voice_tower` / `mistral_tts_voice_ground` | `gb_oliver_neutral` / `en_paul_confident` / `en_paul_neutral` | Per-role Voxtral preset voice. The UI dropdown lists 30 voices across British (`gb_oliver_*`, `gb_jane_*`), American (`en_paul_*`) and French (`fr_marie_*`) speakers in 7-9 emotional registers (`neutral`, `confident`, `cheerful`, `excited`, `sad`, `angry`, `sarcasm`, …). British neutral reads closest to ICAO broadcast cadence. Custom voice clones from the Mistral dashboard can be set by editing this field directly in `settings.json`. |
+| `pilot_callsign` | *(leer)* | Phonetisches Rufzeichen (in den Plugin-Einstellungen gesetzt) |
+| `active_com` | `1` | Aktives COM-Funkgerät (1 oder 2) |
+| `volume` | `1.0` | Wiedergabelautstärke (0.0–1.0) |
+| `pattern_direction` | `left` | Standard-Platzrundenrichtung (left/right) — pro Flugplatz/Piste durch `airport_vrps.json` überschrieben |
+| `disable_default_atc` | `false` | Unterdrückt das eingebaute Standard-ATC von X-Plane |
+| `skip_radio_power_check` | `false` | Umgeht die Funkstrom-Erkennung (Workaround für exotische Flugzeuge) |
+| `show_phraseology_hints` | `true` | Zeigt den Phraseologie-Spickzettel im ATC-Panel |
+| `auto_correction_factor` | `1.0` | ATC-Erholungszeit-Multiplikator (0.5 = schneller, 2.0 = langsamer) |
+| `start_mode` | `engines_running` | Vom State-Machine angenommener Startzustand. `engines_running` (Standard) setzt den Piloten mit warmen Triebwerken auf das Vorfeld → erster Funkspruch ist Ground zum Rollen; `cold_and_dark` erlaubt eine Clearance-Delivery- / Engine-Start-Sequenz vor dem Rollen. |
+| `bzf_strict_mode` | `false` | Wenn `true`, prüft der Tower jeden READBACK gegen die NfL §25 b) Nr. 1 Pflichtliste (Piste, QNH, Frequenz, Squawk, Rufzeichen) und antwortet mit einem korrigierenden Hinweis, falls etwas fehlt — der State läuft **nicht** weiter, bis der Readback sauber ist. Der Toggle im Settings-Tab ist immer sichtbar. Siehe [DE-Profil & BZF-Phraseologie](#de-profil--bzf-phraseologie). |
+| `debug_logging` | `false` | Aktiviert ausführliche Debug-Ausgabe |
+| `debug_traffic` | `false` | Zeigt den Traffic-Tab im ATC-Panel (listet die 10 nächsten Flugzeuge aus den TCAS-DataRefs) |
+| `debug_text_input` | `false` | Zeigt unter dem Transkript im Status-Tab ein InputText-Feld. Getippter Text wird direkt in `engine::process_transcript` via `atc_session::submit_text()` eingespeist — STT wird übersprungen, LM + State-Machine + TTS laufen wie im Sprachpfad. Hilfreich ohne Headset und zum Isolieren von ATC-Logik-Bugs von STT-Fehlern. PTT bleibt parallel aktiv; das Kürzel `REG` expandiert zum phonetischen Rufzeichen. |
+| `traffic_features_enabled` | `true` | Hauptschalter für das Verkehrs-Subsystem (Hinweise, Lande-Sequenzierung, Durchstart-Trigger). Aus → `traffic_context::update()` liefert einen leeren Snapshot und jeder nachgelagerte Konsument wird zum No-op. Braucht ohnehin einen Verkehrs-Provider (LiveTraffic, xPilot, swift, X-IvAp, native AI). |
+| `backend_mode` | `local` | `local` (whisper + llama + Piper, nur arm64), `openai` (Whisper API + Chat Completions + TTS API) oder `mistral` (Voxtral STT + Mistral Chat Completions + Voxtral TTS). Der x86_64-Slice schreibt `local` beim Start still auf `openai` um, da Local dort nicht verfügbar ist; `mistral` wird auf beiden Slices honoriert. |
+| `api_key_saved` | `false` | Nur Flag — automatisch gesetzt, wenn der Nutzer in den Einstellungen **Save Key** klickt. Der echte OpenAI-Key liegt im macOS Keychain unter Service `com.xp_wellys_atc.openai` / Account `default`. Durch **Delete Key** gelöscht. |
+| `openai_stt_model` | `whisper-1` | OpenAI-Whisper-Modell-ID für den STT-Aufruf. |
+| `openai_lm_model` | `gpt-4o-mini` | OpenAI-Chat-Completions-Modell-ID für den Absichts-Classifier. JSON-Modus wird automatisch aktiviert. |
+| `openai_tts_model` | `tts-1` | OpenAI-TTS-Modell-ID. Setze `tts-1-hd` für höhere (langsamere) Qualität. |
+| `openai_tts_voice_atis` / `openai_tts_voice_tower` / `openai_tts_voice_ground` | `onyx` / `echo` / `alloy` | OpenAI-Stimme je Rolle. Eine von `alloy / echo / fable / onyx / nova / shimmer`. `onyx` kommt echtem ATC am nächsten. |
+| `mistral_api_key_saved` | `false` | Nur Flag — gesetzt, wenn **Save Key##mistral** geklickt wird. Der echte Mistral-Key liegt im macOS Keychain unter Service `com.xp_wellys_atc.mistral` / Account `default`, getrennt vom OpenAI-Eintrag. |
+| `mistral_stt_model` | `voxtral-mini-2507` | Voxtral-STT-Modell-ID. |
+| `mistral_lm_model` | `mistral-small-latest` | Mistral-Chat-Completions-Modell-ID für den Absichts-Classifier. JSON-Modus automatisch. `ministral-3b-latest` / `ministral-8b-latest` funktionieren ebenfalls und sind günstiger. |
+| `mistral_tts_model` | `voxtral-mini-tts-2603` | Voxtral-TTS-Modell-ID. |
+| `mistral_tts_voice_atis` / `mistral_tts_voice_tower` / `mistral_tts_voice_ground` | `gb_oliver_neutral` / `en_paul_confident` / `en_paul_neutral` | Voxtral-Preset-Stimme je Rolle. Das UI-Dropdown listet 30 Stimmen britischer (`gb_oliver_*`, `gb_jane_*`), amerikanischer (`en_paul_*`) und französischer (`fr_marie_*`) Sprecher in 7–9 emotionalen Registern. Voxtral TTS ist multilingual und spricht Deutsch ohne US-Akzent. Eigene Voice-Clones aus dem Mistral-Dashboard lassen sich durch direktes Editieren dieses Felds in `settings.json` setzen. |
 
-ATC response templates are defined in `data/atc_profiles/{eu,us,de}/atc_templates.json`.
-Flight phase detection thresholds, ATC precondition guards, frequency guards,
-and auto-correction rules are in `data/atc_profiles/{eu,us,de}/flight_rules.json`.
-Switching the ATC profile hot-reloads both files. All data files can be
-edited without rebuilding the plugin.
+Die ATC-Antwort-Templates liegen in
+`data/atc_profiles/de/atc_templates.json`. Flugphasen-Schwellwerte,
+ATC-Vorbedingungs-Guards, Frequenz-Guards und Auto-Korrektur-Regeln
+stehen in `data/atc_profiles/de/flight_rules.json`. Alle Daten-Dateien
+lassen sich ohne Neubau des Plugins editieren.
 
-### Airport Database (`data/vrps/airport_vrps.json`)
+### Flugplatz-Datenbank (`data/vrps/airport_vrps.json`)
 
-Per-airport configuration for Visual Reporting Points (VRPs) and traffic
-pattern directions. Single global file shared by all ATC profiles — VRPs
-are geographic facts read from the AIP, not phraseology, so they apply
-regardless of whether you fly the EU, US, or DE profile. Pre-populated
-for common Swiss and German VFR airports; other airports ship with
-`pattern_direction` only (`vrps: []`) until they are checked against an
-authoritative source. Each top-level key is an ICAO code with optional
-fields:
+Pro-Flugplatz-Konfiguration für Sichtmeldepunkte (VRPs) und
+Platzrundenrichtungen. Eine globale Datei — VRPs sind geografische
+Fakten aus dem AIP, keine Phraseologie. Vorbefüllt für gängige
+Schweizer und deutsche VFR-Plätze; andere Plätze liefern nur
+`pattern_direction` (`vrps: []`), bis sie gegen eine autoritative
+Quelle geprüft sind. Jeder Top-Level-Schlüssel ist ein ICAO-Code mit
+optionalen Feldern:
 
-- `name` — display name
-- `pattern_direction` — per-runway `"left"` / `"right"` (overrides the
-  global `pattern_direction` setting); accepts a string for an unconditional
-  default or an object keyed by runway designator with optional `_default`
-- `vrps` — array of `{ name, lat, lon, alt_ft }`; `name` is the phonetic
-  spelling (e.g. `"November"`) so Whisper and Piper handle it cleanly
-- `arrival_routes` — per-runway ordered list of VRP names used for
-  inbound routing
-- `_source` / `_comment` — optional audit annotations; ignored by the loader
+- `name` — Anzeigename
+- `pattern_direction` — pro Piste `"left"` / `"right"` (überschreibt die
+  globale `pattern_direction`-Einstellung); akzeptiert einen String für
+  einen unbedingten Standard oder ein nach Pistenbezeichnung
+  geschlüsseltes Objekt mit optionalem `_default`
+- `vrps` — Array von `{ name, lat, lon, alt_ft }`; `name` ist die
+  phonetische Schreibweise (z. B. `"November"`), damit Whisper und Piper
+  sie sauber verarbeiten
+- `arrival_routes` — pro Piste geordnete Liste von VRP-Namen für die
+  Anflug-Führung
+- `_source` / `_comment` — optionale Audit-Annotationen; vom Loader
+  ignoriert
 
-#### Optional user override (Navigraph Charts workflow)
+#### Optionaler Benutzer-Override (Navigraph-Charts-Workflow)
 
-If you have a **Navigraph Charts** subscription you can supply your own
-VRP coordinates without forking the plugin:
+Mit einem **Navigraph-Charts**-Abo kannst du eigene VRP-Koordinaten
+liefern, ohne das Plugin zu forken:
 
-1. Drop a JSON file at
-   `<X-Plane>/Output/preferences/xp_wellys_atc/airport_vrps.json` (single
-   global file — VRPs are profile-independent). The directory is created
-   on first plugin start. This path survives plugin re-installs.
-2. Use the same schema as the bundled file. Per-ICAO entries fully replace
-   the plugin defaults — there is no field-level merge, so include the
-   complete entry for every airport you want to override.
-3. Restart X-Plane (or `Reload Settings` from the menu) — a log banner in
-   `Log.txt` confirms the load:
+1. Lege eine JSON-Datei unter
+   `<X-Plane>/Output/preferences/xp_wellys_atc/airport_vrps.json` ab. Das
+   Verzeichnis wird beim ersten Plugin-Start erstellt. Dieser Pfad
+   übersteht Plugin-Neuinstallationen.
+2. Nutze dasselbe Schema wie die mitgelieferte Datei. Pro-ICAO-Einträge
+   ersetzen die Plugin-Standards vollständig — es gibt kein
+   Feld-Merging, also nimm den kompletten Eintrag für jeden Flugplatz,
+   den du überschreiben willst.
+3. Starte X-Plane neu (oder `Reload Settings` aus dem Menü) — ein
+   Log-Banner in `Log.txt` bestätigt das Laden:
    `Airport VRPs loaded: N airports (X plugin, Y user overrides: Z replaced, W added) from <path>`
 
-Navigraph Charts workflow per airport:
-- Open the **VFR Approach Chart** (German charts: AD 2 EDxx, section
-  *Visual Approach* or *VFR-Anflug*).
-- Read the VRP code (W/N/E/S/Z…), translate to the phonetic name
-  (`W` → `Whiskey`, `N` → `November`, …) — this is what Whisper
-  transcribes and what Piper pronounces.
-- Hover the chart for cursor lat/lon (Navigraph Charts displays the
-  pointer coordinates in the toolbar).
-- Read the published transit altitude from the chart legend.
-- Note the pattern direction per runway from the AIP AD 2.22 (Flight
-  Procedures) section.
+Navigraph-Charts-Workflow pro Flugplatz:
+- Öffne die **VFR-Anflugkarte** (deutsche Karten: AD 2 EDxx, Abschnitt
+  *Visual Approach* bzw. *VFR-Anflug*).
+- Lies den VRP-Code (W/N/E/S/Z…), übersetze ihn in den phonetischen
+  Namen (`W` → `Whiskey`, `N` → `November`, …) — das ist, was Whisper
+  transkribiert und Piper ausspricht.
+- Überfahre die Karte für die Cursor-lat/lon (Navigraph Charts zeigt die
+  Zeiger-Koordinaten in der Toolbar).
+- Lies die veröffentlichte Transit-Höhe aus der Kartenlegende.
+- Notiere die Platzrundenrichtung pro Piste aus dem AIP AD 2.22 (Flight
+  Procedures).
 
-The Navigraph **FMS Data** add-on for X-Plane Custom Data does *not*
-contain VRPs (ARINC-424 is IFR-only). You need the Navigraph **Charts**
-product to read the VFR data.
+Das Navigraph-**FMS-Data**-Add-on für X-Plane Custom Data enthält *keine*
+VRPs (ARINC-424 ist IFR-only). Du brauchst das Navigraph-**Charts**-Produkt.
 
-### ATC Response Templates (`data/atc_profiles/{eu,us,de}/atc_templates.json`)
+### ATC-Antwort-Templates (`data/atc_profiles/de/atc_templates.json`)
 
-Defines the ATC response text for every combination of airport type, ATC
-state, and pilot intent. `towered` (full ATC flow) and `uncontrolled`
-(CTAF/UNICOM self-announce) sections; each entry has `response`,
-`next_state`, `requires_readback`. The special key `_INVALID` is the
-fallback ("say again your request"). Variables are substituted from
-`XPlaneContext` at runtime.
+Definiert den ATC-Antworttext für jede Kombination aus Flugplatztyp,
+ATC-State und Pilotenabsicht. Abschnitte `towered` (voller ATC-Ablauf)
+und `uncontrolled` (CTAF/UNICOM-Selbstansage); jeder Eintrag hat
+`response`, `next_state`, `requires_readback`. Der spezielle Schlüssel
+`_INVALID` ist der Fallback. Variablen werden zur Laufzeit aus dem
+`XPlaneContext` substituiert.
 
-### Flight Rules (`data/atc_profiles/{eu,us,de}/flight_rules.json`)
+### Flugregeln (`data/atc_profiles/de/flight_rules.json`)
 
-Per-profile sections covering phase detection thresholds + hysteresis,
-intent preconditions, auto-correction rules (state and frequency),
-intent-to-frequency mapping, pilot phraseology, state-machine guards
+Abschnitte für Phasen-Erkennungs-Schwellwerte + Hysterese,
+Absichts-Vorbedingungen, Auto-Korrektur-Regeln (State und Frequenz),
+Absicht-zu-Frequenz-Mapping, Piloten-Phraseologie, State-Machine-Guards
 (`state_frequency_validity`, `idle_redirects`, `state_reverts`,
-`tower_only_auto_advance`), and frequency hint text.
+`tower_only_auto_advance`) und Frequenz-Hinweistexte.
 
-### LLM Prompt Templates (`data/atc_prompt_templates.json`)
+### LLM-Prompt-Templates (`data/atc_prompt_templates.json`)
 
-Prompts the engine sends to the local Llama 3.2 3B model:
+Prompts, die die Engine an das Sprachmodell sendet:
 
-| Key | Purpose |
+| Schlüssel | Zweck |
 |---|---|
-| `whisper_prompt` | Initial-prompt hint for whisper.cpp to bias transcription toward aviation vocabulary and the NATO phonetic alphabet |
-| `gpt_classify_prompt` | System prompt for low-confidence intent classification (variables: `{state}`, `{valid_intents}`, `{transcript}`, `{frequency_type}`, `{on_ground}`, `{altitude_ft}`, `{groundspeed_kts}`, `{airport}`) |
+| `whisper_prompt` | Initial-Prompt-Hinweis für whisper.cpp, um die Transkription auf Luftfahrt-Vokabular und das NATO-Alphabet zu biasen |
+| `gpt_classify_prompt_de` | System-Prompt für die Absichts-Klassifizierung bei geringer Konfidenz (Variablen: `{state}`, `{valid_intents}`, `{transcript}`, `{frequency_type}`, `{on_ground}`, `{altitude_ft}`, `{groundspeed_kts}`, `{airport}`) |
+| `gpt_fallback_prompt_de` | Reserve-Prompt für die Notfall-Antwortgenerierung |
 
-The key name keeps the `gpt_*` prefix for backwards compatibility with
-existing `atc_prompt_templates.json` files; the local pipeline feeds
-this prompt to Llama 3.2 unchanged.
+Der Schlüsselname behält das `gpt_*`-Präfix aus Kompatibilitätsgründen;
+die lokale Pipeline füttert diesen Prompt unverändert an Llama 3.2.
 
-**Push-to-Talk** is configured via X-Plane's keyboard or joystick settings.
-The plugin registers the command `xp_wellys_atc/ptt` which can be bound to
-any key or joystick button.
+**Push-to-Talk** wird über die Tastatur- oder Joystick-Einstellungen von
+X-Plane konfiguriert. Das Plugin registriert den Befehl
+`xp_wellys_atc/ptt`, der an eine beliebige Taste oder einen
+Joystick-Button gebunden werden kann.
 
-## Usage
+## Benutzung
 
-1. Tune COM1/COM2 to the appropriate frequency in X-Plane (or click a
-   frequency in the ATC panel to set it as standby, then flip-flop).
-2. Hold the PTT key and speak your radio call — the **Phraseology Hints**
-   panel shows you what to say (hover for full ICAO phraseology).
-3. Release PTT — the plugin transcribes locally, processes through the
-   state machine, and plays back the ATC response.
-4. Check the ImGui overlay for transcript history and current ATC state.
-5. If you get stuck in a loop, click the **Disregard** button to reset.
+1. Stimme COM1/COM2 in X-Plane auf die passende Frequenz (oder klicke
+   eine Frequenz im ATC-Panel, um sie als Standby zu setzen, dann
+   Flip-Flop).
+2. Halte die PTT-Taste und sprich deinen Funkspruch — das
+   **Phraseologie-Hinweise**-Panel zeigt dir, was zu sagen ist (überfahren
+   für die volle Phraseologie).
+3. Lass PTT los — das Plugin transkribiert, verarbeitet durch die
+   State-Machine und spielt die ATC-Antwort zurück.
+4. Prüfe das ImGui-Overlay für Transkript-Historie und aktuellen
+   ATC-State.
+5. Wenn du in einer Schleife feststeckst, klicke **Disregard** zum
+   Zurücksetzen.
 
-## Make Targets
+**Kein Headset?** Schalte `debug_text_input` in den Einstellungen ein —
+ein InputText-Feld erscheint unter dem Transkript im Status-Tab. Getippter
+Text geht direkt in die Engine (STT wird übersprungen), aber LM,
+State-Machine und TTS laufen weiter, sodass die Tower-Antwort normal über
+das aktive Backend gesprochen wird. Das Kürzel `REG` expandiert zu deinem
+phonetischen Rufzeichen.
+
+## Make-Targets
 
 ```sh
-make all           # clean + format + build + lint + test (full local CI)
-make build         # universal: arm64 (local + both clouds) + x86_64 (clouds only), lipo'd
-make release-build # same as `make build` but passes -DRELEASE=ON (embeds VERSION.txt)
-make test          # unit tests + scenario tests
-make install       # code-sign + install to X-Plane
-make repl          # build the headless atc_repl tool
+make all           # clean + format + build + lint + test (volle lokale CI)
+make build         # universal: arm64 (local + beide Clouds) + x86_64 (nur Clouds), lipo'd
+make release-build # wie `make build`, aber mit -DRELEASE=ON (bettet VERSION.txt ein)
+make test          # Unit-Tests + Szenario-Tests
+make install       # Code-Signing + Installation in X-Plane
+make repl          # baut das headless atc_repl-Tool
 make format        # clang-format
-make lint          # clang-tidy (some rules promoted to errors)
-make clean         # remove build/, build-arm64/, build-x86_64/, build-lint/, build-sanitize/
-make distclean     # also remove sdk/, vendor/
+make lint          # clang-tidy (manche Regeln als Fehler hochgestuft)
+make clean         # entfernt build/, build-arm64/, build-x86_64/, build-lint/, build-sanitize/
+make distclean     # entfernt zusätzlich sdk/, vendor/
 ```
 
-## Known Limitations
+## Bekannte Einschränkungen
 
 ### DE-Profil & BZF-Phraseologie
 
@@ -581,188 +604,178 @@ ausdrücklich willkommen.
   Genehmigung „Verlassen der Frequenz genehmigt" (2×), Fallback „wiederholen Sie"
   statt „sagen Sie nochmals" (3×, NfL §18 c) Nr. 4).
 - **Callsign-Aussprache verifiziert (Bucket C)** — `de_phraseology::expand_callsign_phonetic()`
-  expandiert D-/HB-/N-prefix ziffernweise (z. B. `N123AB` → „November eins zwo
+  expandiert D-/HB-/N-Präfix ziffernweise (z. B. `N123AB` → „November eins zwo
   drei Alfa Bravo"), abgesichert durch 7 Catch2-Tests in `tests/test_de_phraseology.cpp`.
-- **Strict-Mode-MVP (Bucket A)** — Settings-Toggle `bzf_strict_mode` (DE-only, Default
-  aus), neuer SDK-freier `src/atc/bzf_compliance.{hpp,cpp}`, `apply_bzf_strict_check()`-
+- **Strict-Mode-MVP (Bucket A)** — Settings-Toggle `bzf_strict_mode` (Default
+  aus), SDK-freier `src/atc/bzf_compliance.{hpp,cpp}`, `apply_bzf_strict_check()`-
   Hook im State-Machine mit `last_clearance_text_`-Tracking. Greift beim READBACK-
   Intent gegen die NfL §25 b) Nr. 1 Pflichtliste (Piste, QNH, Frequenz, Squawk,
   Rufzeichen) — 18 Catch2-Tests in `tests/test_bzf_compliance.cpp`.
 
-**Hands-on Test-Flug:** Der dokumentierte BZF-Strict-Mode-Testflug ab
-**EDNY Friedrichshafen** (`tower_only`, eine Frequenz für Boden + Air)
-steht in [`docs/bzf/strict_mode_test_edny.md`](docs/bzf/strict_mode_test_edny.md)
-— Schritt-für-Schritt-Setup (Profile=`DE`, `bzf_strict_mode=on`,
-Callsign `HB-DSV`), erwartete Tower-Reaktionen, und die typischen
-READBACK-Fehler die der Strict-Mode abfängt. Empfohlener Einstieg, um
-das Feature in der Praxis zu sehen.
-
-→ Die [BZF-Coverage-Matrix](docs/bzf/bzf_coverage.md) listet 60 Pflichtelemente in 16
-Sektionen mit `file:line`-Mapping in den Code und führt den offenen Bucket-Backlog.
-NfL-Quelltexte (DFS Sprechfunk 2024, BNetzA-Prüfungsfragen 2024, NfL Funk Teil B
-2010) liegen unter [`docs/bzf/`](docs/bzf/) als reine Text-Dumps zur Verifikation.
-
-**BZF-II-Inhaber gesucht**: pro Matrix-Zeile ein GitHub-Issue (z. B. „Row 1.2: …")
-mit NfL-§-Verweis und ggf. Wortlaut-Vorschlag genügt als Beitrag — kein Code-Wissen
-nötig.
-
-| Limitation | Impact | Effort |
+| Einschränkung | Auswirkung | Aufwand |
 |---|---|---|
-| **Local inference is Apple Silicon only** | Intel Macs can run the plugin via the x86_64 slice but only in OpenAI Cloud mode (requires API key + billing) | Resolved by the universal binary; lifting the Intel restriction for Local mode would need Metal alternatives + an x86_64 onnxruntime build |
-| **English only** | non-English ATC not supported | Medium — would need different whisper / Llama / Piper voice |
-| **OpenAI voices speak German with a US accent** | When `atc_profile=DE` + `backend_mode=openai`, Whisper transcription and the LM respond in German correctly, but the tts-1 voices (`alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`) are English-trained and render German with a noticeable US accent — NATO phonetic letters in particular sound anglophone (e.g. "Tshaar-lee" instead of "Tschar-li"). Acceptable for casual practice but unrealistic for BZF/AZF-style training. | Resolved for Local mode by M6 (Piper `de_DE-thorsten`). For cloud users, **Mistral Cloud** mode is the alternative — Voxtral TTS is natively multilingual and speaks German without a US accent. A dedicated DE voice slot for Mistral is planned with the BZF trainer milestone. |
-| **Single-voice TTS** | All ATC speakers (Tower, Ground, ATIS) use the same Piper voice; ATIS speaks slower via `length_scale=1.18` | Low — could ship more voices and add a per-frequency selector |
-| **"via Alpha" hardcoded** — taxiway name is always Alpha | Unrealistic at airports with different taxiway layouts | High — would need taxiway data from apt.dat or WED |
-| **No wake-turbulence spacing** — sequencing in v2.2 picks number-by-distance only, no Light/Medium/Heavy separation | Acceptable for GA pattern work; missing for mixed-weight ops | Phase 5 on roadmap |
-| **No callsign validation** | ATC accepts any callsign | Low priority for single-player |
-| **Big-hub airports (LSZH, LSGG, …) not officially supported** — pilot can fly inbound/outbound, but Delivery (slot/VFR-clearance) workflow, RWY-specific Tower routing, and AIP VFR reporting points are not modelled | Generic hints at large hubs do not match real-world procedures (slot enforcement, multiple Tower frequencies, mandatory VFR points) | High — needs per-airport AIP research + new Delivery intent + slot setting + multi-Tower disambiguation |
+| **Lokale Inferenz nur auf Apple Silicon** | Intel-Macs können das Plugin über den x86_64-Slice fahren, aber nur im OpenAI- oder Mistral-Cloud-Modus (API-Key + Abrechnung nötig) | Durch das Universal Binary gelöst; die Intel-Beschränkung für den Local-Modus aufzuheben bräuchte Metal-Alternativen + einen x86_64-onnxruntime-Build |
+| **Nur Deutsch** | Das Plugin modelliert ausschliesslich deutsche NfL-DACH-VFR-Phraseologie; andere Sprachen sind nicht vorgesehen | Per Design — dies ist ein reines Deutschland-VFR-Plugin |
+| **OpenAI-Stimmen sprechen Deutsch mit US-Akzent** | Im `backend_mode=openai` transkribiert Whisper korrekt und das LM antwortet korrekt auf Deutsch, aber die `tts-1`-Stimmen (`alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`) sind englisch-trainiert und geben Deutsch mit hörbarem US-Akzent wieder — besonders NATO-Buchstaben klingen anglophon (z. B. „Tschaar-lie" statt „Tschar-li"). Für lockeres Üben akzeptabel, für BZF/AZF-Training unrealistisch. | Für den Local-Modus durch Piper `de_DE-thorsten` gelöst. Für Cloud-Nutzer ist **Mistral Cloud** die Alternative — Voxtral TTS ist nativ multilingual und spricht Deutsch ohne US-Akzent. |
+| **Single-Voice-TTS** | Alle ATC-Sprecher (Tower, Ground, ATIS) nutzen im Local-Modus dieselbe Piper-Stimme; ATIS spricht langsamer via `length_scale=1.18` | Gering — könnte mehr Stimmen ausliefern und einen Per-Frequenz-Selektor ergänzen |
+| **„via Alpha" hartkodiert** — der Rollweg-Name ist immer Alpha | Unrealistisch an Flugplätzen mit anderem Rollweg-Layout | Hoch — bräuchte Rollweg-Daten aus apt.dat oder WED |
+| **Keine Wirbelschleppen-Staffelung** — die Sequenzierung in v2.2 wählt nur nach Distanz, keine Light/Medium/Heavy-Trennung | Für GA-Platzrunden akzeptabel; fehlt für gemischte Gewichtsklassen | Phase 5 auf der Roadmap |
+| **Keine Rufzeichen-Validierung** | ATC akzeptiert jedes Rufzeichen | Geringe Priorität im Single-Player |
+| **Grosse Hub-Flugplätze (LSZH, LSGG, …) nicht offiziell unterstützt** — Pilot kann an-/abfliegen, aber Delivery-Workflow (Slot/VFR-Clearance), RWY-spezifisches Tower-Routing und AIP-VFR-Meldepunkte sind nicht modelliert | Generische Hinweise an grossen Hubs entsprechen nicht den realen Verfahren | Hoch — bräuchte AIP-Recherche pro Flugplatz + neuen Delivery-Intent + Slot-Einstellung + Multi-Tower-Disambiguierung |
 
 ## FAQ
 
-**Does this support IFR or flight planning?**
-Not today — the plugin is VFR-only. No IFR clearances, no flight-plan filing,
-no FMS / route integration.
+**Unterstützt das Plugin IFR oder Flugplanung?**
+Nein — das Plugin ist VFR-only. Keine IFR-Freigaben, keine
+Flugplanaufgabe, keine FMS-/Routen-Integration.
 
-**Will there be a virtual co-pilot or checklist reader?**
-Not in scope today. The plugin is a single-pilot Pilot ↔ ATC voice interface;
-intercom and checklists are not implemented.
+**Wird es einen virtuellen Co-Piloten oder Checklisten-Reader geben?**
+Aktuell nicht geplant. Das Plugin ist eine Single-Pilot-Pilot↔ATC-
+Sprachschnittstelle; Intercom und Checklisten sind nicht implementiert.
 
-**Is it compatible with all XP12 aircraft and add-ons?**
-Yes, in principle. The plugin is aircraft-agnostic and uses only standard
-X-Plane DataRefs — no aircraft-specific code paths and no compatibility list.
-It works with the default fleet (C172, etc.) and any add-on that exposes the
-standard `sim/cockpit/radios/*` DataRefs. For exotic aircraft that don't
-expose `com_power`, set `skip_radio_power_check: true` in `settings.json`.
-Laminar's default ATC can be suppressed via `disable_default_atc`.
+**Ist es mit allen XP12-Flugzeugen und Add-ons kompatibel?**
+Im Prinzip ja. Das Plugin ist flugzeug-agnostisch und nutzt nur
+Standard-X-Plane-DataRefs — keine flugzeugspezifischen Code-Pfade, keine
+Kompatibilitätsliste. Es funktioniert mit der Standard-Flotte (C172 etc.)
+und jedem Add-on, das die Standard-`sim/cockpit/radios/*`-DataRefs
+bereitstellt. Für exotische Flugzeuge ohne `com_power` setze
+`skip_radio_power_check: true` in `settings.json`. Laminars Standard-ATC
+lässt sich über `disable_default_atc` unterdrücken.
 
-**Can I fly hands-on-yoke without focusing the plugin window?**
-Yes — that's the design. Bind Push-To-Talk once to a yoke button or keyboard
-key (X-Plane command `xp_wellys_atc/ptt`). After that, every interaction is
-voice: press PTT, speak, release, hear ATC reply. The plugin window does not
-need keyboard focus during flight, and all inference runs on background
-threads so X-Plane never stutters.
+**Kann ich am Steuerhorn fliegen, ohne das Plugin-Fenster zu fokussieren?**
+Ja — so ist es gedacht. Binde Push-to-Talk einmal an einen Yoke-Button
+oder eine Taste (X-Plane-Befehl `xp_wellys_atc/ptt`). Danach ist jede
+Interaktion Sprache: PTT drücken, sprechen, loslassen, ATC-Antwort hören.
+Das Plugin-Fenster braucht im Flug keinen Tastaturfokus, und jede
+Inferenz läuft auf Hintergrund-Threads, sodass X-Plane nie stockt.
 
-**Does the plugin read my COM1/COM2 frequencies automatically?**
-Yes. Active and standby frequencies for both COM radios are read live from
-X-Plane DataRefs. The plugin also detects which radio is active and
-auto-classifies the frequency type (ATIS / Ground / Tower / Approach /
-UNICOM) against the apt.dat frequency database. No manual frequency entry.
+**Liest das Plugin meine COM1/COM2-Frequenzen automatisch?**
+Ja. Aktive und Standby-Frequenzen beider COM-Funkgeräte werden live aus
+X-Plane-DataRefs gelesen. Das Plugin erkennt auch, welches Funkgerät
+aktiv ist, und klassifiziert den Frequenztyp (ATIS / Ground / Tower /
+Approach / UNICOM) automatisch gegen die apt.dat-Frequenz-Datenbank.
+Keine manuelle Frequenzeingabe.
 
-**Does the plugin set the transponder / squawk code?**
-No — spoken only. ATC may say "squawk 1200" (US flow), but the plugin does
-not read or write the cockpit transponder DataRefs. You dial the squawk
-manually on your transponder.
+**Setzt das Plugin den Transponder / Squawk-Code?**
+Nein — nur gesprochen. ATC kann „Squawk 7000" sagen, aber das Plugin
+liest oder schreibt die Transponder-DataRefs nicht. Du stellst den
+Squawk manuell ein.
 
-**How does it compare to BeyondATC or SayIntentions?**
-Strengths: 100 % offline option on Apple Silicon (no subscription, no
-cloud, no constant internet required — at the user's discretion), ~1.16 s
-warm pipeline latency in local mode, ICAO-correct EU phraseology with
-realistic Tower reactions to pilot errors. Two cloud options — **OpenAI**
-and **Mistral** — are available as paid opt-ins (BYO key) for users who
-prefer cloud LLMs or run an Intel Mac. Mistral typically costs less per
-token and is the cleaner choice for German ATC since Voxtral TTS speaks
-German natively.
-Limitations today: VFR-only, no IFR, no routing, no wake-turbulence
-spacing (sequencing in v2.2 is distance-only — Phase 5 on roadmap), no
-transponder data link, no co-pilot. It is not yet an all-in-one
-replacement for those products.
+**Wie verhält es sich zu BeyondATC oder SayIntentions?**
+Stärken: 100 % Offline-Option auf Apple Silicon (kein Abo, keine Cloud,
+kein dauerndes Internet nötig — nach Ermessen des Nutzers), ~1,16 s
+warme Pipeline-Latenz im Local-Modus, deutsche NfL-DACH-VFR-Phraseologie
+mit realistischen Tower-Reaktionen auf Pilotenfehler. Zwei
+Cloud-Optionen — **OpenAI** und **Mistral** — sind als bezahlte Opt-ins
+(eigener Key) verfügbar. Mistral kostet pro Token meist weniger und ist
+die sauberere Wahl für deutsches ATC, da Voxtral TTS Deutsch nativ
+spricht.
+Heutige Grenzen: VFR-only, kein IFR, kein Routing, keine
+Wirbelschleppen-Staffelung (Sequenzierung in v2.2 nur distanzbasiert —
+Phase 5 auf der Roadmap), kein Transponder-Datenlink, kein Co-Pilot.
 
-**Is there an introduction video?**
-Not yet.
+**Gibt es ein Einführungsvideo?**
+Noch nicht.
 
-**How does it compare to OpenSquawk?**
-Not yet evaluated.
+**Wie verhält es sich zu OpenSquawk?**
+Noch nicht bewertet.
 
-## Project Structure
+## Projektstruktur
 
 ```
 src/
-├── main.cpp                # XPlugin* entry points, menu, flight loop
-├── atc/                    # Session coordinator, state machine, intent
-│                           #   parser + rules, templates, ATIS, flight
-│                           #   phase, engine, traffic_advisor /
+├── main.cpp                # XPlugin*-Einstiegspunkte, Menü, Flight-Loop
+├── atc/                    # Session-Koordinator, State-Machine, Intent-
+│                           #   Parser + Rules, Templates, ATIS, Flug-
+│                           #   phase, Engine, traffic_advisor /
 │                           #   traffic_dialog, landing_sequence,
-│                           #   phraseology_hints, DE-specific:
+│                           #   phraseology_hints, DE-spezifisch:
 │                           #   bzf_compliance + de_phraseology, plus
 │                           #   flows/ (ground_operations, pattern_flow,
 │                           #   crosscountry_flow, flow_coordinator)
-├── audio/                  # Push-to-talk, mic capture, PCM playback
-│                           #   on the X-Plane radio bus (COM1 or COM2),
-│                           #   mic permission
-├── backends/               # Strategy interfaces + manager (async
-│                           #   dispatch) + loader (verify + load) +
+├── audio/                  # Push-to-talk, Mic-Capture, PCM-Wiedergabe
+│                           #   auf dem X-Plane-Funkbus (COM1 oder COM2),
+│                           #   Mic-Berechtigung
+├── backends/               # Strategie-Interfaces + manager (async
+│                           #   Dispatch) + loader (verify + load) +
 │                           #   downloader (libcurl + resume + SHA256).
-│                           #   Concrete backends split by mode:
+│                           #   Konkrete Backends nach Modus getrennt:
 │                           #   Local: WhisperStt / LlamaLm / PiperTts
-│                           #     (arm64 slice only, gated on
+│                           #     (nur arm64-Slice, gated auf
 │                           #     XPWELLYS_USE_LOCAL_INFERENCE).
 │                           #   OpenAI: OpenAiStt / OpenAiLm / OpenAiTts
-│                           #     (both slices, libcurl + JSON).
+│                           #     (beide Slices, libcurl + JSON).
 │                           #   Mistral: MistralStt / MistralLm /
-│                           #     MistralTts (both slices, libcurl +
-│                           #     JSON; Voxtral TTS returns a JSON
-│                           #     envelope with base64-encoded WAV).
-│                           #   The three client sets share no headers
-│                           #   and no code path — audit invariant
-│                           #   enforced by tests.
-├── core/                   # Logging, XPlaneContext (SDK-free struct +
-│                           #   SDK-coupled DataRef reader)
-├── data/                   # Airport VRPs, apt.dat-derived airspace
-│                           #   index, traffic_context (struct + 2 Hz
-│                           #   TCAS reader), traffic_geometry +
+│                           #     MistralTts (beide Slices, libcurl +
+│                           #     JSON; Voxtral TTS liefert ein JSON-
+│                           #     Envelope mit base64-kodiertem WAV).
+│                           #   Die drei Client-Sätze teilen weder Header
+│                           #   noch Code-Pfad — Audit-Invariante durch
+│                           #   Tests erzwungen.
+├── core/                   # Logging, XPlaneContext (SDK-freier Struct +
+│                           #   SDK-gekoppelter DataRef-Reader)
+├── data/                   # Airport-VRPs, apt.dat-abgeleiteter Airspace-
+│                           #   Index, traffic_context (Struct + 2-Hz-
+│                           #   TCAS-Reader), traffic_geometry +
 │                           #   traffic_phase_classifier
-├── persistence/            # settings.json, keychain (OpenAI + Mistral
-│                           #   API keys), model_paths, model_manifest
-└── ui/                     # Dear ImGui ATC panel + Models + Traffic
-                            #   tabs, ui_strings (per-profile i18n),
-                            #   clipboard helper
+├── persistence/            # settings.json, keychain (OpenAI- + Mistral-
+│                           #   API-Keys), model_paths, model_manifest,
+│                           #   models_catalog
+└── ui/                     # Dear-ImGui-ATC-Panel + Models- + Traffic-
+                            #   Tabs, ui_strings (i18n), clipboard-Helfer
 ```
 
-The `xp_atc_engine` CMake OBJECT library compiles the SDK-free translation
-units (`atc/`, `core/logging`, `core/xplane_context` struct, `data/`,
-`backends/manager.cpp`, `persistence/model_manifest`). Both the plugin
-module and the headless `atc_repl` tool reuse it. The plugin module adds
-the SDK-coupled units (`main.cpp`, `audio/`, `core/xplane_context_runtime.cpp`,
+Die CMake-**OBJECT**-Bibliothek `xp_atc_engine` kompiliert die SDK-freien
+Übersetzungseinheiten (`atc/`, `core/logging`, `core/xplane_context`-Struct,
+`data/`, `backends/manager.cpp`, `persistence/model_manifest`,
+`persistence/models_catalog`). Sowohl das Plugin-Modul als auch das
+headless `atc_repl`-Tool nutzen sie wieder. Das Plugin-Modul ergänzt die
+SDK-gekoppelten Einheiten (`main.cpp`, `audio/`,
+`core/xplane_context_runtime.cpp`,
 `backends/{loader,downloader,openai_*,mistral_*}.cpp`,
-`persistence/{settings,model_paths,keychain}.cpp`, `ui/atc_ui.cpp`).
-The arm64 slice additionally compiles
-`backends/{whisper_stt,llama_lm,piper_tts}.cpp` and links statically
-against `whisper`, `llama`, `common`, plus a shared `libpiper.dylib`
-that resolves `libonnxruntime.1.22.0.dylib` through `@loader_path` —
-both dylibs co-located inside the plugin bundle alongside the `.xpl`.
-The x86_64 slice has none of those dependencies; it links only
-libcurl + Security + the audio frameworks and ships both cloud
-provider clients.
+`persistence/{settings,model_paths,keychain}.cpp`, `ui/atc_ui.cpp`). Der
+arm64-Slice kompiliert zusätzlich
+`backends/{whisper_stt,llama_lm,piper_tts}.cpp` und linkt statisch gegen
+`whisper`, `llama`, `common` plus ein geteiltes `libpiper.dylib`, das
+`libonnxruntime.1.22.0.dylib` über `@loader_path` auflöst — beide dylibs
+liegen im Plugin-Bundle neben dem `.xpl`. Der x86_64-Slice hat keine
+dieser Abhängigkeiten; er linkt nur libcurl + Security + die
+Audio-Frameworks und liefert beide Cloud-Provider-Clients.
 
-## Third-Party Dependencies
+## Drittanbieter-Abhängigkeiten
 
-See [`THIRD_PARTY.md`](THIRD_PARTY.md) for the full list of bundled or
-linked libraries, their licenses, and how they are vendored.
+Siehe [`THIRD_PARTY.md`](THIRD_PARTY.md) für die vollständige Liste der
+gebündelten oder gelinkten Bibliotheken, ihre Lizenzen und wie sie
+vendored sind.
 
-## Development Workflow
+## Entwicklungs-Workflow
 
-### CI Pipeline
+### CI-Pipeline
 
-The GitHub Actions pipeline runs in two situations only:
+Die GitHub-Actions-Pipeline läuft nur in zwei Situationen:
 
-- **Pull Request against `main`** — validates the change (build + scenario tests) before it can be merged
-- **Push of a version tag `v*`** — builds the release artifact and publishes a GitHub Release with the packaged ZIP
+- **Pull Request gegen `main`** — validiert die Änderung (Build +
+  Szenario-Tests), bevor sie gemergt werden kann
+- **Push eines Versions-Tags `v*`** — baut das Release-Artefakt und
+  veröffentlicht ein GitHub-Release mit dem gepackten ZIP
 
-Direct pushes to `main` no longer trigger a build. All code changes must go
-through a Pull Request.
+Direkte Pushes auf `main` lösen keinen Build mehr aus. Alle
+Code-Änderungen müssen über einen Pull Request laufen.
 
-### Merging to `main`
+### Merge nach `main`
 
-Branch protection requires:
+Der Branch-Schutz verlangt:
 
-1. PR (no direct pushes)
-2. Status check `build-macos` passing (`make all` succeeds)
-3. PR branch up to date with main
+1. PR (keine direkten Pushes)
+2. Status-Check `build-macos` grün (`make all` erfolgreich)
+3. PR-Branch aktuell mit main
 
-## License
+## Lizenz
 
-This project is licensed under the [GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0.html).
-GPLv3 is required because espeak-ng (GPL-3.0-or-later) is statically
-linked into the bundled `libpiper.dylib`. Compatible with all other
-bundled third-party libraries; see [`THIRD_PARTY.md`](THIRD_PARTY.md)
-for the per-dependency breakdown.
+Dieses Projekt steht unter der
+[GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0.html).
+GPLv3 ist erforderlich, weil espeak-ng (GPL-3.0-or-later) statisch in das
+gebündelte `libpiper.dylib` gelinkt ist. Kompatibel mit allen anderen
+gebündelten Drittanbieter-Bibliotheken; siehe
+[`THIRD_PARTY.md`](THIRD_PARTY.md) für die Aufschlüsselung pro
+Abhängigkeit.

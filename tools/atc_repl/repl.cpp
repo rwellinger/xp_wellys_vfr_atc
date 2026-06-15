@@ -194,8 +194,9 @@ void cmd_set(std::string &callsign, const std::string &rest) {
       std::string up = value;
       std::transform(up.begin(), up.end(), up.begin(),
                      [](unsigned char c) { return std::toupper(c); });
-      if (up != "EU" && up != "US" && up != "DE")
-        throw std::runtime_error("region must be EU, US or DE");
+      // German-VFR-only build: "DE" is the only valid profile.
+      if (up != "DE")
+        throw std::runtime_error("region must be DE (German-VFR-only build)");
       settings::set_atc_profile(up);
       atc_templates::reload();
       flight_phase::reload();
@@ -224,7 +225,7 @@ void cmd_load(std::string &callsign, const std::string &rest) {
   }
   try {
     auto scn = scenario::load(rest);
-    const std::string region = scn.region.empty() ? "EU" : scn.region;
+    const std::string region = scn.region.empty() ? "DE" : scn.region;
     settings::set_atc_profile(region);
     atc_templates::reload();
     flight_phase::reload();
@@ -256,7 +257,7 @@ void cmd_help() {
       "  quit                  Exit (or Ctrl+D)\n"
       "\n"
       "Set fields:\n"
-      "  region EU|US|DE          Switch phraseology region (reloads templates)\n"
+      "  region DE                Phraseology profile (German-VFR-only)\n"
       "  airport <ICAO>           e.g. LSZH\n"
       "  airport_name <text>\n"
       "  towered true|false\n"

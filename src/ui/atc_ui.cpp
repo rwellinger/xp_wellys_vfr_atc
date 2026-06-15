@@ -85,17 +85,6 @@ static bool buffers_initialized = false;
 static const char *pattern_dir_names[] = {"left", "right"};
 static int pattern_dir_selection = 0; // default: left
 
-// Storage codes persisted in settings.json (single-source for the value
-// the state machine, intent rules, and template loader switch on).
-// Never localised - JSON values must stay stable across UI renames.
-static const char *atc_profile_codes[] = {"EU", "US", "DE"};
-// Display labels for the Combo widget. EU/ICAO, US/FAA, DE/BZF name
-// the actual phraseology standard the pilot is training against.
-static const char *atc_profile_labels[] = {"EU/ICAO", "US/FAA", "DE/BZF"};
-static int atc_profile_selection = 0; // default: EU
-static float region_feedback_timer = 0.0f;
-static char region_feedback_msg[128] = {0};
-
 // Cockpit start mode — drives the initial ATCState the state machine
 // adopts at plugin boot. Display labels are user-friendly; the keys
 // stored in settings.json are snake_case (cold_and_dark, etc.).
@@ -973,17 +962,18 @@ static void draw_transcript_tab() {
                             ? cx.nearest_airport_name
                             : cx.nearest_airport_id;
       std::string prefix = apt.empty() ? "ATC" : apt + " ATC";
-      ImGui::TextColored(ImVec4(0.0f, 1.0f, 1.0f, 1.0f),
-                         "[%02d:%02d%s] %s: %s", mins, secs, freq_tag.c_str(),
-                         prefix.c_str(), entry.text.c_str());
+      ImGui::TextColored(ImVec4(0.0f, 1.0f, 1.0f, 1.0f), "[%02d:%02d%s] %s: %s",
+                         mins, secs, freq_tag.c_str(), prefix.c_str(),
+                         entry.text.c_str());
       break;
     }
     case atc_session::TranscriptKind::System:
       // Plugin-side notice (e.g. radio glitch / TTS failure). Distinct
       // dim-amber colour so the user reads "this is the plugin
       // talking" instead of "ATC just said something".
-      ImGui::TextColored(ImVec4(0.85f, 0.65f, 0.20f, 1.0f), "[%02d:%02d] -- %s --",
-                         mins, secs, entry.text.c_str());
+      ImGui::TextColored(ImVec4(0.85f, 0.65f, 0.20f, 1.0f),
+                         "[%02d:%02d] -- %s --", mins, secs,
+                         entry.text.c_str());
       break;
     }
   }
@@ -1012,7 +1002,8 @@ static void draw_transcript_tab() {
     // the chat-style typing UX without re-focusing while the tower is
     // still speaking.
     static bool refocus_input = false;
-    const bool can_send = atc_session::ptt_state() == atc_session::PTTState::IDLE;
+    const bool can_send =
+        atc_session::ptt_state() == atc_session::PTTState::IDLE;
     // InputText shrinks to leave room for [Paste] + [Send] on the right.
     // Cmd+V into an X-Plane ImGui InputText is unreliable (the sim's
     // command bindings swallow the event), so the Paste button reads
@@ -1164,15 +1155,6 @@ static void draw_settings_tab() {
                  sizeof(callsign_raw_buf) - 1);
     std::string pdir = settings::pattern_direction();
     pattern_dir_selection = (pdir == "right") ? 1 : 0;
-    std::string region = settings::atc_profile();
-    atc_profile_selection = 0; // default EU
-    for (size_t i = 0;
-         i < sizeof(atc_profile_codes) / sizeof(atc_profile_codes[0]); ++i) {
-      if (region == atc_profile_codes[i]) {
-        atc_profile_selection = static_cast<int>(i);
-        break;
-      }
-    }
     std::string sm = settings::start_mode();
     start_mode_selection = 1; // engines_running default
     for (size_t i = 0; i < sizeof(start_mode_keys) / sizeof(start_mode_keys[0]);
@@ -1477,43 +1459,9 @@ static void draw_settings_tab() {
     settings::save();
   }
 
-  // ATC phraseology selector - EU/ICAO vs US/FAA vs DE/BZF. The
-  // displayed labels include the standard name (EU/ICAO etc.) but the
-  // stored value is the bare code (EU/US/DE) so JSON config and the
-  // template/intent-rule loader stay stable across UI renames.
-  // Changing the selection reloads all profile-scoped config files at
-  // runtime, including the UI string table.
-  if (ImGui::Combo(ui_strings::tr("settings.region_label"),
-                   &atc_profile_selection, atc_profile_labels,
-                   IM_ARRAYSIZE(atc_profile_labels))) {
-    settings::set_atc_profile(atc_profile_codes[atc_profile_selection]);
-    settings::save();
-    atc_templates::reload();
-    flight_phase::reload();
-    phraseology_hints::reload();
-    ui_strings::reload();
-    airport_vrps::reload();
-    // Local mode: switching profile also switches the Whisper model
-    // variant and Piper voice — restart the loader so the new
-    // language's models get verified + loaded. OpenAI mode reads
-    // settings::backend_language() per request, so no reload needed.
-    if (settings::backend_mode() == "local") {
-      backends::loader::stop();
-      backends::loader::start();
-    }
-    std::snprintf(region_feedback_msg, sizeof(region_feedback_msg),
-                  ui_strings::tr("settings.region_feedback_format"),
-                  atc_profile_labels[atc_profile_selection]);
-    region_feedback_timer = 3.0f;
-  }
-  if (ImGui::IsItemHovered()) {
-    ImGui::SetTooltip("%s", ui_strings::tr("tooltip.region"));
-  }
-  if (region_feedback_timer > 0.0f) {
-    ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "%s",
-                       region_feedback_msg);
-    region_feedback_timer -= ImGui::GetIO().DeltaTime;
-  }
+  // German-VFR-only build: the ATC phraseology is fixed to NfL
+  // DACH-VFR (DE/BZF). No profile selector — there is exactly one
+  // phraseology standard.
 
   // Cockpit start mode — applies on next plugin enable / sim start.
   const char *start_mode_labels_tr[3] = {
@@ -1603,11 +1551,9 @@ static void draw_settings_tab() {
     ImGui::SetTooltip("%s", ui_strings::tr("tooltip.enable_traffic"));
   }
 
-  // BZF-Strict-Mode toggle — DE profile only. The corrective tower
-  // behaviour is anchored in NfL Sprechfunk 2024 §25 b) Nr. 1 and
-  // would not match EU/US readback conventions, so the toggle is
-  // hidden outside the DE profile.
-  if (settings::atc_profile() == "DE") {
+  // BZF-Strict-Mode toggle. The corrective tower behaviour is anchored
+  // in NfL Sprechfunk 2024 §25 b) Nr. 1 (mandatory readback elements).
+  {
     bool strict = settings::bzf_strict_mode();
     if (ImGui::Checkbox(ui_strings::tr("settings.bzf_strict_mode"), &strict)) {
       settings::set_bzf_strict_mode(strict);

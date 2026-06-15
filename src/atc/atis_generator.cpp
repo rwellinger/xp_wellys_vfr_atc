@@ -75,36 +75,16 @@ static int visibility_category(float vis_m) {
 }
 
 static std::string format_visibility(float vis_m) {
-  const std::string region = settings::atc_profile();
-  if (region == "US") {
-    // Statute miles, FAA AIM. 1 SM = 1609.344 m. Cap at "10 or more" like ATIS.
-    float sm = vis_m / 1609.344f;
-    if (sm >= 10.0f)
-      return "1 0 statute miles";
-    int sm_int = static_cast<int>(std::round(sm));
-    if (sm_int < 1)
-      sm_int = 1;
-    return std::to_string(sm_int) + " statute miles";
-  }
-  if (region == "DE") {
-    // BZF: km ab 1 km, sonst Meter. Ueber-10-km Kappung wie ICAO ATIS.
-    if (vis_m >= 10000.0f)
-      return "ueber 10 Kilometer";
-    if (vis_m >= 1000.0f) {
-      int km = static_cast<int>(vis_m / 1000.0f);
-      return std::to_string(km) + " Kilometer";
-    }
-    int m = static_cast<int>(vis_m);
-    return std::to_string(m) + " Meter";
-  }
+  // German-VFR-only build: BZF — km ab 1 km, sonst Meter. Ueber-10-km
+  // Kappung wie ICAO ATIS.
   if (vis_m >= 10000.0f)
-    return "10 kilometers or more";
+    return "ueber 10 Kilometer";
   if (vis_m >= 1000.0f) {
     int km = static_cast<int>(vis_m / 1000.0f);
-    return std::to_string(km) + " kilometers";
+    return std::to_string(km) + " Kilometer";
   }
   int m = static_cast<int>(vis_m);
-  return std::to_string(m) + " meters";
+  return std::to_string(m) + " Meter";
 }
 
 static std::string format_clouds(int cloud_type, float cloud_base_ft) {
@@ -113,90 +93,52 @@ static std::string format_clouds(int cloud_type, float cloud_base_ft) {
   // any base below 100 ft as clear sky rather than emitting an absurd
   // "few clouds at 0 feet" / "wenige Wolken in 0 Fuss" line.
   const bool effectively_clear = cloud_type <= 0 || cloud_base_ft < 100.0f;
-  if (settings::atc_profile() == "DE") {
-    if (effectively_clear)
-      return "Wolkenlos.";
-    const char *coverage = "wenige Wolken";
-    switch (cloud_type) {
-    case 1:
-      coverage = "wenige Wolken";
-      break;
-    case 2:
-      coverage = "vereinzelte Wolken";
-      break;
-    case 3:
-      coverage = "aufgelockerte Wolken";
-      break;
-    case 4:
-      coverage = "bedeckt";
-      break;
-    default:
-      break;
-    }
-    // AIP folgt: VFR-Wolkenbasis in Fuss, auf 100 ft gerundet. Der M3-
-    // Normalizer (expand_altitudes) rendert "3500 Fuss" als
-    // "drei tausend fuenfhundert Fuss".
-    int base = static_cast<int>(std::round(cloud_base_ft / 100.0f)) * 100;
-    char buf[64];
-    std::snprintf(buf, sizeof(buf), "%s in %d Fuss.", coverage, base);
-    return buf;
-  }
   if (effectively_clear)
-    return "Sky clear.";
-  const char *coverage = "Few";
+    return "Wolkenlos.";
+  const char *coverage = "wenige Wolken";
   switch (cloud_type) {
   case 1:
-    coverage = "Few";
+    coverage = "wenige Wolken";
     break;
   case 2:
-    coverage = "Scattered";
+    coverage = "vereinzelte Wolken";
     break;
   case 3:
-    coverage = "Broken";
+    coverage = "aufgelockerte Wolken";
     break;
   case 4:
-    coverage = "Overcast";
+    coverage = "bedeckt";
     break;
   default:
     break;
   }
+  // AIP folgt: VFR-Wolkenbasis in Fuss, auf 100 ft gerundet. Der M3-
+  // Normalizer (expand_altitudes) rendert "3500 Fuss" als
+  // "drei tausend fuenfhundert Fuss".
   int base = static_cast<int>(std::round(cloud_base_ft / 100.0f)) * 100;
   char buf[64];
-  std::snprintf(buf, sizeof(buf), "%s clouds at %d feet.", coverage, base);
+  std::snprintf(buf, sizeof(buf), "%s in %d Fuss.", coverage, base);
   return buf;
 }
 
 static std::string format_wind(float dir, float spd) {
-  if (settings::atc_profile() == "DE") {
-    if (spd < 3.0f)
-      // BZF-Standardphrase fuer windstill (< 3 kt). NfL 2024 / DFS AIP
-      // VFR nennen "Wind ruhig"; "Wind still" wirkt umgangssprachlich
-      // und wurde im User-Test als nicht-BZF-konform markiert.
-      return "ruhig";
-    char buf[64];
-    // Anker "Grad" und "Knoten" bleiben — Normalizer-Pass 6
-    // (expand_wind) erkennt das Muster und stellt beide Zahlen
-    // ziffernweise.
-    std::snprintf(buf, sizeof(buf), "%.0f Grad %.0f Knoten", dir, spd);
-    return buf;
-  }
+  // German-VFR-only build.
   if (spd < 3.0f)
-    return "calm";
+    // BZF-Standardphrase fuer windstill (< 3 kt). NfL 2024 / DFS AIP
+    // VFR nennen "Wind ruhig"; "Wind still" wirkt umgangssprachlich
+    // und wurde im User-Test als nicht-BZF-konform markiert.
+    return "ruhig";
   char buf[64];
-  std::snprintf(buf, sizeof(buf), "%03.0f degrees %02.0f knots", dir, spd);
+  // Anker "Grad" und "Knoten" bleiben — Normalizer-Pass 6
+  // (expand_wind) erkennt das Muster und stellt beide Zahlen
+  // ziffernweise.
+  std::snprintf(buf, sizeof(buf), "%.0f Grad %.0f Knoten", dir, spd);
   return buf;
 }
 
 static std::string format_qnh(float inhg) {
   int hpa = static_cast<int>(std::round(inhg * 33.8639f));
   return std::to_string(hpa);
-}
-
-static std::string format_altimeter(float inhg) {
-  // Two decimal places, spoken as "two niner point niner two".
-  char buf[16];
-  std::snprintf(buf, sizeof(buf), "%.2f", inhg);
-  return buf;
 }
 
 void init() {
@@ -312,37 +254,8 @@ generate_atis_text_de(const xplane_context::XPlaneContext &ctx) {
 }
 
 std::string generate_atis_text(const xplane_context::XPlaneContext &ctx) {
-  if (settings::atc_profile() == "DE")
-    return generate_atis_text_de(ctx);
-
-  std::string airport =
-      !ctx.nearest_airport_name.empty()
-          ? ctx.nearest_airport_name
-          : (!ctx.nearest_airport_id.empty() ? ctx.nearest_airport_id
-                                             : "Airport");
-  const char *letter_name = kLetterNames[letter_ - 'A'];
-  std::string eff = atc_state_machine::effective_runway(ctx);
-  std::string runway = eff.empty() ? "unknown" : eff;
-
-  std::string text;
-  text += airport + " Information " + letter_name + ". ";
-  text += "Runway in use " + runway + ". ";
-  text +=
-      "Wind " + format_wind(ctx.wind_direction_deg, ctx.wind_speed_kt) + ". ";
-  text += "Visibility " + format_visibility(ctx.visibility_m) + ". ";
-  text += format_clouds(ctx.cloud_type, ctx.cloud_base_ft_msl) + " ";
-  text += "Temperature " + std::to_string(static_cast<int>(ctx.temperature_c)) +
-          ", dewpoint " + std::to_string(static_cast<int>(ctx.dewpoint_c)) +
-          ". ";
-  // Non-US regions (EU, ...) use QNH in hPa per ICAO Doc 4444.
-  if (settings::atc_profile() == "US")
-    text += "Altimeter " + format_altimeter(ctx.qnh_inhg) + ". ";
-  else
-    text += "QNH " + format_qnh(ctx.qnh_inhg) + ". ";
-  text += "Advise on initial contact you have information " +
-          std::string(letter_name) + ".";
-
-  return text;
+  // German-VFR-only build: ATIS is always the German NfL broadcast.
+  return generate_atis_text_de(ctx);
 }
 
 // Out-of-range check: ~60 NM realistic for ground-level ATIS VHF.

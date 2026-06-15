@@ -10,6 +10,7 @@
   "debug_text_input": false,
   "traffic_features_enabled": true,
   "bzf_strict_mode": false,
+  "atc_profile": "DE",
   "start_mode": "engines_running",
   "backend_mode": "local",
   "api_key_saved": false,

@@ -6,14 +6,8 @@ using model_manifest::Kind;
 using model_manifest::VoiceRole;
 
 // ── Language-aware Whisper selection (M6) ────────────────────────────
-
-TEST_CASE("get_for_language picks the EN-only Whisper for 'en'",
-          "[model_manifest][m6]") {
-    const auto &e = model_manifest::get_for_language(Kind::WhisperModel, "en");
-    REQUIRE(e.kind == Kind::WhisperModel);
-    REQUIRE(e.language == "en");
-    REQUIRE(e.filename == "ggml-small.en-q5_1.bin");
-}
+// German-VFR-only build: the catalog ships a single (multilingual)
+// Whisper model tagged "de" and a single German Piper voice.
 
 TEST_CASE("get_for_language picks the multilingual Whisper for 'de'",
           "[model_manifest][m6]") {
@@ -37,11 +31,6 @@ TEST_CASE("get_for_language falls back to language-agnostic Llama",
 
 // ── Voice catalog language tagging (M6) ──────────────────────────────
 
-TEST_CASE("English voices are tagged 'en'", "[model_manifest][m6]") {
-    REQUIRE(model_manifest::voice_language("en_US-lessac-medium") == "en");
-    REQUIRE(model_manifest::voice_language("en_GB-alan-medium") == "en");
-}
-
 TEST_CASE("Thorsten voice is tagged 'de'", "[model_manifest][m6]") {
     REQUIRE(model_manifest::voice_language("de_DE-thorsten-medium") == "de");
 }
@@ -63,26 +52,3 @@ TEST_CASE("German default voice covers every role",
     }
 }
 
-TEST_CASE("English defaults stay per-role", "[model_manifest][m6]") {
-    REQUIRE(model_manifest::default_voice_for(VoiceRole::Atis, "en") ==
-            "en_US-lessac-medium");
-    REQUIRE(model_manifest::default_voice_for(VoiceRole::Tower, "en") ==
-            "en_US-ryan-high");
-    REQUIRE(model_manifest::default_voice_for(VoiceRole::Ground, "en") ==
-            "en_US-amy-medium");
-    REQUIRE(model_manifest::default_voice_for(VoiceRole::Center, "en") ==
-            "en_GB-alan-medium");
-}
-
-// ── entry_key disambiguation (M6) ────────────────────────────────────
-
-TEST_CASE("entry_key disambiguates Whisper variants by language",
-          "[model_manifest][m6]") {
-    // Two Whisper rows share the same kind and (empty) voice_id; the
-    // downloader keys off entry_key() for queue dedup, so the language
-    // must be part of the key.
-    const auto &en = model_manifest::get_for_language(Kind::WhisperModel, "en");
-    const auto &de = model_manifest::get_for_language(Kind::WhisperModel, "de");
-    REQUIRE(model_manifest::entry_key(en) !=
-            model_manifest::entry_key(de));
-}
