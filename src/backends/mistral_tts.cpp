@@ -114,7 +114,7 @@ MistralTts::default_voice_for(model_manifest::VoiceRole role) const {
     return settings::mistral_tts_voice_tower();
   case R::Ground:
     return settings::mistral_tts_voice_ground();
-  case R::Center:
+  case R::Unicom:
     return settings::mistral_tts_voice_tower();
   }
   return {};

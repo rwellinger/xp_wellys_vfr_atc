@@ -305,7 +305,7 @@ struct FreqCodeMapping {
 static constexpr FreqCodeMapping kFreqCodes[] = {
     {50, 1050, FrequencyType::ATIS},     {51, 1051, FrequencyType::UNICOM},
     {52, 1052, FrequencyType::DELIVERY}, {53, 1053, FrequencyType::GROUND},
-    {54, 1054, FrequencyType::TOWER},    {55, 1055, FrequencyType::APPROACH},
+    {54, 1054, FrequencyType::TOWER},
 };
 
 // Parse a line code from the start of a line. Returns -1 if not a frequency.
@@ -339,7 +339,8 @@ static void build_towered_cache() {
     return;
   }
 
-  XPLMDebugString("[xp_wellys_devfr_atc] Building airport cache from apt.dat...\n");
+  XPLMDebugString(
+      "[xp_wellys_devfr_atc] Building airport cache from apt.dat...\n");
 
   std::unordered_map<std::string, AirportFrequencies> freqs;
   std::unordered_map<std::string, std::vector<RunwayInfo>> runways;
@@ -485,11 +486,11 @@ static void build_towered_cache() {
   }
 
   char log[256];
-  std::snprintf(log, sizeof(log),
-                "[xp_wellys_devfr_atc] Airport cache ready: %zu with freqs (%zu "
-                "towered, %zu ATIS), %zu with runway data\n",
-                freq_cache_.size(), towered_count, atis_count,
-                runway_cache_.size());
+  std::snprintf(
+      log, sizeof(log),
+      "[xp_wellys_devfr_atc] Airport cache ready: %zu with freqs (%zu "
+      "towered, %zu ATIS), %zu with runway data\n",
+      freq_cache_.size(), towered_count, atis_count, runway_cache_.size());
   XPLMDebugString(log);
 }
 
@@ -675,23 +676,12 @@ void update() {
   }
 
   // Derive frequency type from active COM via airport frequency database.
-  // Fallback to airspace_db (atc.dat) TRACON lookup for Approach freqs that
-  // aren't listed in the nearest airport's apt.dat entry (common on the way
-  // into a TMA from a neighbouring field).
   {
     float active_freq =
         (ctx.active_com == 1) ? ctx.com1_freq_mhz : ctx.com2_freq_mhz;
     ctx.frequency_type = towered_cache_ready_
                              ? ctx.airport_freqs.lookup(active_freq)
                              : FrequencyType::UNKNOWN;
-    if (ctx.frequency_type == FrequencyType::UNKNOWN && active_freq > 1.0f &&
-        airspace_db::enabled()) {
-      auto khz = static_cast<std::uint32_t>(std::round(active_freq * 1000.0f));
-      const auto *ctrl = airspace_db::lookup_by_freq(
-          khz, ctx.latitude, ctx.longitude, ctx.altitude_ft_msl);
-      if (ctrl && ctrl->role == airspace_db::ControllerRole::TRACON)
-        ctx.frequency_type = FrequencyType::APPROACH;
-    }
   }
 
   // Nearest airport lookup — throttled to every 60 frames (~1s)
@@ -781,11 +771,12 @@ void update() {
                                             ctx.latitude, ctx.longitude);
           if (!cached_match_id.empty()) {
             char mlog[256];
-            std::snprintf(mlog, sizeof(mlog),
-                          "[xp_wellys_devfr_atc] Frequency match: %s (active COM "
-                          "%u kHz) - switching active airport from %s\n",
-                          cached_match_id.c_str(), com_khz,
-                          ctx.geometric_nearest_id.c_str());
+            std::snprintf(
+                mlog, sizeof(mlog),
+                "[xp_wellys_devfr_atc] Frequency match: %s (active COM "
+                "%u kHz) - switching active airport from %s\n",
+                cached_match_id.c_str(), com_khz,
+                ctx.geometric_nearest_id.c_str());
             XPLMDebugString(mlog);
           }
         }
@@ -909,7 +900,8 @@ void unlock_airport() {
   if (locked_airport_id_.empty())
     return;
   char log[128];
-  std::snprintf(log, sizeof(log), "[xp_wellys_devfr_atc] Airport unlock (was %s)\n",
+  std::snprintf(log, sizeof(log),
+                "[xp_wellys_devfr_atc] Airport unlock (was %s)\n",
                 locked_airport_id_.c_str());
   XPLMDebugString(log);
   locked_airport_id_.clear();
@@ -958,7 +950,6 @@ std::vector<NearbyAirport> find_nearby_airports(double max_nm,
       na.has_atis = freq_it->second.has(FrequencyType::ATIS);
       na.has_ground = freq_it->second.has(FrequencyType::GROUND);
       na.has_tower = freq_it->second.has(FrequencyType::TOWER);
-      na.has_approach = freq_it->second.has(FrequencyType::APPROACH);
     }
     out.push_back(std::move(na));
   }

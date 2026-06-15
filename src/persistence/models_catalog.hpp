@@ -70,7 +70,7 @@ const std::vector<Option> &mistral_voice_options();
 
 // Local-section accessors consumed by model_manifest::manifest() to
 // build its Entry list. The Piper voice array is ordered required
-// first (in role order: Atis, Tower, Ground, Center), optional last —
+// first (in role order: Atis, Tower, Ground, Unicom), optional last —
 // the same ordering model_manifest::default_voice_for() relies on.
 const std::vector<LocalFileEntry> &local_whisper_entries();
 const std::vector<LocalFileEntry> &local_llama_entries();

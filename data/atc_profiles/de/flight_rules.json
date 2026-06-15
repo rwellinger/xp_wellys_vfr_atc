@@ -31,10 +31,6 @@
       "allowed_phases": ["CLIMB", "PATTERN", "FINAL_APPROACH", "CRUISE"],
       "rejection_ground": "{callsign}, negativ, Sie scheinen am Boden zu sein."
     },
-    "INITIAL_CALL_APPROACH": {
-      "allowed_phases": ["CLIMB", "CRUISE", "PATTERN", "FINAL_APPROACH"],
-      "rejection_ground": "{callsign}, negativ, Sie scheinen am Boden zu sein."
-    },
     "REQUEST_TAXI": {
       "allowed_phases": ["PARKED", "TAXI"],
       "rejection_airborne": "{callsign}, negativ, Sie sind in der Luft."
@@ -185,14 +181,6 @@
       "allowed": ["TOWER"],
       "rejection": "{callsign}, rufen Sie Tower zur Landung."
     },
-    "INITIAL_CALL_APPROACH": {
-      "allowed": ["APPROACH"],
-      "rejection": "{callsign}, rufen Sie Approach."
-    },
-    "REQUEST_FLIGHT_FOLLOWING": {
-      "allowed": [],
-      "rejection": "{callsign}, Flight Following ist hier nicht verfuegbar."
-    },
     "READY_FOR_DEPARTURE": {
       "allowed": ["TOWER", "GROUND"],
       "rejection": "{callsign}, rufen Sie Tower wenn abflugbereit."
@@ -259,7 +247,6 @@
     "INITIAL_CALL_TOWER": "{airport} Tower, {callsign}{aircraft_type_phrase}, Rollhalt Piste {runway}, abflugbereit",
     "INITIAL_CALL_INBOUND": "{airport} Tower, {callsign}{aircraft_type_phrase}, zur Landung, erbitte Einflugverfahren",
     "INITIAL_CALL_INBOUND_VRP": "{airport} Tower, {callsign}{aircraft_type_phrase}, ueber {entry_vrp}, zur Landung, Information {atis_letter}",
-    "INITIAL_CALL_APPROACH": "{airport} Approach, {callsign}{aircraft_type_phrase}, (Hoehe) Fuss, zur Landung",
     "REQUEST_TAXI": "{airport} {taxi_controller}, {callsign}, erbitte Rollen zum Rollhalt Piste {runway}",
     "REQUEST_TAXI_PARKING": "{airport} {taxi_controller}, {callsign}, erbitte Rollen zum Vorfeld",
     "READY_FOR_DEPARTURE": "{airport} Tower, {callsign}, Piste {runway}, abflugbereit",
@@ -285,8 +272,7 @@
     "TOWER":    ["IDLE", "TAXI_CLEARED", "TOWER_CONTACT",
                  "Pattern/DEPARTURE_CLEARED", "XC/DEPARTURE_CLEARED",
                  "Pattern/PATTERN_ENTRY", "Pattern/LANDING_CLEARED",
-                 "Pattern/TOUCH_AND_GO_CLEARED", "XC/APPROACH_CONTACT"],
-    "APPROACH": ["IDLE", "XC/EN_ROUTE", "XC/APPROACH_CONTACT"]
+                 "Pattern/TOUCH_AND_GO_CLEARED"]
   },
 
   "idle_redirects": [

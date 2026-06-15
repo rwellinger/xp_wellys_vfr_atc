@@ -186,8 +186,8 @@ PLUGIN_API int XPluginStart(char *name, char *sig, char *desc) {
   XPLMScheduleFlightLoop(loop_id, -1.0f, true);
 
   // ATC Panel command (bindable via X-Plane keyboard/joystick settings)
-  cmd_atc_panel_ =
-      XPLMCreateCommand("xp_wellys_devfr_atc/atc_panel", "Toggle ATC Commands Panel");
+  cmd_atc_panel_ = XPLMCreateCommand("xp_wellys_devfr_atc/atc_panel",
+                                     "Toggle ATC Commands Panel");
   XPLMRegisterCommandHandler(cmd_atc_panel_, atc_panel_cmd_handler, 1, nullptr);
 
   // Menu

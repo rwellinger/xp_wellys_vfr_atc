@@ -486,8 +486,6 @@ const char *intent_name(PilotIntent intent) {
     return "INITIAL_CALL_INBOUND";
   case PilotIntent::INITIAL_CALL_INBOUND_VRP:
     return "INITIAL_CALL_INBOUND_VRP";
-  case PilotIntent::INITIAL_CALL_APPROACH:
-    return "INITIAL_CALL_APPROACH";
   case PilotIntent::REQUEST_TAXI:
     return "REQUEST_TAXI";
   case PilotIntent::REQUEST_TAXI_PARKING:
@@ -522,8 +520,6 @@ const char *intent_name(PilotIntent intent) {
     return "UNABLE";
   case PilotIntent::SELF_ANNOUNCE:
     return "SELF_ANNOUNCE";
-  case PilotIntent::REQUEST_FLIGHT_FOLLOWING:
-    return "REQUEST_FLIGHT_FOLLOWING";
   case PilotIntent::INAPPROPRIATE_LANGUAGE:
     return "INAPPROPRIATE_LANGUAGE";
   case PilotIntent::NEGATIVE_CORRECTION:
@@ -559,7 +555,6 @@ PilotIntent intent_from_key(const std::string &key) {
       {"INITIAL_CALL_TOWER", PilotIntent::INITIAL_CALL_TOWER},
       {"INITIAL_CALL_INBOUND", PilotIntent::INITIAL_CALL_INBOUND},
       {"INITIAL_CALL_INBOUND_VRP", PilotIntent::INITIAL_CALL_INBOUND_VRP},
-      {"INITIAL_CALL_APPROACH", PilotIntent::INITIAL_CALL_APPROACH},
       {"REQUEST_TAXI", PilotIntent::REQUEST_TAXI},
       {"REQUEST_TAXI_PARKING", PilotIntent::REQUEST_TAXI_PARKING},
       {"READY_FOR_DEPARTURE", PilotIntent::READY_FOR_DEPARTURE},
@@ -578,7 +573,6 @@ PilotIntent intent_from_key(const std::string &key) {
       {"LEAVING_FREQUENCY", PilotIntent::LEAVING_FREQUENCY},
       {"UNABLE", PilotIntent::UNABLE},
       {"SELF_ANNOUNCE", PilotIntent::SELF_ANNOUNCE},
-      {"REQUEST_FLIGHT_FOLLOWING", PilotIntent::REQUEST_FLIGHT_FOLLOWING},
       {"INAPPROPRIATE_LANGUAGE", PilotIntent::INAPPROPRIATE_LANGUAGE},
       {"NEGATIVE_CORRECTION", PilotIntent::NEGATIVE_CORRECTION},
       {"TRAFFIC_IN_SIGHT", PilotIntent::TRAFFIC_IN_SIGHT},

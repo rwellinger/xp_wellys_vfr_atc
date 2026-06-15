@@ -105,11 +105,8 @@
         "verstanden",
         "contact ground",
         "contact tower",
-        "contact approach",
-        "contact departure",
         "kontaktiere boden",
         "kontaktiere turm",
-        "kontaktiere anflug",
         "goodbye",
         "good bye",
         "good day",
@@ -251,8 +248,8 @@
       "confidence": 0.90,
       "any": ["taxi", "request taxi", "taxiing", "rollen", "rollfreigabe", "erbitte rollen"],
       "none": [
-        "contact ground", "contact tower", "contact approach", "contact departure",
-        "kontaktiere boden", "kontaktiere turm", "kontaktiere anflug",
+        "contact ground", "contact tower",
+        "kontaktiere boden", "kontaktiere turm",
         { "all": ["taxi", "holding point"] },
         { "all": ["taxi", "hold short"] },
         { "all": ["taxi", " via "] },
@@ -267,22 +264,22 @@
     },
 
     {
-      "_note": "Position-Reports. 'melden sie' (Tower-Imperativ) und 'report' (EN-Imperativ) ausschliessen, damit der Pilot-Readback der Anweisung 'melden Sie Gegenanflug/Endanflug' nicht falsch als Position-Report klassifiziert wird. Echo der Tower-Anweisung gehoert zu READBACK.",
+      "_note": "Position-Reports. 'melden sie' (Tower-Imperativ) und 'report' (EN-Imperativ) ausschliessen, damit der Pilot-Readback der Anweisung 'melden Sie Gegenanflug/Endanflug' nicht falsch als Position-Report klassifiziert wird. Echo der Tower-Anweisung gehoert zu READBACK. 'gegneranflug' und 'gegen anflug' fangen haeufige Whisper-Fehltranskriptionen von 'Gegenanflug' ab.",
       "intent": "REPORT_POSITION_DOWNWIND",
       "confidence": 0.90,
-      "all": [{ "any": ["downwind", "gegenanflug"] }],
+      "all": [{ "any": ["downwind", "gegenanflug", "gegneranflug", "gegen anflug"] }],
       "none": ["takeoff", "take off", "abflug", "melden sie", "report"]
     },
     {
       "intent": "REPORT_POSITION_BASE",
       "confidence": 0.90,
-      "all": [{ "any": ["base", "queranflug"] }],
+      "all": [{ "any": ["base", "queranflug", "quer anflug"] }],
       "none": ["base leg to final", "melden sie", "report"]
     },
     {
       "intent": "REPORT_POSITION_FINAL",
       "confidence": 0.93,
-      "all": [{ "any": ["final", "endanflug"] }],
+      "all": [{ "any": ["final", "endanflug", "end anflug"] }],
       "none": ["full stop", "voller halt", "melden sie", "report"]
     },
     {
@@ -292,7 +289,7 @@
     },
 
     {
-      "_note": "Inbound/landing request, but only when no facility keyword (Tower/Turm/Approach/Anflug) is present.",
+      "_note": "Inbound/landing request, but only when no facility keyword (Tower/Turm) is present.",
       "intent": "REQUEST_LANDING",
       "confidence": 0.93,
       "any": ["inbound", "landing", "full stop", "zur landung", "voller halt"],
@@ -301,17 +298,8 @@
         "durchstartlandung",
         "aufsetzen und durchstarten",
         { "has_facility": "tower" },
-        { "has_facility": "turm" },
-        { "has_facility": "approach" },
-        { "has_facility": "anflug" }
+        { "has_facility": "turm" }
       ]
-    },
-
-    {
-      "_note": "US-specific VFR advisory service.",
-      "intent": "REQUEST_FLIGHT_FOLLOWING",
-      "confidence": 0.92,
-      "any": ["flight following", "vfr advisory", "radar service", "flight follow"]
     },
 
     {
@@ -325,25 +313,6 @@
         "switching",
         "erbitte frequenz",
         "erbitte frequenzwechsel"
-      ]
-    },
-
-    {
-      "_note": "Approach Control / Radar. DE 'Anflugkontrolle' shortened to 'Anflug'.",
-      "intent": "INITIAL_CALL_APPROACH",
-      "confidence": 0.88,
-      "any": [
-        { "has_facility": "approach" },
-        { "has_facility": "radar" },
-        { "has_facility": "anflug" },
-        { "has_facility": "anflugkontrolle" }
-      ],
-      "none": [
-        "continue approach", "final approach", "missed approach",
-        "short approach", "straight-in approach", "straight in approach",
-        "on approach", "abandon approach", "cleared approach",
-        "cleared for the approach",
-        "im endanflug", "endanflug", "abgebrochener anflug"
       ]
     },
 
@@ -442,6 +411,31 @@
       "_note": "Post-landing 'request taxi' / 'rollen' is a taxi-to-apron request as long as the pilot is still in the post-landing state window (on the ground, last landing in history, no new DEPARTURE_CLEARED yet). State window instead of the 120 s just_landed clock so a long roll-out plus slow taxi-back still hits the demotion. Mirrors the at_airport_after_landing choice in the 'Landung frei' demote rule below.",
       "if": { "intent": "REQUEST_TAXI", "require_context_flag": "at_airport_after_landing" },
       "set_intent": "REQUEST_TAXI_PARKING"
+    },
+    {
+      "_note": "Post-landing taxi-clearance read-back. The Tower's 'rollen Sie zum GAT-Vorfeld ueber Alpha' is echoed by the pilot as 'Rolle GAT-Vorfeld ueber Alpha' / 'Rolle zu GA Parking via Alpha'. That first-person phrasing misses both the READBACK rule ('rollen sie' Tower imperative) and the REQUEST_TAXI_PARKING rule ('rollen zum vorfeld'), so it lands as UNKNOWN and used to bounce off the LM as _INVALID. While in the post-landing window, an UNKNOWN utterance that names the apron/parking destination is the clearance read-back -- accept it silently as READBACK. A genuine fresh taxi-parking request classifies as REQUEST_TAXI_PARKING (not UNKNOWN), so it is untouched. One entry per destination token because text_contains is a single substring.",
+      "if": { "intent": "UNKNOWN", "text_contains": "vorfeld",
+              "require_context_flag": "at_airport_after_landing" },
+      "set_intent": "READBACK",
+      "set_confidence": 0.9
+    },
+    {
+      "if": { "intent": "UNKNOWN", "text_contains": "parking",
+              "require_context_flag": "at_airport_after_landing" },
+      "set_intent": "READBACK",
+      "set_confidence": 0.9
+    },
+    {
+      "if": { "intent": "UNKNOWN", "text_contains": "apron",
+              "require_context_flag": "at_airport_after_landing" },
+      "set_intent": "READBACK",
+      "set_confidence": 0.9
+    },
+    {
+      "if": { "intent": "UNKNOWN", "text_contains": "abstellpos",
+              "require_context_flag": "at_airport_after_landing" },
+      "set_intent": "READBACK",
+      "set_confidence": 0.9
     },
     {
       "_note": "Post-landing Whisper mishearing: the Tower's 'Landung frei' clearance bleeds into the audio context and Whisper renders the pilot's 'Piste frei' vacated call as 'Landung frei' instead. While we are on the ground after a landing without a new departure cycle, treat the READBACK match on 'landung frei' as a fumbled vacated report and demote to RUNWAY_VACATED. State window (at_airport_after_landing) instead of the 120 s just_landed clock so a long roll-out plus taxi-back to a far exit still hits the demotion.",

@@ -43,7 +43,8 @@ void init() {
       XPLMCreateCommand("xp_wellys_devfr_atc/ptt", "Welly's ATC: Push-to-Talk");
   XPLMRegisterCommandHandler(ptt_cmd_, ptt_command_handler, 1, nullptr);
 
-  XPLMDebugString("[xp_wellys_devfr_atc] PTT input initialized (X-Plane command)\n");
+  XPLMDebugString(
+      "[xp_wellys_devfr_atc] PTT input initialized (X-Plane command)\n");
 }
 
 void stop() {

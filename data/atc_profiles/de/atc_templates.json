@@ -67,11 +67,6 @@
         "next_state": "IDLE",
         "requires_readback": false
       },
-      "INITIAL_CALL_APPROACH": {
-        "response": "{callsign}, {airport} Anflugkontrolle, Radarkontakt, Piste {runway}, QNH {qnh}, melden Sie Platz in Sicht.",
-        "next_state": "XC/APPROACH_CONTACT",
-        "requires_readback": true
-      },
       "RUNWAY_VACATED": {
         "response": "{callsign}, verstanden, kontaktieren Sie Rollkontrolle auf {ground_frequency}, auf Wiederhoeren.",
         "next_state": "IDLE",
@@ -377,11 +372,6 @@
       }
     },
     "XC/EN_ROUTE": {
-      "INITIAL_CALL_APPROACH": {
-        "response": "{callsign}, {airport} Anflugkontrolle, Radarkontakt, Piste {runway}, QNH {qnh}, melden Sie Platz in Sicht.",
-        "next_state": "XC/APPROACH_CONTACT",
-        "requires_readback": true
-      },
       "_INVALID": {
         "response": "",
         "next_state": "XC/EN_ROUTE",
@@ -434,68 +424,6 @@
       "_INVALID": {
         "response": "{callsign}, melden Sie Verkehr in Sicht oder kein Kontakt.",
         "next_state": "IDLE",
-        "requires_readback": false
-      }
-    },
-    "XC/APPROACH_CONTACT": {
-      "INITIAL_CALL_APPROACH": {
-        "response": "{callsign}, {airport} Anflugkontrolle, Radarkontakt, melden Sie Platz in Sicht.",
-        "next_state": "XC/APPROACH_CONTACT",
-        "requires_readback": false
-      },
-      "INITIAL_CALL_INBOUND": {
-        "response": "{callsign}, frei zum Einflug in die {airport} Kontrollzone, Piste {runway}, QNH {qnh}{tower_handoff_phrase}.",
-        "next_state": "Pattern/PATTERN_ENTRY",
-        "requires_readback": true
-      },
-      "INITIAL_CALL_INBOUND_VRP": {
-        "response": "{callsign}, frei zum Einflug in die Kontrollzone ueber {entry_vrp}, Piste {runway}, QNH {qnh}{tower_handoff_phrase}.",
-        "next_state": "Pattern/PATTERN_ENTRY",
-        "requires_readback": true
-      },
-      "INITIAL_CALL_TOWER": {
-        "response": "{callsign}, frei zum Einflug in die {airport} Kontrollzone, Piste {runway}, QNH {qnh}{tower_handoff_phrase}.",
-        "next_state": "Pattern/PATTERN_ENTRY",
-        "requires_readback": true
-      },
-      "REQUEST_LANDING": {
-        "response": "{callsign}, frei zum Einflug in die {airport} Kontrollzone, Piste {runway}, QNH {qnh}{tower_handoff_phrase}.",
-        "next_state": "Pattern/PATTERN_ENTRY",
-        "requires_readback": true
-      },
-      "REPORT_POSITION": {
-        "response": "{callsign}, verstanden, Einflug in die Platzrunde Piste {runway}, kontaktieren Sie Tower auf {tower_frequency}.",
-        "next_state": "Pattern/PATTERN_ENTRY",
-        "requires_readback": true
-      },
-      "REPORT_POSITION_DOWNWIND": {
-        "response": "{callsign}, verstanden, kontaktieren Sie Tower auf {tower_frequency}.",
-        "next_state": "Pattern/PATTERN_ENTRY",
-        "requires_readback": true
-      },
-      "REPORT_POSITION_BASE": {
-        "response": "{callsign}, verstanden, kontaktieren Sie Tower auf {tower_frequency}.",
-        "next_state": "Pattern/PATTERN_ENTRY",
-        "requires_readback": true
-      },
-      "REPORT_POSITION_FINAL": {
-        "response": "{callsign}, kontaktieren Sie Tower auf {tower_frequency}.",
-        "next_state": "Pattern/PATTERN_ENTRY",
-        "requires_readback": true
-      },
-      "READBACK": {
-        "response": "",
-        "next_state": "XC/APPROACH_CONTACT",
-        "requires_readback": false
-      },
-      "LEAVING_FREQUENCY": {
-        "response": "{callsign}, Verlassen der Frequenz genehmigt, auf Wiederhoeren.",
-        "next_state": "Pattern/PATTERN_ENTRY",
-        "requires_readback": false
-      },
-      "_INVALID": {
-        "response": "{callsign}, melden Sie Ihre Absichten.",
-        "next_state": "XC/APPROACH_CONTACT",
         "requires_readback": false
       }
     }

@@ -39,8 +39,6 @@ const char *state_name(State s) {
     return "XC/DEPARTURE_CLEARED";
   case State::EN_ROUTE:
     return "XC/EN_ROUTE";
-  case State::APPROACH_CONTACT:
-    return "XC/APPROACH_CONTACT";
   }
   return "XC/UNKNOWN";
 }
@@ -51,8 +49,6 @@ State from_atc_state(ATCState s) {
     return State::DEPARTURE_CLEARED;
   case ATCState::EN_ROUTE:
     return State::EN_ROUTE;
-  case ATCState::APPROACH_CONTACT:
-    return State::APPROACH_CONTACT;
   default:
     return State::EN_ROUTE;
   }
@@ -64,8 +60,6 @@ ATCState to_atc_state(State s) {
     return ATCState::DEPARTURE_CLEARED;
   case State::EN_ROUTE:
     return ATCState::EN_ROUTE;
-  case State::APPROACH_CONTACT:
-    return ATCState::APPROACH_CONTACT;
   }
   return ATCState::EN_ROUTE;
 }
@@ -73,7 +67,6 @@ ATCState to_atc_state(State s) {
 bool is_xc_state(ATCState s) {
   switch (s) {
   case ATCState::EN_ROUTE:
-  case ATCState::APPROACH_CONTACT:
     return true;
   // DEPARTURE_CLEARED is shared between Pattern and XC — the
   // discriminator is internal::departure_type(). is_xc_state() means

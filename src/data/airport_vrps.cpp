@@ -135,12 +135,13 @@ static void load_from_file() {
     logging::info("Warning: airport_vrps.json not found at %s",
                   plugin_path.c_str());
 
-  // Optional user override under <X-Plane>/Output/preferences/xp_wellys_devfr_atc/
-  // (plugin) or $XP_ATC_USER_PREFS_DIR (REPL/tests). Per-ICAO replacement -
-  // any airport defined in the override file fully replaces the plugin
-  // default for that ICAO. Missing file is silent (the override is purely
-  // opt-in; users without one fall back to the bundled data). Profile-
-  // independent, just like the bundled file.
+  // Optional user override under
+  // <X-Plane>/Output/preferences/xp_wellys_devfr_atc/ (plugin) or
+  // $XP_ATC_USER_PREFS_DIR (REPL/tests). Per-ICAO replacement - any airport
+  // defined in the override file fully replaces the plugin default for that
+  // ICAO. Missing file is silent (the override is purely opt-in; users without
+  // one fall back to the bundled data). Profile- independent, just like the
+  // bundled file.
   const std::string user_path =
       settings::user_prefs_dir() + "/airport_vrps.json";
   const size_t before = airports_.size();

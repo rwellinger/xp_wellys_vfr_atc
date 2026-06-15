@@ -333,17 +333,16 @@ static void draw_nearby_airports() {
 
   auto render_row = [&](const std::string &icao, const std::string &name,
                         double dist_nm, bool has_atis, bool has_ground,
-                        bool has_tower, bool has_approach, bool is_locked) {
+                        bool has_tower, bool is_locked) {
     auto mark = [](bool present) -> const char * {
       return present ? "X" : "-";
     };
     char label[256];
-    std::snprintf(label, sizeof(label),
-                  "%s %-4s  %-24s  %5.1f NM   %s    %s   %s   %s##nb_%s",
-                  is_locked ? ">" : " ", // lock marker
-                  icao.c_str(), name.empty() ? "" : name.substr(0, 24).c_str(),
-                  dist_nm, mark(has_atis), mark(has_ground), mark(has_tower),
-                  mark(has_approach), icao.c_str());
+    std::snprintf(
+        label, sizeof(label), "%s %-4s  %-24s  %5.1f NM   %s    %s   %s##nb_%s",
+        is_locked ? ">" : " ", // lock marker
+        icao.c_str(), name.empty() ? "" : name.substr(0, 24).c_str(), dist_nm,
+        mark(has_atis), mark(has_ground), mark(has_tower), icao.c_str());
     if (is_locked) {
       ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4f, 1.0f, 0.4f, 1.0f));
     }
@@ -405,8 +404,7 @@ static void draw_nearby_airports() {
     render_row(locked, ctx.nearest_airport_name, dist_nm,
                ctx.airport_freqs.has(FT::ATIS),
                ctx.airport_freqs.has(FT::GROUND),
-               ctx.airport_freqs.has(FT::TOWER),
-               ctx.airport_freqs.has(FT::APPROACH), true);
+               ctx.airport_freqs.has(FT::TOWER), true);
   }
 
   if (nearby_cache_.empty()) {
@@ -414,7 +412,7 @@ static void draw_nearby_airports() {
   } else {
     for (const auto &na : nearby_cache_) {
       render_row(na.icao, na.name, na.distance_nm, na.has_atis, na.has_ground,
-                 na.has_tower, na.has_approach, na.icao == locked);
+                 na.has_tower, na.icao == locked);
     }
   }
 }
@@ -642,19 +640,15 @@ static void draw_models_tab() {
   auto loader_status = backends::loader::snapshot();
   auto downloads = backends::downloader::snapshot();
 
-  // Language filter: by default we only show / count / download
-  // entries pinned to the active backend language plus
-  // language-agnostic ones (Llama). Power users who want to keep
-  // both EN and DE models on disk can flip the checkbox.
-  static bool show_all_languages = false;
-  ImGui::Checkbox(ui_strings::tr("models.show_all_langs"), &show_all_languages);
+  // DE-only build: every catalog entry is German or language-agnostic
+  // (Llama), so there is nothing to filter — the old "show all languages"
+  // toggle is gone.
   const std::string active_lang = settings::backend_language();
 
   // ── Top summary: where files live + free disk + still-required ──
   ImGui::TextDisabled("%s", ui_strings::tr("models.location"));
   uint64_t free_b = backends::downloader::free_space_bytes();
-  uint64_t need_b =
-      backends::downloader::bytes_still_required(show_all_languages);
+  uint64_t need_b = backends::downloader::bytes_still_required(false);
   if (need_b == 0) {
     ImGui::Text(ui_strings::tr("models.all_present_format"),
                 format_bytes(free_b).c_str());
@@ -695,7 +689,7 @@ static void draw_models_tab() {
       ImGui::TextDisabled("%s", ui_strings::tr("models.download_progress"));
     } else {
       if (ImGui::Button(ui_strings::tr("btn.download_all"))) {
-        backends::downloader::enqueue_all_missing(show_all_languages);
+        backends::downloader::enqueue_all_missing(false);
       }
     }
     ImGui::SameLine();
@@ -722,12 +716,14 @@ static void draw_models_tab() {
   for (size_t i = 0; i < manifest.size(); ++i) {
     const auto &m = manifest[i];
 
-    // Hide rows pinned to a non-active language unless the user asked
-    // to see everything. Exception: optional voices are always
-    // visible — they're inherently cross-language, and a DE-profile
-    // user who wants to bolt on an EN voice needs the Download path.
-    if (!show_all_languages && !m.optional && !m.language.empty() &&
-        m.language != active_lang)
+    // Fold the .onnx.json config sibling into its voice's .onnx row so
+    // each voice shows as ONE row, not two near-identical entries. The
+    // tiny config file always travels with the .onnx; the row's buttons
+    // act on both.
+    if (m.kind == model_manifest::Kind::PiperVoiceConfig)
+      continue;
+
+    if (!m.optional && !m.language.empty() && m.language != active_lang)
       continue;
 
     Section sec;
@@ -788,6 +784,30 @@ static void draw_models_tab() {
       dl = downloads[i];
     }
 
+    // Piper voices: fold in the .onnx.json config sibling's on-disk +
+    // download state so this single row's buttons manage both files.
+    const model_manifest::Entry *cfg_entry = nullptr;
+    backends::loader::FileStatus cfg_fs{};
+    backends::downloader::Progress cfg_dl{};
+    if (m.kind == model_manifest::Kind::PiperVoice) {
+      cfg_entry = model_manifest::get_voice(
+          model_manifest::Kind::PiperVoiceConfig, m.voice_id);
+      for (const auto &fs : loader_status.files) {
+        if (fs.kind == model_manifest::Kind::PiperVoiceConfig &&
+            fs.voice_id == m.voice_id && fs.language == m.language) {
+          cfg_fs = fs;
+          break;
+        }
+      }
+      for (const auto &p : downloads) {
+        if (p.kind == model_manifest::Kind::PiperVoiceConfig &&
+            p.voice_id == m.voice_id) {
+          cfg_dl = p;
+          break;
+        }
+      }
+    }
+
     ImGui::PushID(static_cast<int>(i));
 
     // Row header: filename + state badge + language tag
@@ -834,36 +854,51 @@ static void draw_models_tab() {
       ImGui::TextWrapped("   %s", loader_fs.message.c_str());
     }
 
-    // Action buttons — per-row, state-driven. The previous one-button
-    // design forced users to wait for a full SHA256 sweep after every
-    // download; per-row "Re-verify" + "Force re-download" act on a
-    // single file and skip the 2 GB Llama hash entirely.
+    // Action buttons — act on the voice as a whole (.onnx + .onnx.json).
+    // The per-row "Re-verify" + "Force re-download" skip the 2 GB Llama
+    // hash entirely. For voices the buttons fan out to both files so a
+    // single row drives the whole voice.
     using FS = backends::loader::FileState;
+    auto is_missing = [](FS s) {
+      return s == FS::Missing || s == FS::SizeMismatch || s == FS::HashMismatch;
+    };
+    auto is_settled = [](FS s) {
+      return s == FS::Ready || s == FS::Verified || s == FS::LoadError;
+    };
+    auto dl_active = [](DS s) {
+      return s == DS::Downloading || s == DS::Queued || s == DS::Verifying;
+    };
+    const bool busy_dl =
+        dl_active(dl.state) || (cfg_entry && dl_active(cfg_dl.state));
+    const bool needs_dl =
+        is_missing(loader_fs.state) || (cfg_entry && is_missing(cfg_fs.state));
+    const bool settled =
+        is_settled(loader_fs.state) && (!cfg_entry || is_settled(cfg_fs.state));
     const std::string entry_key = model_manifest::entry_key(m);
-    if (dl.state == DS::Downloading || dl.state == DS::Queued ||
-        dl.state == DS::Verifying) {
+    if (busy_dl) {
       if (ImGui::Button(ui_strings::tr("btn.cancel"))) {
         backends::downloader::cancel(m);
+        if (cfg_entry)
+          backends::downloader::cancel(*cfg_entry);
       }
-    } else if (loader_fs.state == FS::Missing ||
-               loader_fs.state == FS::SizeMismatch ||
-               loader_fs.state == FS::HashMismatch) {
+    } else if (needs_dl) {
       if (ImGui::Button(ui_strings::tr("btn.download"))) {
         backends::downloader::enqueue(m);
+        if (cfg_entry)
+          backends::downloader::enqueue(*cfg_entry);
       }
-    } else if (loader_fs.state == FS::Ready ||
-               loader_fs.state == FS::Verified ||
-               loader_fs.state == FS::LoadError) {
+    } else if (settled) {
       if (ImGui::Button(ui_strings::tr("btn.reverify"))) {
+        // process_one() pulls the .onnx.json sibling automatically.
         backends::loader::start(entry_key);
       }
       ImGui::SameLine();
       if (ImGui::Button(ui_strings::tr("btn.force_redownload"))) {
         backends::downloader::force_redownload(m);
+        if (cfg_entry)
+          backends::downloader::force_redownload(*cfg_entry);
       }
-    } else if (loader_fs.state == FS::NotChecked ||
-               loader_fs.state == FS::Verifying ||
-               loader_fs.state == FS::Loading) {
+    } else {
       ImGui::BeginDisabled();
       ImGui::Button(ui_strings::tr("btn.busy"));
       ImGui::EndDisabled();
@@ -1069,10 +1104,11 @@ static void draw_audio_tab() {
       audio_test_timer_ = 0.0f;
       if (!audio_test_wav_.empty()) {
         char log[128];
-        std::snprintf(log, sizeof(log),
-                      "[xp_wellys_devfr_atc] Audio test playback - volume: %.2f, "
-                      "wav: %zu bytes\n",
-                      settings::volume(), audio_test_wav_.size());
+        std::snprintf(
+            log, sizeof(log),
+            "[xp_wellys_devfr_atc] Audio test playback - volume: %.2f, "
+            "wav: %zu bytes\n",
+            settings::volume(), audio_test_wav_.size());
         XPLMDebugString(log);
 
         // Save WAV to disk for debugging
@@ -1094,8 +1130,9 @@ static void draw_audio_tab() {
         audio_player::play_wav(audio_test_wav_, settings::volume());
       } else {
         audio_test_state_ = AudioTestState::IDLE;
-        XPLMDebugString("[xp_wellys_devfr_atc] Audio test: WAV encode returned empty "
-                        "- mic may not be working\n");
+        XPLMDebugString(
+            "[xp_wellys_devfr_atc] Audio test: WAV encode returned empty "
+            "- mic may not be working\n");
       }
     }
   } else if (audio_test_state_ == AudioTestState::PLAYING) {
@@ -1619,11 +1656,12 @@ static void draw_settings_tab() {
             if (ImGui::Selectable(id.c_str(), selected)) {
               settings::set_voice_for_role(role, id);
               settings::save();
-              // Trigger the loader so the newly-assigned voice (which
-              // is already in ready_ids → already loaded) becomes the
-              // active one for that role on the next synthesize call.
-              // No backend reload needed — manager picks via voice_id.
-              backends::loader::start();
+              // No loader action: the combo only lists voices that are
+              // already Ready (loaded into Piper), and the manager picks
+              // the voice by id at synthesize time. A full loader::start()
+              // here would needlessly re-hash every model (incl. the 2 GB
+              // Llama), flicker the whole backend to "not ready", and light
+              // up the Models tab with a spurious "loading" error.
             }
             if (selected)
               ImGui::SetItemDefaultFocus();
@@ -1637,10 +1675,11 @@ static void draw_settings_tab() {
                       model_manifest::VoiceRole::Tower);
       draw_role_combo(ui_strings::tr("settings.ground_voice"),
                       model_manifest::VoiceRole::Ground);
-      draw_role_combo(ui_strings::tr("settings.center_voice"),
-                      model_manifest::VoiceRole::Center);
-      // German only ships one voice (Thorsten) — it covers all four
-      // roles. English exposes the four per-role defaults.
+      draw_role_combo(ui_strings::tr("settings.unicom_voice"),
+                      model_manifest::VoiceRole::Unicom);
+      // German ships one required voice (Thorsten) that covers all four
+      // roles out of the box; three more German voices are optional
+      // downloads (Models tab) so each role can sound distinct.
       const size_t expected_voices = (voice_lang == "de") ? 1u : 4u;
       if (ready_ids.size() < expected_voices) {
         ImGui::TextColored(ImVec4(1.0f, 0.7f, 0.3f, 1.0f), "%s",
@@ -1702,7 +1741,6 @@ static const char *intent_display_label(const std::string &key) {
       {"REQUEST_FREQUENCY", "intent.request_frequency"},
       {"RADIO_CHECK", "intent.radio_check"},
       {"SELF_ANNOUNCE", "intent.self_announce"},
-      {"INITIAL_CALL_APPROACH", "intent.initial_call_approach"},
   };
   for (const auto &p : labels)
     if (key == p.first)
@@ -1720,8 +1758,6 @@ static const char *freq_type_label(xplane_context::FrequencyType ft) {
     return "GND";
   case xplane_context::FrequencyType::TOWER:
     return "TWR";
-  case xplane_context::FrequencyType::APPROACH:
-    return "APP";
   case xplane_context::FrequencyType::UNICOM:
     return "UNICOM";
   case xplane_context::FrequencyType::CTAF:
@@ -1742,9 +1778,6 @@ static void draw_pilot_actions(const xplane_context::XPlaneContext &ctx,
   bool is_towered = force_towered || (ctx.is_towered_airport &&
                                       ctx.frequency_type != FT::UNICOM &&
                                       ctx.frequency_type != FT::CTAF);
-  // When tuned to APPROACH freq (detected via airspace_db), treat as towered
-  if (ctx.frequency_type == FT::APPROACH)
-    is_towered = true;
 
   auto atc_state = atc_state_machine::get_state();
   std::string state_str = atc_state_machine::state_name(atc_state);
@@ -1866,8 +1899,7 @@ static void draw_pilot_actions(const xplane_context::XPlaneContext &ctx,
     if (key == "REPORT_POSITION" || key == "REPORT_POSITION_DOWNWIND" ||
         key == "REPORT_POSITION_BASE" || key == "REPORT_POSITION_FINAL" ||
         key == "REQUEST_LANDING" || key == "REQUEST_TOUCH_AND_GO" ||
-        key == "GO_AROUND" || key == "INITIAL_CALL_INBOUND" ||
-        key == "INITIAL_CALL_APPROACH")
+        key == "GO_AROUND" || key == "INITIAL_CALL_INBOUND")
       return BtnCat::PATTERN;
     return BtnCat::GENERAL;
   };
@@ -1963,17 +1995,13 @@ static void draw_pilot_actions(const xplane_context::XPlaneContext &ctx,
     ImGui::PopTextWrapPos();
   } else {
     // Context-aware empty state message — drives off real airport
-    // facilities so a Tower-only field (e.g. LSZG) doesn't tell the
-    // pilot to "tune to Approach" that doesn't exist.
-    bool has_app = ctx.airport_freqs.has(FT::APPROACH);
+    // facilities so a Tower-only field (e.g. LSZG) gets the right hint.
     bool has_twr = ctx.airport_freqs.has(FT::TOWER);
     bool has_gnd = ctx.airport_freqs.has(FT::GROUND);
     bool uncontrolled = !ctx.is_towered_airport && !has_twr;
 
     if (atc_state == atc_state_machine::ATCState::EN_ROUTE) {
-      if (has_app)
-        ImGui::TextDisabled("%s", ui_strings::tr("hints.tune_approach"));
-      else if (has_twr)
+      if (has_twr)
         ImGui::TextDisabled("%s", ui_strings::tr("hints.tune_tower_inbound"));
       else if (uncontrolled)
         ImGui::TextDisabled("%s", ui_strings::tr("hints.tune_unicom"));
@@ -2166,22 +2194,6 @@ static void draw_enroute_tab(const xplane_context::XPlaneContext &ctx) {
 
     if (radio_off)
       ImGui::EndDisabled();
-  }
-
-  // Guidance banner
-  auto atc_state = atc_state_machine::get_state();
-  if (atc_state == atc_state_machine::ATCState::EN_ROUTE &&
-      !ctx.enclosing_airspaces.empty()) {
-    for (const auto *c : ctx.enclosing_airspaces) {
-      if (c->role == airspace_db::ControllerRole::TRACON) {
-        ImGui::Separator();
-        ImGui::TextColored(ImVec4(0.4f, 0.9f, 1.0f, 1.0f),
-                           ui_strings::tr("enroute.contact_approach_format"),
-                           c->name.c_str());
-        ImGui::TextDisabled("%s", ui_strings::tr("enroute.tune_hint"));
-        break;
-      }
-    }
   }
 
   ImGui::Separator();
@@ -2663,9 +2675,16 @@ static int draw_phase_cb(XPLMDrawingPhase, int, void *) {
           // a fresh install.
           ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.7f, 0.2f, 1.0f));
         }
-        bool models_open = ImGui::BeginTabItem(
-            models_attention ? ui_strings::tr("tab.models_attention")
-                             : ui_strings::tr("tab.models"));
+        // Stable "###" ID suffix: the visible label flips between
+        // "Modelle" and "Modelle (!)" with readiness, but ImGui derives a
+        // tab's identity from its label — without a fixed ID the selection
+        // would be lost the moment attention toggles (e.g. a Force
+        // re-download), bouncing the user back to the Status tab.
+        std::string models_label =
+            (models_attention ? ui_strings::tr("tab.models_attention")
+                              : ui_strings::tr("tab.models"));
+        models_label += "###models_tab";
+        bool models_open = ImGui::BeginTabItem(models_label.c_str());
         if (models_attention) {
           ImGui::PopStyleColor();
         }

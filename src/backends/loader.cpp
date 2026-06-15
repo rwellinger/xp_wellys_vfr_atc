@@ -256,8 +256,7 @@ bool verify_files() {
           if (counts_against_gate)
             logging::error("verify: %s -> %s (gates readiness)",
                            e.filename.c_str(),
-                           f.message.empty() ? "not ready"
-                                             : f.message.c_str());
+                           f.message.empty() ? "not ready" : f.message.c_str());
           break;
         }
       }
@@ -285,8 +284,13 @@ bool ensure_piper_init();
 
 void load_whisper(const model_manifest::Entry &whisper_entry,
                   const std::string &lang) {
-  if (backends::stt_ready())
+  if (backends::stt_ready()) {
+    // Backend already loaded (e.g. from a prior targeted download). A
+    // full re-run's verify_files() downgraded the row to Verified; restore
+    // Ready so the readiness gate doesn't block on an already-loaded model.
+    update_state(whisper_entry, FileState::Ready, {});
     return;
+  }
   update_state(whisper_entry, FileState::Loading,
                "Loading whisper.cpp context...");
   auto stt = std::make_unique<backends::WhisperStt>();
@@ -303,8 +307,10 @@ void load_whisper(const model_manifest::Entry &whisper_entry,
 }
 
 void load_llama(const model_manifest::Entry &llama_entry) {
-  if (backends::lm_ready())
+  if (backends::lm_ready()) {
+    update_state(llama_entry, FileState::Ready, {});
     return;
+  }
   update_state(llama_entry, FileState::Loading,
                "Loading llama.cpp context (this can take a few seconds)...");
   auto lm = std::make_unique<backends::LlamaLm>();
@@ -418,8 +424,17 @@ void load_piper_voice(const std::string &voice_id) {
     return;
   if (!ensure_piper_init())
     return;
-  if (g_piper->has_voice(voice_id))
+  if (g_piper->has_voice(voice_id)) {
+    // Already loaded — a full re-run's verify_files() downgraded both rows
+    // to Verified; restore Ready so the readiness gate (which requires every
+    // assigned voice in Ready) doesn't block on an already-loaded voice.
+    if (const auto *o = model_manifest::get_voice(K::PiperVoice, voice_id))
+      update_state(*o, FileState::Ready, {});
+    if (const auto *j =
+            model_manifest::get_voice(K::PiperVoiceConfig, voice_id))
+      update_state(*j, FileState::Ready, {});
     return;
+  }
 
   const auto *onnx = model_manifest::get_voice(K::PiperVoice, voice_id);
   const auto *json = model_manifest::get_voice(K::PiperVoiceConfig, voice_id);
@@ -518,8 +533,9 @@ void load_openai_backends() {
 void load_mistral_backends() {
   std::string api_key = settings::load_mistral_api_key();
   if (api_key.empty()) {
-    logging::error("[xp_wellys_devfr_atc] Mistral mode active but no API key in "
-                   "Keychain. Open Settings to paste a Mistral key.");
+    logging::error(
+        "[xp_wellys_devfr_atc] Mistral mode active but no API key in "
+        "Keychain. Open Settings to paste a Mistral key.");
     return;
   }
 
@@ -587,20 +603,23 @@ void run_worker() {
     // OpenAI silently so the cockpit comes up usable, and persist
     // so the next launch starts clean.
     if (mode == "local") {
-      logging::info("[xp_wellys_devfr_atc] Local inference not compiled into this "
-                    "build; switching backend_mode to openai.");
+      logging::info(
+          "[xp_wellys_devfr_atc] Local inference not compiled into this "
+          "build; switching backend_mode to openai.");
       settings::set_backend_mode("openai");
       settings::save();
       mode = "openai";
     }
 #endif
     if (mode == "openai") {
-      logging::info("[xp_wellys_devfr_atc] BACKEND MODE: OPENAI (api.openai.com). "
-                    "Audio + transcripts will be sent to OpenAI.");
+      logging::info(
+          "[xp_wellys_devfr_atc] BACKEND MODE: OPENAI (api.openai.com). "
+          "Audio + transcripts will be sent to OpenAI.");
       load_openai_backends();
     } else if (mode == "mistral") {
-      logging::info("[xp_wellys_devfr_atc] BACKEND MODE: MISTRAL (api.mistral.ai). "
-                    "Audio + transcripts will be sent to Mistral.");
+      logging::info(
+          "[xp_wellys_devfr_atc] BACKEND MODE: MISTRAL (api.mistral.ai). "
+          "Audio + transcripts will be sent to Mistral.");
       load_mistral_backends();
     } else {
 #ifdef XPWELLYS_USE_LOCAL_INFERENCE
@@ -622,9 +641,10 @@ void run_worker() {
       // Cloud-only slice (e.g. x86_64 of the universal binary) but
       // settings still ask for Local. Surface this clearly — the
       // user has to switch to OpenAI in Settings.
-      logging::error("[xp_wellys_devfr_atc] BACKEND MODE: LOCAL requested but this "
-                     "build has no local-inference backends. Switch to "
-                     "OpenAI in Settings (Apple Silicon required for Local).");
+      logging::error(
+          "[xp_wellys_devfr_atc] BACKEND MODE: LOCAL requested but this "
+          "build has no local-inference backends. Switch to "
+          "OpenAI in Settings (Apple Silicon required for Local).");
 #endif
     }
   } catch (const std::exception &e) {
@@ -646,9 +666,8 @@ std::vector<ReadinessBlocker> Status::readiness_blockers() const {
                    {},
                    "STT backend not registered"});
   if (!backends::lm_ready())
-    out.push_back({ReadinessBlocker::Source::LmBackend,
-                   {},
-                   "LM backend not registered"});
+    out.push_back(
+        {ReadinessBlocker::Source::LmBackend, {}, "LM backend not registered"});
   if (!backends::tts_ready())
     out.push_back({ReadinessBlocker::Source::TtsBackend,
                    {},

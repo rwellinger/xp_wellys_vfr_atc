@@ -152,6 +152,29 @@ TEST_CASE("check_pilot_readback: Whisper Juliet->Juliett tolerated",
     REQUIRE(missing.empty());
 }
 
+// Regression from the EDNY Friedrichshafen test flight (2026-06-15):
+// pilot read back "runway 06 Landung frei 3 Alfa Bravo". Strict mode
+// wrongly flagged BOTH runway (English "runway" not recognised) and
+// callsign (Whisper "Alfa" vs stored "Alpha"). Both forms are now
+// tolerated so the landing clearance read-back is accepted.
+TEST_CASE("check_pilot_readback: English 'runway NN' accepted",
+          "[bzf_compliance][check][whisper]") {
+    std::vector<Element> required{Element::Callsign, Element::Runway};
+    auto missing = check_pilot_readback(
+        "runway 06 Landung frei November One Two Three Alpha Bravo", required,
+        "November One Two Three Alpha Bravo");
+    REQUIRE(missing.empty());
+}
+
+TEST_CASE("check_pilot_readback: Whisper Alfa->Alpha tolerated",
+          "[bzf_compliance][check][whisper]") {
+    std::vector<Element> required{Element::Callsign, Element::Runway};
+    auto missing = check_pilot_readback("runway 06 Landung frei 3 Alfa Bravo",
+                                        required,
+                                        "November One Two Three Alpha Bravo");
+    REQUIRE(missing.empty());
+}
+
 // Whisper welds German compounds: "Rollhalt Piste 06" gets transcribed
 // as "Rollhaltpiste 06" (no space). The runway matcher must still
 // recognise it — otherwise the pilot's correct readback is flagged

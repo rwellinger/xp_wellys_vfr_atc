@@ -42,9 +42,10 @@ std::string atc_profile_data_dir();
 std::string vrps_data_path();
 
 // User preferences directory — under
-// <X-Plane>/Output/preferences/xp_wellys_devfr_atc/. Survives plugin re-installs.
-// Used for optional per-user data overrides (e.g. airport_vrps_<region>.json
-// sourced from Navigraph Charts). Created on first call if absent.
+// <X-Plane>/Output/preferences/xp_wellys_devfr_atc/. Survives plugin
+// re-installs. Used for optional per-user data overrides (e.g.
+// airport_vrps_<region>.json sourced from Navigraph Charts). Created on first
+// call if absent.
 std::string user_prefs_dir();
 
 // Getters

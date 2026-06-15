@@ -106,8 +106,7 @@ static bool is_airborne_only_intent(PI i) {
   return i == PI::REPORT_POSITION || i == PI::REPORT_POSITION_DOWNWIND ||
          i == PI::REPORT_POSITION_BASE || i == PI::REPORT_POSITION_FINAL ||
          i == PI::REQUEST_LANDING || i == PI::REQUEST_TOUCH_AND_GO ||
-         i == PI::GO_AROUND || i == PI::INITIAL_CALL_APPROACH ||
-         i == PI::REQUEST_FLIGHT_FOLLOWING;
+         i == PI::GO_AROUND;
 }
 
 static bool is_ground_only_intent(PI i) {

@@ -39,8 +39,7 @@ namespace flow_coordinator {
 //   - GroundOps   when the dialog is in a ground-side state (IDLE,
 //                 GROUND_CONTACT, TAXI_CLEARED, TOWER_CONTACT, UNICOM_ACTIVE)
 //                 OR airborne but with no active departure
-//                 (EN_ROUTE, APPROACH_CONTACT — these transition out
-//                 of the XC flow in step 4).
+//                 (EN_ROUTE — transitions out of the XC flow in step 4).
 //   - Pattern     when state_ ∈ {DEPARTURE_CLEARED with
 //                 departure_type_ == PATTERN, PATTERN_ENTRY,
 //                 LANDING_CLEARED, TOUCH_AND_GO_CLEARED}.

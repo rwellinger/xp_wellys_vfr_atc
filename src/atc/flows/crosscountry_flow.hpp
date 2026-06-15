@@ -42,7 +42,6 @@ namespace crosscountry_flow {
 enum class State {
   DEPARTURE_CLEARED,
   EN_ROUTE,
-  APPROACH_CONTACT,
 };
 
 // Qualified state name. Single source of truth for the "XC/" prefix
@@ -76,7 +75,7 @@ void check_airport_change(const xplane_context::XPlaneContext &ctx,
 void reset();
 
 // Phase-4 landing-sequence overlay for the cross-country side. Called
-// after the regular template lookup for users in XC/APPROACH_CONTACT.
+// after the regular template lookup for users on the cross-country side.
 // In Phase 4 this is a deliberate no-op: the approach handoff is
 // already complete by the time landing sequencing matters, and the
 // pattern-side overlay takes over once the user lands on

@@ -229,17 +229,6 @@ TEST_CASE("DE: Friedrichshafen Turm zur Landung -> INITIAL_CALL_INBOUND",
     REQUIRE(m.confidence >= 0.80f);
 }
 
-TEST_CASE("DE: Anflugkontrolle -> INITIAL_CALL_APPROACH",
-          "[intent][de][initial_call]") {
-    DeRegionGuard g;
-    auto ctx = airborne_ctx();
-    auto m = parse("Stuttgart Anflug, Delta Echo Whiskey Lima Yankee, "
-                   "VFR zur Landung.",
-                   ctx);
-    REQUIRE(m.intent == PilotIntent::INITIAL_CALL_APPROACH);
-    REQUIRE(m.confidence >= 0.80f);
-}
-
 TEST_CASE("DE: Verkehr in Sicht -> TRAFFIC_IN_SIGHT",
           "[intent][de][traffic]") {
     DeRegionGuard g;

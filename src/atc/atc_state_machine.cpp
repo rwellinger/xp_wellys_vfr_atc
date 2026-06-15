@@ -186,7 +186,7 @@ inline void assert_flight_loop_thread() {
 //     UNICOM_ACTIVE) keep their raw name.
 //   - Pattern states (PATTERN_ENTRY, LANDING_CLEARED, TOUCH_AND_GO_CLEARED)
 //     gain the "Pattern/" prefix.
-//   - CrossCountry states (EN_ROUTE, APPROACH_CONTACT) gain the "XC/" prefix.
+//   - CrossCountry states (EN_ROUTE) gain the "XC/" prefix.
 //   - DEPARTURE_CLEARED is the only state that can sit in either flow.
 //     Its qualified name is selected from departure_type_ — Pattern when
 //     READY_FOR_DEPARTURE was the trigger, CrossCountry when
@@ -223,8 +223,6 @@ const char *state_name(ATCState state) {
     return "UNICOM_ACTIVE";
   case ATCState::EN_ROUTE:
     return "XC/EN_ROUTE";
-  case ATCState::APPROACH_CONTACT:
-    return "XC/APPROACH_CONTACT";
   }
   return "UNKNOWN";
 }
@@ -251,8 +249,6 @@ ATCState state_from_name(const std::string &name) {
       {"Pattern/TOUCH_AND_GO_CLEARED", ATCState::TOUCH_AND_GO_CLEARED},
       {"EN_ROUTE", ATCState::EN_ROUTE},
       {"XC/EN_ROUTE", ATCState::EN_ROUTE},
-      {"APPROACH_CONTACT", ATCState::APPROACH_CONTACT},
-      {"XC/APPROACH_CONTACT", ATCState::APPROACH_CONTACT},
   };
   auto it = kMap.find(name);
   return it != kMap.end() ? it->second : ATCState::IDLE;

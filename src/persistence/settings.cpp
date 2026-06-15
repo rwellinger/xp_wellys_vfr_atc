@@ -87,8 +87,8 @@ static json default_config() {
        model_manifest::default_voice_for(VoiceRole::Tower, "de")},
       {"voice_ground",
        model_manifest::default_voice_for(VoiceRole::Ground, "de")},
-      {"voice_center",
-       model_manifest::default_voice_for(VoiceRole::Center, "de")},
+      {"voice_unicom",
+       model_manifest::default_voice_for(VoiceRole::Unicom, "de")},
       {"window_x", -1.0},
       {"window_y", -1.0},
       {"window_w", -1.0},
@@ -163,8 +163,9 @@ void init() {
         }
       }
     } catch (...) {
-      XPLMDebugString("[xp_wellys_devfr_atc] Warning: failed to parse settings.json, "
-                      "using defaults\n");
+      XPLMDebugString(
+          "[xp_wellys_devfr_atc] Warning: failed to parse settings.json, "
+          "using defaults\n");
       cfg = default_config();
       needs_save = true;
     }
@@ -231,7 +232,8 @@ std::string user_prefs_dir() {
   // Sits under Output/preferences/ so it survives plugin re-installs.
   char xp_root[2048] = {};
   XPLMGetSystemPath(xp_root);
-  std::string path = std::string(xp_root) + "Output/preferences/xp_wellys_devfr_atc";
+  std::string path =
+      std::string(xp_root) + "Output/preferences/xp_wellys_devfr_atc";
   mkdir(path.c_str(), 0755);
   return path;
 }
@@ -242,7 +244,8 @@ void save() {
   if (out.good()) {
     out << cfg.dump(2) << std::endl;
   } else {
-    XPLMDebugString("[xp_wellys_devfr_atc] Error: failed to write settings.json\n");
+    XPLMDebugString(
+        "[xp_wellys_devfr_atc] Error: failed to write settings.json\n");
   }
 }
 
@@ -523,8 +526,8 @@ void set_mistral_tts_voice_ground(const std::string &v) {
 
 bool save_mistral_api_key(const std::string &key) {
   if (!persistence::keychain::save(kMistralKcService, kMistralKcAccount, key)) {
-    XPLMDebugString(
-        "[xp_wellys_devfr_atc] Error: failed to save Mistral API key to Keychain\n");
+    XPLMDebugString("[xp_wellys_devfr_atc] Error: failed to save Mistral API "
+                    "key to Keychain\n");
     return false;
   }
   cfg["mistral_api_key_saved"] = true;
@@ -553,8 +556,8 @@ static const char *voice_key(model_manifest::VoiceRole role) {
     return "voice_tower";
   case R::Ground:
     return "voice_ground";
-  case R::Center:
-    return "voice_center";
+  case R::Unicom:
+    return "voice_unicom";
   }
   return "voice_atis";
 }
@@ -574,8 +577,7 @@ static bool voice_id_is_known(const std::string &id) {
 std::string voice_for_role(model_manifest::VoiceRole role) {
   // Cloud modes read from their own voice slots — the Piper-style
   // model_manifest::voice_ids() are local-only and would be rejected
-  // by the cloud TTS has_voice() checks. Center has no dedicated
-  // cloud slot in either provider, so it reuses the Tower voice.
+  // by the cloud TTS has_voice() checks.
   const std::string mode = backend_mode();
   if (mode == "openai") {
     using R = model_manifest::VoiceRole;
@@ -586,7 +588,8 @@ std::string voice_for_role(model_manifest::VoiceRole role) {
       return openai_tts_voice_tower();
     case R::Ground:
       return openai_tts_voice_ground();
-    case R::Center:
+    case R::Unicom:
+      // OpenAI has no dedicated UNICOM slot — reuse the Tower voice.
       return openai_tts_voice_tower();
     }
   }
@@ -599,7 +602,8 @@ std::string voice_for_role(model_manifest::VoiceRole role) {
       return mistral_tts_voice_tower();
     case R::Ground:
       return mistral_tts_voice_ground();
-    case R::Center:
+    case R::Unicom:
+      // Mistral has no dedicated UNICOM slot — reuse the Tower voice.
       return mistral_tts_voice_tower();
     }
   }

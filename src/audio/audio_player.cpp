@@ -259,11 +259,13 @@ void play_pcm(std::vector<int16_t> pcm16, uint32_t sample_rate_hz, int channels,
 void play_pcm_on_com(int com, std::vector<int16_t> pcm16,
                      uint32_t sample_rate_hz, int channels, float volume) {
   if (pcm16.empty()) {
-    XPLMDebugString("[xp_wellys_devfr_atc] play_pcm() called with empty buffer\n");
+    XPLMDebugString(
+        "[xp_wellys_devfr_atc] play_pcm() called with empty buffer\n");
     return;
   }
   if (sample_rate_hz == 0 || channels < 1) {
-    XPLMDebugString("[xp_wellys_devfr_atc] play_pcm() called with invalid format\n");
+    XPLMDebugString(
+        "[xp_wellys_devfr_atc] play_pcm() called with invalid format\n");
     return;
   }
 
@@ -358,7 +360,8 @@ void play_squelch_burst(int com) {
 
 void play_wav(const std::vector<uint8_t> &wav_data, float volume) {
   if (wav_data.empty()) {
-    XPLMDebugString("[xp_wellys_devfr_atc] play_wav() called with empty data\n");
+    XPLMDebugString(
+        "[xp_wellys_devfr_atc] play_wav() called with empty data\n");
     return;
   }
 

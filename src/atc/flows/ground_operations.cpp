@@ -276,8 +276,6 @@ static ATCState revert_target(ATCState s) {
     return ATCState::PATTERN_ENTRY;
   case ATCState::PATTERN_ENTRY:
     return ATCState::TOWER_CONTACT;
-  case ATCState::APPROACH_CONTACT:
-    return ATCState::EN_ROUTE;
   case ATCState::GROUND_CONTACT:
   case ATCState::TOWER_CONTACT:
     return ATCState::IDLE;

@@ -53,7 +53,7 @@
     {
       "comment": "IDLE am Vorfeld, keine brauchbare Frequenz eingestellt: leere Liste, UI zeigt Tune-Hint.",
       "state": "IDLE", "phase": "PARKED", "facility": "towered",
-      "frequency_type": ["UNKNOWN", "ATIS", "DELIVERY", "APPROACH", "UNICOM", "CTAF"],
+      "frequency_type": ["UNKNOWN", "ATIS", "DELIVERY", "UNICOM", "CTAF"],
       "intents": []
     },
 
@@ -63,13 +63,6 @@
       "facility": "towered", "frequency_type": "TOWER",
       "intents": ["INITIAL_CALL_INBOUND", "INITIAL_CALL_INBOUND_VRP"]
     },
-    {
-      "comment": "IDLE in der Luft en-route auf Approach: Wiederherstellung des Kontakts.",
-      "state": "IDLE", "phase": ["CRUISE", "CLIMB"],
-      "facility": "towered", "frequency_type": "APPROACH",
-      "intents": ["INITIAL_CALL_APPROACH"]
-    },
-
     {
       "comment": "GROUND_CONTACT: Pilot hat Ground begruesst, wartet auf Rollfreigabe.",
       "state": "GROUND_CONTACT", "phase": ["PARKED", "TAXI"], "facility": "towered",
@@ -149,12 +142,6 @@
     },
 
     {
-      "comment": "EN_ROUTE auf Approach: Positionsmeldung + Frequenzwechsel-Anfrage.",
-      "state": "XC/EN_ROUTE", "phase": ["CLIMB", "CRUISE"], "facility": "towered",
-      "frequency_type": "APPROACH",
-      "intents": ["REPORT_POSITION", "REQUEST_FREQUENCY"]
-    },
-    {
       "comment": "EN_ROUTE nahe Tower-kontrolliertem Platz: auf Inbound-Call wechseln.",
       "state": "XC/EN_ROUTE", "phase": ["PATTERN", "FINAL_APPROACH"],
       "facility": "towered", "frequency_type": "TOWER",
@@ -164,19 +151,6 @@
       "comment": "EN_ROUTE ohne relevante Frequenz: leer -> UI zeigt Tune-Hint.",
       "state": "XC/EN_ROUTE",
       "intents": []
-    },
-
-    {
-      "comment": "APPROACH_CONTACT en-route: Positionsmeldung.",
-      "state": "XC/APPROACH_CONTACT", "phase": ["CLIMB", "CRUISE"], "facility": "towered",
-      "frequency_type": "APPROACH",
-      "intents": ["REPORT_POSITION", "REQUEST_FREQUENCY"]
-    },
-    {
-      "comment": "APPROACH_CONTACT in der Platzrunde / im Endanflug.",
-      "state": "XC/APPROACH_CONTACT", "phase": ["PATTERN", "FINAL_APPROACH"],
-      "facility": "towered", "frequency_type": "APPROACH",
-      "intents": ["REPORT_POSITION_DOWNWIND", "REPORT_POSITION_BASE", "REPORT_POSITION_FINAL"]
     },
 
     {

@@ -579,8 +579,6 @@ static std::string freq_type_name(xplane_context::FrequencyType freq_type) {
     return "UNICOM";
   case FT::CTAF:
     return "CTAF";
-  case FT::APPROACH:
-    return "APPROACH";
   default:
     return {};
   }
@@ -593,8 +591,6 @@ freq_type_from_name(const std::string &name) {
     return FT::GROUND;
   if (name == "TOWER")
     return FT::TOWER;
-  if (name == "APPROACH")
-    return FT::APPROACH;
   if (name == "UNICOM")
     return FT::UNICOM;
   if (name == "CTAF")

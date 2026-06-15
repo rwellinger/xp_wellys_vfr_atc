@@ -89,10 +89,11 @@ static constexpr float kAtisTuneDelaySec = 2.0f; // wait before playing
 // with the Tower voice, because the state has already advanced to
 // TOWER_CONTACT by the time speak_response runs.
 //
-// Tower-only airports collapse Ground/Approach onto the Tower voice
-// (one controller handles everything on the tower freq). Unknown /
-// Center / unicom-class freqs fall back to the Center voice — that's
-// the en-route facility a pilot would talk to between airports.
+// Tower-only airports collapse Ground onto the Tower voice (one
+// controller handles everything on the tower freq). Uncontrolled
+// fields (UNICOM / CTAF self-announce) get their own voice so they
+// sound distinct from a controlled Tower; an unknown freq falls back
+// to the Tower voice.
 static model_manifest::VoiceRole
 role_for_frequency(const xplane_context::XPlaneContext &ctx) {
   using FT = xplane_context::FrequencyType;
@@ -105,15 +106,14 @@ role_for_frequency(const xplane_context::XPlaneContext &ctx) {
   case FT::DELIVERY:
   case FT::GROUND:
     return R::Ground;
-  case FT::TOWER:
-    return R::Tower;
-  case FT::APPROACH:
   case FT::UNICOM:
   case FT::CTAF:
+    return R::Unicom;
+  case FT::TOWER:
   case FT::UNKNOWN:
-    return R::Center;
+    return R::Tower;
   }
-  return R::Center;
+  return R::Tower;
 }
 
 // Speak ATC response via local TTS, then transition to PLAYING → IDLE.
@@ -146,10 +146,11 @@ speak_response(const std::string &text, model_manifest::VoiceRole role,
         if (success && !audio.pcm16.empty()) {
           if (settings::debug_logging()) {
             char dbg[160];
-            std::snprintf(dbg, sizeof(dbg),
-                          "[xp_wellys_devfr_atc][DEBUG] TTS produced %zu samples "
-                          "@ %u Hz\n",
-                          audio.pcm16.size(), audio.sample_rate_hz);
+            std::snprintf(
+                dbg, sizeof(dbg),
+                "[xp_wellys_devfr_atc][DEBUG] TTS produced %zu samples "
+                "@ %u Hz\n",
+                audio.pcm16.size(), audio.sample_rate_hz);
             XPLMDebugString(dbg);
           }
           if (on_playback_starting)
@@ -206,10 +207,11 @@ static void speak_response_guarded(const std::string &text,
         if (success && !audio.pcm16.empty()) {
           if (settings::debug_logging()) {
             char dbg[160];
-            std::snprintf(dbg, sizeof(dbg),
-                          "[xp_wellys_devfr_atc][DEBUG] TTS produced %zu samples "
-                          "@ %u Hz\n",
-                          audio.pcm16.size(), audio.sample_rate_hz);
+            std::snprintf(
+                dbg, sizeof(dbg),
+                "[xp_wellys_devfr_atc][DEBUG] TTS produced %zu samples "
+                "@ %u Hz\n",
+                audio.pcm16.size(), audio.sample_rate_hz);
             XPLMDebugString(dbg);
           }
           int com = settings::active_com();
@@ -219,8 +221,9 @@ static void speak_response_guarded(const std::string &text,
           return;
         }
         // TTS failed — engage the revert guard.
-        XPLMDebugString("[xp_wellys_devfr_atc][ERROR] TTS failed, applying revert "
-                        "guard (squelch + state check)\n");
+        XPLMDebugString(
+            "[xp_wellys_devfr_atc][ERROR] TTS failed, applying revert "
+            "guard (squelch + state check)\n");
         const int com = settings::active_com();
         audio_player::play_squelch_burst(com);
 
@@ -292,8 +295,8 @@ static void dispatch_pilot_transcript(const std::string &text, float quality) {
 
   engine::process_transcript(
       std::move(in),
-      [freq_str_copy, is_pilot_row_written, pre_snap = std::move(pre_snap)](
-          const engine::Output &out) mutable {
+      [freq_str_copy, is_pilot_row_written,
+       pre_snap = std::move(pre_snap)](const engine::Output &out) mutable {
         last_pilot_message_ = out.parsed;
         if (out.response_text.empty()) {
           state_ = PTTState::IDLE;
@@ -349,7 +352,8 @@ void stop() {
 void on_ptt_pressed() {
   if (state_ != PTTState::IDLE) {
     char buf[128];
-    std::snprintf(buf, sizeof(buf), "[xp_wellys_devfr_atc] PTT blocked, state=%d\n",
+    std::snprintf(buf, sizeof(buf),
+                  "[xp_wellys_devfr_atc] PTT blocked, state=%d\n",
                   static_cast<int>(state_));
     XPLMDebugString(buf);
     return;
@@ -359,7 +363,8 @@ void on_ptt_pressed() {
   // avionics master, battery, and individual radio switches)
   const auto &ctx = xplane_context::get();
   if (!ctx.com_radio_powered) {
-    XPLMDebugString("[xp_wellys_devfr_atc] PTT blocked - COM radio not powered\n");
+    XPLMDebugString(
+        "[xp_wellys_devfr_atc] PTT blocked - COM radio not powered\n");
     return;
   }
 
@@ -370,8 +375,9 @@ void on_ptt_pressed() {
   // visible.
   if (!backends::stt_ready() || !backends::lm_ready() ||
       !backends::tts_ready()) {
-    XPLMDebugString("[xp_wellys_devfr_atc][ERROR] PTT blocked - local models not "
-                    "loaded (open the plugin window to download)\n");
+    XPLMDebugString(
+        "[xp_wellys_devfr_atc][ERROR] PTT blocked - local models not "
+        "loaded (open the plugin window to download)\n");
     return;
   }
 
@@ -394,9 +400,10 @@ void on_ptt_released() {
   // Minimum duration gate
   if (last_duration_ < kMinRecordingDuration) {
     char buf[128];
-    std::snprintf(buf, sizeof(buf),
-                  "[xp_wellys_devfr_atc] Recording too short (%.2fs), discarding\n",
-                  last_duration_);
+    std::snprintf(
+        buf, sizeof(buf),
+        "[xp_wellys_devfr_atc] Recording too short (%.2fs), discarding\n",
+        last_duration_);
     XPLMDebugString(buf);
     state_ = PTTState::IDLE;
     return;
@@ -524,8 +531,9 @@ void submit_text(const std::string &text) {
   // LM + TTS still need to be loaded — text bypasses STT, but the
   // downstream stages are identical to the voice path.
   if (!backends::lm_ready() || !backends::tts_ready()) {
-    XPLMDebugString("[xp_wellys_devfr_atc][ERROR] submit_text blocked - LM/TTS not "
-                    "ready (open the plugin window to download)\n");
+    XPLMDebugString(
+        "[xp_wellys_devfr_atc][ERROR] submit_text blocked - LM/TTS not "
+        "ready (open the plugin window to download)\n");
     return;
   }
   state_ = PTTState::PROCESSING;
@@ -544,8 +552,8 @@ void update() {
     if (atis_playing_) {
       atis_playing_ = false;
       if (settings::debug_logging())
-        XPLMDebugString(
-            "[xp_wellys_devfr_atc][DEBUG] ATIS playback finished, state -> IDLE\n");
+        XPLMDebugString("[xp_wellys_devfr_atc][DEBUG] ATIS playback finished, "
+                        "state -> IDLE\n");
     } else {
       if (settings::debug_logging())
         XPLMDebugString(
@@ -643,8 +651,9 @@ void update() {
     atis_playing_ = false;
     state_ = PTTState::IDLE;
     if (settings::debug_logging())
-      XPLMDebugString("[xp_wellys_devfr_atc][DEBUG] ATIS aborted: pilot retuned "
-                      "the COM that was playing ATIS\n");
+      XPLMDebugString(
+          "[xp_wellys_devfr_atc][DEBUG] ATIS aborted: pilot retuned "
+          "the COM that was playing ATIS\n");
   }
 
   // ATIS is a side-channel like Traffic — independent of ATCState.

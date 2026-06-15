@@ -39,7 +39,7 @@ const char *active_flow_name(ActiveFlow f) {
 }
 
 ActiveFlow active() {
-  // Step 4 will move EN_ROUTE / APPROACH_CONTACT into CrossCountryFlow.
+  // Step 4 will move EN_ROUTE into CrossCountryFlow.
   // Today the legacy state machine treats them as terminal states with
   // no departure flag, so they map back to GroundOps for the
   // active-flow view (the dialog is no longer in a clearance / pattern
@@ -60,7 +60,6 @@ ActiveFlow active() {
   case ATCState::TOWER_CONTACT:
   case ATCState::UNICOM_ACTIVE:
   case ATCState::EN_ROUTE:
-  case ATCState::APPROACH_CONTACT:
     return ActiveFlow::GroundOps;
   }
   return ActiveFlow::GroundOps;

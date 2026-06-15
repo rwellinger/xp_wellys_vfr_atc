@@ -706,9 +706,8 @@ bool poll_traffic_advisory(const xplane_context::XPlaneContext &ctx,
 
   traffic_advisor::UserState user;
   user.atc_state = atc_state_machine::get_state();
-  user.on_active_atc_freq = ctx.frequency_type == FT::TOWER ||
-                            ctx.frequency_type == FT::GROUND ||
-                            ctx.frequency_type == FT::APPROACH;
+  user.on_active_atc_freq =
+      ctx.frequency_type == FT::TOWER || ctx.frequency_type == FT::GROUND;
   user.lat = ctx.latitude;
   user.lon = ctx.longitude;
   user.alt_msl_ft = static_cast<double>(ctx.altitude_ft_msl);

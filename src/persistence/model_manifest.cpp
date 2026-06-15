@@ -82,7 +82,7 @@ const std::vector<Entry> &manifest() {
 
 const std::vector<VoiceRole> &all_roles() {
   static const std::vector<VoiceRole> v = {
-      VoiceRole::Atis, VoiceRole::Tower, VoiceRole::Ground, VoiceRole::Center};
+      VoiceRole::Atis, VoiceRole::Tower, VoiceRole::Ground, VoiceRole::Unicom};
   return v;
 }
 
@@ -94,8 +94,8 @@ const char *role_name(VoiceRole role) {
     return "Tower";
   case VoiceRole::Ground:
     return "Ground";
-  case VoiceRole::Center:
-    return "Center";
+  case VoiceRole::Unicom:
+    return "Unicom";
   }
   return "Unknown";
 }
@@ -113,8 +113,8 @@ bool role_from_name(const std::string &name, VoiceRole &out) {
     out = VoiceRole::Ground;
     return true;
   }
-  if (name == "Center" || name == "center") {
-    out = VoiceRole::Center;
+  if (name == "Unicom" || name == "unicom") {
+    out = VoiceRole::Unicom;
     return true;
   }
   return false;
@@ -203,8 +203,8 @@ std::string voice_language(const std::string &voice_id) {
 }
 
 std::string default_voice_for(VoiceRole role) {
-  // Catalog is ordered Atis, Tower, Ground, Center for the first four
-  // required English voices; that ordering is the role mapping.
+  // Catalog is ordered Atis, Tower, Ground, Unicom for the first four
+  // voices; that ordering is the role mapping.
   const auto &rows = models_catalog::local_piper_voices();
   if (rows.empty())
     return {};
@@ -218,7 +218,7 @@ std::string default_voice_for(VoiceRole role) {
     return pick(1);
   case VoiceRole::Ground:
     return pick(2);
-  case VoiceRole::Center:
+  case VoiceRole::Unicom:
     return pick(3);
   }
   return rows[0].voice_id;

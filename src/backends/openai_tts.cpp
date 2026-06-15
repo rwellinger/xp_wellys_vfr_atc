@@ -70,7 +70,7 @@ std::string OpenAiTts::default_voice_for(model_manifest::VoiceRole role) const {
     return "echo";
   case R::Ground:
     return "alloy";
-  case R::Center:
+  case R::Unicom:
     return "echo";
   }
   return "onyx";

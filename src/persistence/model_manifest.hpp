@@ -60,7 +60,7 @@ enum class VoiceRole {
   Atis,
   Tower,
   Ground,
-  Center,
+  Unicom,
 };
 
 const std::vector<VoiceRole> &all_roles();

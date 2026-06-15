@@ -64,7 +64,13 @@ bool tower_has_runway(const std::string &lc) {
   // welded compounds like "rollhaltpiste 06" or "endanflugpiste 24"
   // are still recognised. Trailing boundary stays for "06" vs. "067".
   static const std::regex re(R"(piste\s+\d{1,2}[lrc]?\b)");
-  return std::regex_search(lc, re);
+  if (std::regex_search(lc, re))
+    return true;
+  // Pilots frequently slip into English on the read-back ("runway 06"),
+  // and Whisper transcribes it verbatim. Accept the English form too so a
+  // correct read-back isn't flagged as a missing runway.
+  static const std::regex re_en(R"(\brunway\s+\d{1,2}[lrc]?\b)");
+  return std::regex_search(lc, re_en);
 }
 
 bool tower_has_frequency(const std::string &lc) {
@@ -109,9 +115,17 @@ void normalize_whisper_nato_variants(std::string &lc) {
   // NfL form. Bidirectional check below tries `from` AND its NfL form
   // so we don't care which side is the canonical one.
   static const std::pair<const char *, const char *> kVariants[] = {
-      {"vector", "victor"}, {"juliet ", "juliett "}, {"juliet,", "juliett,"},
-      {"wisky", "whiskey"}, {"whiskee", "whiskey"},  {"xray", "x-ray"},
+      {"vector", "victor"},
+      {"juliet ", "juliett "},
+      {"juliet,", "juliett,"},
+      {"wisky", "whiskey"},
+      {"whiskee", "whiskey"},
+      {"xray", "x-ray"},
       {"x ray", "x-ray"},
+      // Whisper renders the NfL "Alpha" as the ICAO "Alfa" (f-spelling)
+      // about as often as not, so a shortened "... Alfa Bravo" read-back
+      // would otherwise miss the stored "... Alpha Bravo" callsign.
+      {"alfa", "alpha"},
   };
   for (const auto &[from, to] : kVariants) {
     std::size_t from_len = std::char_traits<char>::length(from);

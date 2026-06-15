@@ -49,7 +49,6 @@ enum class FrequencyType {
   DELIVERY,
   GROUND,
   TOWER,
-  APPROACH,
   UNICOM,
   CTAF,
   ATIS,
@@ -150,7 +149,6 @@ struct NearbyAirport {
   bool has_atis = false;
   bool has_ground = false;
   bool has_tower = false;
-  bool has_approach = false;
 };
 
 // Return up to `max_count` airports within `max_nm` of the aircraft,
