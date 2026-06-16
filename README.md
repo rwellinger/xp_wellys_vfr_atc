@@ -70,8 +70,8 @@ Mistral.
   X-Plane mit `[STT-LOCAL]` / `[STT-OPENAI]` / `[STT-MISTRAL]` (und
   entsprechend für LM/TTS) getaggt, sodass du nachvollziehen kannst,
   welche Seite jede Anfrage bedient hat.
-- **Lokales Speech-to-Text** — `whisper.cpp` `small-q5_1` (multilingual,
-  Deutsch), Metal-beschleunigt
+- **Lokales Speech-to-Text** — `whisper.cpp` `large-v3-turbo-q5_0`
+  (multilingual, Deutsch), Metal-beschleunigt
 - **Lokales LLM** — `llama.cpp` mit Llama 3.2 3B Instruct (Q4_K_M),
   Metal-beschleunigt; dient zur Absichts-Disambiguierung, wenn der
   regelbasierte Parser unsicher ist. Die Reparatur-Ausgabe wird
@@ -366,13 +366,16 @@ erneut und lädt sie automatisch, wenn die Hashes passen.
 
 | Modell | Sprache | Grösse | SHA256 | URL |
 |---|---|---:|---|---|
-| `ggml-small-q5_1.bin` | de (multilingual) | 181 MB | `ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb` | [`huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_1.bin`](https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_1.bin) |
+| `ggml-large-v3-turbo-q5_0.bin` | de (multilingual) | 547 MB | `394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2` | [`huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin`](https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin) |
 | `Llama-3.2-3B-Instruct-Q4_K_M.gguf` | — | 1.88 GB | `6c1a2b41161032677be168d354123594c0e6e67d2b9227c84f296ad037c728ff` | [`huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf`](https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF/resolve/main/Llama-3.2-3B-Instruct-Q4_K_M.gguf) |
 | `de_DE-thorsten-medium.onnx` | de | 60 MB | `7e64762d8e5118bb578f2eea6207e1a35a8e0c30595010b666f983fc87bb7819` | [`huggingface.co/rhasspy/piper-voices/resolve/main/de/de_DE/thorsten/medium/de_DE-thorsten-medium.onnx`](https://huggingface.co/rhasspy/piper-voices/resolve/main/de/de_DE/thorsten/medium/de_DE-thorsten-medium.onnx) |
 | `de_DE-thorsten-medium.onnx.json` | de | 4.7 KB | `974adee790533adb273a1ac88f49027d2a1b8f0f2cf4905954a4791e79264e85` | [`huggingface.co/rhasspy/piper-voices/resolve/main/de/de_DE/thorsten/medium/de_DE-thorsten-medium.onnx.json`](https://huggingface.co/rhasspy/piper-voices/resolve/main/de/de_DE/thorsten/medium/de_DE-thorsten-medium.onnx.json) |
 
-Das Whisper-Modell ist die multilinguale Variante (`ggml-small-q5_1.bin`),
-da das DE-Profil deutsche Transkription braucht. Llama ist multilingual
+Das Whisper-Modell ist die multilinguale Variante
+(`ggml-large-v3-turbo-q5_0.bin`), da das DE-Profil deutsche Transkription
+braucht — der destillierte large-v3-turbo-Decoder erkennt buchstabierte
+Rufzeichen (NATO-Alphabet) deutlich zuverlässiger als das frühere
+`small`-Modell, bei nahezu gleichem Tempo. Llama ist multilingual
 und wird geteilt. Die Piper-Stimme ist die deutsche `de_DE-thorsten-medium`.
 
 Nachdem du die Dateien abgelegt hast, öffne das Plugin-Fenster erneut —
@@ -385,11 +388,11 @@ Die DE-Hashes oben wurden am 2026-06-04 gegen HuggingFace `main` erfasst.
 Zum erneuten Verifizieren (oder Neu-Pinnen nach einem Upstream-Update):
 
 ```bash
-# Whisper small multilingual (~184 MB)
-curl -L -o /tmp/ggml-small-q5_1.bin \
-  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_1.bin
-shasum -a 256 /tmp/ggml-small-q5_1.bin
-stat -f%z /tmp/ggml-small-q5_1.bin
+# Whisper large-v3-turbo multilingual (~547 MB)
+curl -L -o /tmp/ggml-large-v3-turbo-q5_0.bin \
+  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin
+shasum -a 256 /tmp/ggml-large-v3-turbo-q5_0.bin
+stat -f%z /tmp/ggml-large-v3-turbo-q5_0.bin
 
 # Piper de_DE-thorsten-medium (.onnx ~63 MB, .onnx.json ~5 KB)
 curl -L -o /tmp/de_DE-thorsten-medium.onnx \
