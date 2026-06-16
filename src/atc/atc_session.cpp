@@ -436,6 +436,20 @@ void on_ptt_released() {
   if (!locked_rwy.empty())
     airport_ctx += " runway " + locked_rwy;
 
+  // Bias toward the pilot's own callsign. The spelled-out phonetic
+  // alphabet is what the small local Whisper model mangles most — its
+  // German language prior turns "Whiskey Romeo Oscar" into real words
+  // ("Wisskrieg", "Wiesbaecki"), which destroys intent detection.
+  // Conditioning the initial prompt on the expected spoken callsign
+  // anchors the transcription. pilot_callsign() returns the
+  // profile-aware German-expanded spoken form ("Hotel Bravo Whiskey
+  // Romeo Oscar") — exactly the token sequence we want recognized.
+  // Also feeds the cloud backends: OpenAI consumes it as free-prompt
+  // text, Mistral splits it into per-word context_bias[] tokens.
+  const std::string callsign = settings::pilot_callsign();
+  if (!callsign.empty())
+    airport_ctx += " " + callsign;
+
   backends::stt::transcribe_async(
       std::move(pcm), src_rate,
       [](const backends::stt::TranscriptResult &wr) {
