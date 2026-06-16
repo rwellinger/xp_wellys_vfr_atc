@@ -179,6 +179,7 @@ endif()
 # their static-lib link requirements) into the headless atc_repl tool.
 add_library(xp_atc_engine OBJECT
     src/core/logging.cpp
+    src/core/cross_country_log.cpp
     src/atc/engine.cpp
     src/atc/intent_parser.cpp
     src/atc/intent_rules.cpp

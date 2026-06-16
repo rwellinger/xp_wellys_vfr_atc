@@ -713,7 +713,9 @@ src/
 │                           #   Die drei Client-Sätze teilen weder Header
 │                           #   noch Code-Pfad — Audit-Invariante durch
 │                           #   Tests erzwungen.
-├── core/                   # Logging, XPlaneContext (SDK-freier Struct +
+├── core/                   # Logging, cross_country_log (JSON-Lines-
+│                           #   Funk-Logger für die Messsession),
+│                           #   XPlaneContext (SDK-freier Struct +
 │                           #   SDK-gekoppelter DataRef-Reader)
 ├── data/                   # Airport-VRPs, apt.dat-abgeleiteter Airspace-
 │                           #   Index, traffic_context (Struct + 2-Hz-
@@ -727,9 +729,9 @@ src/
 ```
 
 Die CMake-**OBJECT**-Bibliothek `xp_atc_engine` kompiliert die SDK-freien
-Übersetzungseinheiten (`atc/`, `core/logging`, `core/xplane_context`-Struct,
-`data/`, `backends/manager.cpp`, `persistence/model_manifest`,
-`persistence/models_catalog`). Sowohl das Plugin-Modul als auch das
+Übersetzungseinheiten (`atc/`, `core/logging`, `core/cross_country_log`,
+`core/xplane_context`-Struct, `data/`, `backends/manager.cpp`,
+`persistence/model_manifest`, `persistence/models_catalog`). Sowohl das Plugin-Modul als auch das
 headless `atc_repl`-Tool nutzen sie wieder. Das Plugin-Modul ergänzt die
 SDK-gekoppelten Einheiten (`main.cpp`, `audio/`,
 `core/xplane_context_runtime.cpp`,
@@ -742,6 +744,43 @@ arm64-Slice kompiliert zusätzlich
 liegen im Plugin-Bundle neben dem `.xpl`. Der x86_64-Slice hat keine
 dieser Abhängigkeiten; er linkt nur libcurl + Security + die
 Audio-Frameworks und liefert beide Cloud-Provider-Clients.
+
+## Cross-Country-Messsession-Log (`cross_country_session.log`)
+
+Für die Auswertung von Cross-Country-Flügen schreibt das Modul
+`core/cross_country_log` pro verarbeiteter Funke eine maschinenlesbare
+Zeile (JSON-Lines, ein Objekt pro Zeile) in die Datei
+`cross_country_session.log` im X-Plane-Arbeitsverzeichnis (neben
+`Log.txt`). Der Logger ist **rein beobachtend** — er greift nie ins
+Matching, Routing oder die Klassifikation ein, sondern fädelt nur die
+Werte zusammen, die `engine::process_transcript` ohnehin erzeugt, und
+schreibt sie an der Stelle, an der `outcome` feststeht.
+
+Zweck: genug Rohmaterial sammeln, um offline zu entscheiden, ob ein
+Phraseologie-Fuzzy-Layer oder eine ortsbezogene Eigennamen-Erkennung
+nötig ist. Felder pro Zeile:
+
+| Feld | Bedeutung |
+|---|---|
+| `transcript`, `quality` | Roh-Whisper-Output (unverändert) + Whisper-Quality |
+| `intent`, `confidence` | klassifizierter Intent + Konfidenz |
+| `path` | `rule_skip_lm` \| `lm_fallback` \| `clearance_match` — welcher Pfad die Funke trug |
+| `lm_used`, `lm_backend`, `lm_ready` | ob der LM lief; falls ja Backend (`openai`/`mistral`/`local`) + Ready-Flag, sonst `null` |
+| `outcome` | `classified` \| `unknown` \| `tower_reported_garbled` |
+| `state`, `flight_phase` | ATC-State + Flugphase **zum Zeitpunkt der Funke** (vor jeder State-Transition gesnapshottet) |
+| `expected_intent` | CSV der in diesem State gültigen Intents (`valid_intents`) — Rohmaterial fürs Hand-Urteil |
+| `vrp_name_set`, `vrp_name` | ob ein VRP/Ortsname erkannt wurde + welcher |
+| `readback_missing_elements` | nur bei READBACK: fehlende Soll-Elemente (leeres Array = vollständig), sonst `null` |
+| `failure_locus` | **unverbindlicher** Heuristik-Vorschlag (`phraseology`/`proper_name`/`mixed`/`unclear`); nur gesetzt, wenn `outcome != classified` ODER der LM-Fallback ansprang, sonst `null` |
+
+`failure_locus` ist absichtlich nur ein stumpfer Keyword-Scan und kann
+das Verhalten nicht beeinflussen. Die Einordnung triffst du selbst aus
+`transcript` + `expected_intent` + `vrp_name`-Status: VRP gesetzt aber
+Intent verfehlt → Eigenname-Problem; ein verstümmeltes Phraseologie-Token
+bei leerem VRP → Phraseologie. Das Backend-Label setzt der `loader` beim
+Bring-up (`cross_country_log::set_lm_backend(mode)`); Engine-Code
+inspiziert `backend_mode` nie selbst — siehe **Backend Adapter Rule** in
+`CLAUDE.md`.
 
 ## Drittanbieter-Abhängigkeiten
 

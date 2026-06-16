@@ -14,6 +14,7 @@
 #include "backends/openai_lm.hpp"
 #include "backends/openai_stt.hpp"
 #include "backends/openai_tts.hpp"
+#include "core/cross_country_log.hpp"
 #include "core/logging.hpp"
 #include "persistence/model_paths.hpp"
 #include "persistence/models_catalog.hpp"
@@ -655,6 +656,11 @@ void run_worker() {
     }
 #endif
     log_active_models(mode);
+    // Record the active backend label for the cross-country session log.
+    // The loader is the one place that legitimately knows the mode; engine
+    // code never inspects backend_mode (Backend Adapter Rule) and only
+    // reads this label back through cross_country_log.
+    cross_country_log::set_lm_backend(mode);
     if (mode == "openai") {
       logging::info(
           "[xp_wellys_devfr_atc] BACKEND MODE: OPENAI (api.openai.com). "

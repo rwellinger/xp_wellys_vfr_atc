@@ -18,6 +18,7 @@
 #include "atc/traffic_advisor.hpp"
 #include "atc/traffic_dialog.hpp"
 #include "backends/manager.hpp"
+#include "core/cross_country_log.hpp"
 #include "core/logging.hpp"
 #include "data/traffic_context.hpp"
 #include "data/traffic_geometry.hpp"
@@ -276,10 +277,123 @@ static Output run_state_machine(const intent_parser::PilotMessage &msg,
   return out;
 }
 
+// ── Cross-country measurement logging (purely observational) ─────────
+// Everything below feeds cross_country_log only. It never influences
+// matching, routing or classification — it observes the values the flow
+// already produced and writes one JSON line per transmission. See
+// core/cross_country_log.hpp for the field contract.
+
+// State / phase / valid-intents captured at the moment the pilot spoke,
+// BEFORE the state machine processes the transmission. Threaded into the
+// async LM callback so a log line reflects time-of-speech context, not
+// whatever the state machine moved to by the time we write.
+struct CcBase {
+  std::string state;
+  std::string flight_phase;
+  std::string expected_intent; // valid_intents CSV for `state`
+};
+
+// CSV of the intents valid in the current state — raw material for the
+// offline "what was plausibly expected here" judgement. Read-only.
+static std::string expected_intents_csv(const xplane_context::XPlaneContext &ctx) {
+  using FT = xplane_context::FrequencyType;
+  bool is_towered = ctx.is_towered_airport && ctx.frequency_type != FT::UNICOM &&
+                    ctx.frequency_type != FT::CTAF;
+  std::string state_str =
+      atc_state_machine::state_name(atc_state_machine::get_state());
+  auto valid = atc_templates::valid_intents(is_towered, state_str);
+  std::string csv;
+  for (const auto &v : valid) {
+    if (!csv.empty())
+      csv += ",";
+    csv += v;
+  }
+  return csv;
+}
+
+// Tower-response tier for the say-again paths, mapped to the log's
+// outcome vocabulary.
+static const char *unclear_outcome(const intent_parser::PilotMessage &msg) {
+  return has_recognisable_elements(msg) ? "tower_reported_garbled" : "unknown";
+}
+
+// NON-BINDING failure-locus suggestion. Deliberately a dumb keyword scan
+// so it cannot diverge from behaviour: it only annotates the record. The
+// raw fields (transcript, expected_intent, vrp_name) stay authoritative
+// and let the offline evaluator overrule this.
+static std::string guess_failure_locus(const std::string &transcript,
+                                       bool vrp_set) {
+  std::string t = to_lower_copy(transcript);
+  static const char *kPhraseology[] = {
+      "rollen",      "piste",     "gegenanflug", "queranflug", "anflug",
+      "abflug",      "endteil",   "platzrunde",  "qnh",        "startklar",
+      "startfrei",   "durchstart", "steigflug",  "verlasse",   "wiederhol",
+      "melde",       "squawk",    "information", "rollhalt",   "freigabe",
+  };
+  bool phr = false;
+  for (const char *kw : kPhraseology) {
+    if (t.find(kw) != std::string::npos) {
+      phr = true;
+      break;
+    }
+  }
+  if (phr && vrp_set)
+    return "mixed";
+  if (phr)
+    return "phraseology";
+  if (vrp_set)
+    return "proper_name";
+  return "unclear";
+}
+
+// Assemble + emit one cross-country record. `missing` is non-null only on
+// the deterministic readback path (where the soll-ist diff was already
+// computed); pass nullptr elsewhere.
+static void cc_log(const std::string &transcript, float quality,
+                   const intent_parser::PilotMessage &msg,
+                   const std::string &path, bool lm_used,
+                   const std::string &outcome, const CcBase &base,
+                   const std::vector<bzf_compliance::Element> *missing) {
+  cross_country_log::Entry e;
+  e.transcript = transcript;
+  e.quality = quality;
+  e.intent = intent_parser::intent_name(msg.intent);
+  e.confidence = msg.confidence;
+  e.path = path;
+  e.lm_used = lm_used;
+  e.lm_ready = lm_used ? backends::lm_ready() : false;
+  e.outcome = outcome;
+  e.state = base.state;
+  e.flight_phase = base.flight_phase;
+  e.expected_intent = base.expected_intent;
+  e.vrp_name_set = !msg.vrp_name.empty();
+  e.vrp_name = msg.vrp_name;
+  e.is_readback = msg.intent == intent_parser::PilotIntent::READBACK;
+  if (missing != nullptr) {
+    e.is_readback = true;
+    for (auto el : *missing)
+      e.readback_missing_elements.emplace_back(bzf_compliance::element_name(el));
+  }
+  if (outcome != "classified" || lm_used) {
+    e.emit_failure_locus = true;
+    e.failure_locus = guess_failure_locus(transcript, e.vrp_name_set);
+  }
+  cross_country_log::write(e);
+}
+
 void process_transcript(Input in, Done done) {
   if (settings::debug_logging())
     logging::debug("Whisper response (quality=%.2f): \"%s\"", in.quality,
                    in.transcript.c_str());
+
+  // Snapshot the time-of-speech context for cross-country logging before
+  // any state transition. get_state()/flight_phase::get() need no ctx;
+  // expected_intent does, so it is only filled when a ctx is present.
+  CcBase cc_base;
+  cc_base.state = atc_state_machine::state_name(atc_state_machine::get_state());
+  cc_base.flight_phase = flight_phase::phase_name(flight_phase::get());
+  if (in.ctx != nullptr)
+    cc_base.expected_intent = expected_intents_csv(*in.ctx);
 
   // Poor transcript quality — likely noise or engine sounds. Even at
   // very low quality the transcript may still contain a recognised
@@ -291,6 +405,10 @@ void process_transcript(Input in, Done done) {
     Output out;
     out.response_text =
         build_unclear_response_raw(in.transcript, in.pilot_callsign);
+    intent_parser::PilotMessage stub;
+    stub.raw_transcript = in.transcript;
+    cc_log(in.transcript, in.quality, stub, "rule_skip_lm", false,
+           unclear_outcome(stub), cc_base, nullptr);
     done(std::move(out));
     return;
   }
@@ -317,6 +435,8 @@ void process_transcript(Input in, Done done) {
       parsed.confidence >= 0.7f) {
     Output out;
     if (try_traffic_dialog(parsed, ctx, in.now_secs, out)) {
+      cc_log(in.transcript, in.quality, out.parsed, "rule_skip_lm", false,
+             "classified", cc_base, nullptr);
       done(std::move(out));
       return;
     }
@@ -341,6 +461,8 @@ void process_transcript(Input in, Done done) {
     out.is_warning = true;
     // Coherent (if rude) utterance — no "say again" loop carries over.
     mark_clear();
+    cc_log(in.transcript, in.quality, parsed, "rule_skip_lm", false,
+           "classified", cc_base, nullptr);
     done(std::move(out));
     return;
   }
@@ -382,7 +504,10 @@ void process_transcript(Input in, Done done) {
         logging::debug("Readback recognised vs clearance (deterministic, "
                        "no LM); missing elements=%zu",
                        missing.size());
-      done(run_state_machine(rb, ctx, in.now_secs));
+      Output out = run_state_machine(rb, ctx, in.now_secs);
+      cc_log(in.transcript, in.quality, rb, "clearance_match", false,
+             "classified", cc_base, &missing);
+      done(std::move(out));
       return;
     }
   }
@@ -399,10 +524,15 @@ void process_transcript(Input in, Done done) {
       out.response_text = build_unclear_response(parsed, in.pilot_callsign);
       logging::info("ATC (LM unavailable, UNKNOWN): %s",
                     out.response_text.c_str());
+      cc_log(in.transcript, in.quality, parsed, "rule_skip_lm", false,
+             unclear_outcome(parsed), cc_base, nullptr);
       done(std::move(out));
       return;
     }
-    done(run_state_machine(parsed, ctx, in.now_secs));
+    Output out = run_state_machine(parsed, ctx, in.now_secs);
+    cc_log(in.transcript, in.quality, parsed, "rule_skip_lm", false,
+           "classified", cc_base, nullptr);
+    done(std::move(out));
     return;
   }
 
@@ -425,7 +555,10 @@ void process_transcript(Input in, Done done) {
       logging::debug("Rule-based path: %s (conf=%.2f) — skip LM",
                      intent_parser::intent_name(parsed.intent),
                      parsed.confidence);
-    done(run_state_machine(parsed, ctx, in.now_secs));
+    Output out = run_state_machine(parsed, ctx, in.now_secs);
+    cc_log(in.transcript, in.quality, parsed, "rule_skip_lm", false,
+           "classified", cc_base, nullptr);
+    done(std::move(out));
     return;
   }
 
@@ -514,12 +647,19 @@ void process_transcript(Input in, Done done) {
   // the deterministic safety net below turns an LM _INVALID into a silent
   // readback rather than a "say again" loop.
   bool readback_pending_snapshot = atc_state_machine::is_readback_pending();
+  // Cross-country logging snapshots (purely observational): quality, the
+  // time-of-speech context, and the stored clearance so a readback line
+  // can carry its soll-ist diff even when the LM placed the utterance.
+  float quality_snapshot = in.quality;
+  CcBase cc_base_snapshot = cc_base;
+  auto rb_comp_snapshot = atc_state_machine::last_clearance_components();
   ++lm_inferences_;
   backends::lm::classify_with_repair_async(
       in.transcript, sys_prompt, valid,
       // NOLINTNEXTLINE(bugprone-exception-escape)
       [parsed, ctx_snapshot, now_secs, fallback_cs, original_transcript,
-       just_landed_snapshot, readback_pending_snapshot, done = std::move(done)](
+       just_landed_snapshot, readback_pending_snapshot, quality_snapshot,
+       cc_base_snapshot, rb_comp_snapshot, done = std::move(done)](
           const backends::lm::ClassifyResult &result) mutable {
         std::string intent_key =
             result.success ? result.intent_name : std::string("_INVALID");
@@ -621,13 +761,20 @@ void process_transcript(Input in, Done done) {
             rb.confidence = 0.7f;
             logging::info("ATC: LM _INVALID but readback pending -> accept "
                           "readback (no say-again loop)");
-            done(run_state_machine(rb, ctx_snapshot, now_secs));
+            Output out = run_state_machine(rb, ctx_snapshot, now_secs);
+            auto missing = bzf_compliance::missing_readback_elements(
+                rb_comp_snapshot, original_transcript);
+            cc_log(original_transcript, quality_snapshot, rb, "lm_fallback",
+                   true, "classified", cc_base_snapshot, &missing);
+            done(std::move(out));
             return;
           }
           Output out;
           out.parsed = parsed;
           out.response_text = build_unclear_response(parsed, fallback_cs);
           logging::info("ATC (LM _INVALID): %s", out.response_text.c_str());
+          cc_log(original_transcript, quality_snapshot, parsed, "lm_fallback",
+                 true, unclear_outcome(parsed), cc_base_snapshot, nullptr);
           done(std::move(out));
           return;
         }
@@ -651,6 +798,8 @@ void process_transcript(Input in, Done done) {
         // only the LM lands them on TRAFFIC_*.
         Output out;
         if (try_traffic_dialog(lm_msg, ctx_snapshot, now_secs, out)) {
+          cc_log(original_transcript, quality_snapshot, out.parsed,
+                 "lm_fallback", true, "classified", cc_base_snapshot, nullptr);
           done(std::move(out));
           return;
         }
@@ -669,6 +818,8 @@ void process_transcript(Input in, Done done) {
           mark_clear();
         out.parsed = lm_msg;
         out.response_text = atc_resp.text;
+        cc_log(original_transcript, quality_snapshot, lm_msg, "lm_fallback",
+               true, "classified", cc_base_snapshot, nullptr);
         done(std::move(out));
       });
 }

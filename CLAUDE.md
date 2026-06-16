@@ -181,6 +181,7 @@ xp_wellys_vfr_atc/
 │   │   └── downloader.hpp/.cpp         # libcurl + Range-Resume + SHA256 (plugin-only)
 │   ├── core/
 │   │   ├── logging.hpp/.cpp            # XPLMDebugString + level-basiertes Logging
+│   │   ├── cross_country_log.hpp/.cpp  # JSON-Lines-Funk-Logger fuer die Messsession (SDK-frei, rein beobachtend)
 │   │   ├── xplane_context.hpp/.cpp     # SDK-freier XPlaneContext-Struct + Helfer
 │   │   └── xplane_context_runtime.cpp  # SDK-gekoppelter DataRef-Reader (plugin-only)
 │   ├── data/
@@ -223,8 +224,9 @@ TUs (engine, intent_parser, intent_rules, State-Machine, Templates,
 flight_phase, ATIS, phraseology_hints, traffic_advisor, traffic_dialog,
 landing_sequence, flows/*, bzf_compliance, de_phraseology, manager,
 Daten-Loader, traffic_context-Struct, traffic_geometry,
-traffic_phase_classifier, logging, xplane_context-Struct, model_manifest,
-models_catalog, ui_strings). Sowohl das Plugin-Modul als auch das headless
+traffic_phase_classifier, logging, cross_country_log, xplane_context-Struct,
+model_manifest, models_catalog, ui_strings). Sowohl das Plugin-Modul als
+auch das headless
 `atc_repl`-Tool nutzen sie wieder. Das Plugin-Modul ergänzt die
 SDK-gekoppelten Einheiten (main, atc_session, audio/*,
 xplane_context_runtime, traffic_context_runtime, loader, downloader,
@@ -395,6 +397,24 @@ identisch zum Sprachpfad. Der State-Revert-/TTS-Fehler-Guard (Snapshot
 vor jedem Pilotenzug, Restore-oder-`REQUEST_REPEAT` bei TTS-Fehler mit
 Squelch-Burst) lebt ebenfalls hier — siehe README für den
 Verhaltensvertrag.
+
+**`cross_country_log`** — SDK-freier, **rein beobachtender**
+JSON-Lines-Funk-Logger für die Cross-Country-Messsession. Schreibt pro
+verarbeiteter Funke eine Zeile nach `cross_country_session.log` (relativ
+→ X-Plane-Arbeitsverzeichnis, neben `Log.txt`). `engine::process_transcript`
+fädelt die Felder an jedem Ausstiegspunkt zusammen, **nachdem** `outcome`
+feststeht — ohne Eingriff ins Matching, Routing oder die Klassifikation.
+Felder: `transcript`/`quality`, `intent`/`confidence`, `path`
+(`rule_skip_lm` | `lm_fallback` | `clearance_match`), `lm_used` +
+`lm_backend`/`lm_ready`, `outcome` (`classified` | `unknown` |
+`tower_reported_garbled`), `state`/`flight_phase` (zum Zeitpunkt der
+Funke gesnapshottet), `expected_intent` (valid_intents-CSV),
+`vrp_name_set`/`vrp_name`, `readback_missing_elements` (nur READBACK) und
+`failure_locus` — ein **unverbindlicher** Heuristik-Vorschlag, nur gesetzt
+bei `outcome != classified` oder LM-Fallback. Das Backend-Label setzt der
+`loader` per `cross_country_log::set_lm_backend(mode)`; Engine-Code
+inspiziert `backend_mode` nie selbst (siehe **Backend Adapter Rule**).
+Details: README.
 
 **`audio_player`** — Spielt PCM direkt auf dem X-Plane-Funkbus,
 respektiert `settings.volume`.
