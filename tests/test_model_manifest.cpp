@@ -14,7 +14,7 @@ TEST_CASE("get_for_language picks the multilingual Whisper for 'de'",
     const auto &e = model_manifest::get_for_language(Kind::WhisperModel, "de");
     REQUIRE(e.kind == Kind::WhisperModel);
     REQUIRE(e.language == "de");
-    REQUIRE(e.filename == "ggml-large-v3-turbo-q5_0.bin");
+    REQUIRE(e.filename == "ggml-small-q5_1.bin");
 }
 
 TEST_CASE("get_for_language falls back to language-agnostic Llama",

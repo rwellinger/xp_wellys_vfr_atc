@@ -23,11 +23,11 @@ Profilauswahl in der UI. Das einzige Profil-Bundle ist
 **Triple-Backend-Inferenz** — der Nutzer wählt den Modus zur Laufzeit in
 den Einstellungen:
 
-- **Local** (nur Apple Silicon `arm64`): whisper.cpp `large-v3-turbo-q5_0`
+- **Local** (nur Apple Silicon `arm64`): whisper.cpp `small-q5_1`
   (multilinguales Metal-STT, Deutsch) + llama.cpp Llama 3.2 3B Instruct
   Q4_K_M (Metal-LM, nur für die Absichts-Klassifizierung bei geringer
   Konfidenz) + Piper `de_DE-thorsten-medium` (CPU + onnxruntime TTS) mit
-  gebündelten `espeak-ng-data`. Die Modelle (~2,6 GB) sind NICHT
+  gebündelten `espeak-ng-data`. Die Modelle (~2,0 GB) sind NICHT
   gebündelt — sie werden beim ersten Start in-sim von HuggingFace geladen
   (HTTPS, fortsetzbar, SHA256-verifiziert) nach
   `<plugin>/Resources/models/`.

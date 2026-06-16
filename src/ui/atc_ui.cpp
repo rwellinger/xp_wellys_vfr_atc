@@ -1598,6 +1598,16 @@ static void draw_settings_tab() {
     if (ImGui::IsItemHovered()) {
       ImGui::SetTooltip("%s", ui_strings::tr("tooltip.bzf_strict_mode"));
     }
+    // STT-quality caveat: strict readback checking is only as good as
+    // the transcription feeding it. Local and Mistral STT garble
+    // spelled-out callsigns, so strict mode can reject otherwise
+    // correct readbacks. Surface this inline whenever strict is on.
+    if (strict) {
+      ImGui::PushTextWrapPos(0.0f);
+      ImGui::TextColored(ImVec4(1.0f, 0.7f, 0.2f, 1.0f), "%s",
+                         ui_strings::tr("settings.bzf_strict_stt_warning"));
+      ImGui::PopTextWrapPos();
+    }
   }
 
   // ── Voices per ATC role ─────────────────────────────────────────

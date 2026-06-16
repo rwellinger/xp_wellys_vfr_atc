@@ -115,11 +115,11 @@ void ensure_defaults_locked() {
   };
 
   g_cat.local_whisper = {
-      {"ggml-large-v3-turbo-q5_0.bin", 574041195ULL,
-       "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2",
+      {"ggml-small-q5_1.bin", 190085487ULL,
+       "ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb",
        "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/"
-       "ggml-large-v3-turbo-q5_0.bin",
-       "Whisper STT (large-v3-turbo multilingual, q5_0)", "de"},
+       "ggml-small-q5_1.bin",
+       "Whisper STT (small multilingual, q5_1)", "de"},
   };
   g_cat.local_llama = {
       {"Llama-3.2-3B-Instruct-Q4_K_M.gguf", 2019377696ULL,

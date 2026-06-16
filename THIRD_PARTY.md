@@ -30,7 +30,7 @@ and Apple Accelerate framework. Source is vendored as a git submodule
 under `spikes/spike_whisper/third_party/whisper.cpp` and linked
 statically into the plugin module.
 
-The bundled Whisper *model* (`ggml-large-v3-turbo-q5_0.bin`) is downloaded by
+The bundled Whisper *model* (`ggml-small-q5_1.bin`) is downloaded by
 the user at first launch from
 [`huggingface.co/ggerganov/whisper.cpp`](https://huggingface.co/ggerganov/whisper.cpp);
 the model is licensed under MIT in line with whisper.cpp itself.

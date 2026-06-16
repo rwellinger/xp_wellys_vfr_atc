@@ -173,6 +173,7 @@
   "settings.disable_default_atc": "Standard-X-Plane-ATC deaktivieren",
   "settings.enable_traffic": "Verkehrs-Funktionen aktivieren",
   "settings.bzf_strict_mode": "BZF-Strict-Mode (Tower prueft Pflicht-Readback)",
+  "settings.bzf_strict_stt_warning": "Hinweis: Lokale und Mistral-Spracherkennung sind bei buchstabierten Rufzeichen schwach - Strict-Mode kann dann korrekte Readbacks faelschlich abweisen. Fuer Strict OpenAI empfohlen, sonst Strict aus lassen.",
   "settings.voices_header": "Stimmen",
   "settings.voices_tip": "Tipp: Laden Sie weitere Stimmen im Modelle-Tab herunter, um die Auswahl zu erweitern.",
   "settings.conflicts_header": "Bekannte Konflikte mit Standard-ATC",
@@ -193,7 +194,7 @@
   "tooltip.show_hints": "Zeigt vorgeschlagene Pilotenphrasen fuer die aktuelle ATC-Situation.",
   "tooltip.debug_text_input": "Ersetzt PTT/Mikrofon durch ein Texteingabefeld unter dem Transcript.\nHilft auf dem Laptop ohne Headset und zum Debuggen der ATC-Logik ohne STT-Fehler.\nPTT bleibt parallel aktiv.\n\nAbkuerzung: Tippe 'REG' als Platzhalter fuer dein phonetisches Callsign.\nBeispiel: 'Bern Turm REG, erbitte Rollerlaubnis Piste 14'.",
   "tooltip.enable_traffic": "Hauptschalter fuer Verkehrshinweise, Landesequenzierung und den\nGo-Around-Trigger bei belegter Bahn.\n\nBenoetigt einen Verkehrs-Provider (LiveTraffic, xPilot, swift, X-IvAp\noder native X-Plane-KI) - ohne Provider bleiben die TCAS-DataRefs leer\nund das Subsystem ist ohnehin stumm.\n\nAusschalten, wenn Sie ohne Verkehr fliegen und keinen Overhead wuenschen.",
-  "tooltip.bzf_strict_mode": "Wenn aktiv prueft der Tower jedes Pilot-Readback gegen die\nNfL Sprechfunk 2024 Paragraph 25 b) Pflicht-Liste (Pistennummer,\nQNH, Frequenz, Squawk-Code, Rufzeichen).\n\nFehlende Pflichtinhalte fuehren zu einer korrektiven Tower-Antwort\nstatt stiller Akzeptanz.\n\nDefault aus: Simulation-Mode bleibt tolerant.\nNur sichtbar im DE-Profil.\n\nKeine offizielle Pruefungsvorbereitung - siehe docs/bzf/bzf_coverage.md.",
+  "tooltip.bzf_strict_mode": "Wenn aktiv prueft der Tower jedes Pilot-Readback gegen die\nNfL Sprechfunk 2024 Paragraph 25 b) Pflicht-Liste (Pistennummer,\nQNH, Frequenz, Squawk-Code, Rufzeichen).\n\nFehlende Pflichtinhalte fuehren zu einer korrektiven Tower-Antwort\nstatt stiller Akzeptanz.\n\nDefault aus: Simulation-Mode bleibt tolerant.\nNur sichtbar im DE-Profil.\n\nAchtung: Bei lokaler oder Mistral-Spracherkennung kann das\nbuchstabierte Rufzeichen schlecht erkannt werden - Strict-Mode\nweist dann teils korrekte Readbacks ab. OpenAI ist robuster.\n\nKeine offizielle Pruefungsvorbereitung - siehe docs/bzf/bzf_coverage.md.",
   "tooltip.disregard": "ATC-Dialog zuruecksetzen -- Sie koennen ATC jederzeit erneut kontaktieren",
   "tooltip.set_standby_format": "COM%d Standby auf %.3f setzen",
 

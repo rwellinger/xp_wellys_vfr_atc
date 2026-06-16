@@ -16,6 +16,7 @@
 #include "backends/openai_tts.hpp"
 #include "core/logging.hpp"
 #include "persistence/model_paths.hpp"
+#include "persistence/models_catalog.hpp"
 #include "persistence/settings.hpp"
 
 #ifdef XPWELLYS_USE_LOCAL_INFERENCE
@@ -558,6 +559,48 @@ void load_mistral_backends() {
   logging::info("STT/LM/TTS backends ready (Mistral Cloud)");
 }
 
+// Log the concrete model / voice ids that are about to serve this
+// backend mode. Gives Log.txt a single authoritative line tying each
+// inference run's [STT|LM|TTS]-[LOCAL|OPENAI|MISTRAL] tag back to the
+// exact model the user selected — emitted at startup and again on every
+// Settings-driven backend restart, so a switch is always visible.
+void log_active_models(const std::string &mode) {
+  if (mode == "openai") {
+    logging::info("[xp_wellys_devfr_atc] ACTIVE MODELS [OpenAI]: STT=%s LM=%s "
+                  "TTS=%s voices[atis=%s tower=%s ground=%s]",
+                  settings::openai_stt_model().c_str(),
+                  settings::openai_lm_model().c_str(),
+                  settings::openai_tts_model().c_str(),
+                  settings::openai_tts_voice_atis().c_str(),
+                  settings::openai_tts_voice_tower().c_str(),
+                  settings::openai_tts_voice_ground().c_str());
+    return;
+  }
+  if (mode == "mistral") {
+    logging::info("[xp_wellys_devfr_atc] ACTIVE MODELS [Mistral]: STT=%s LM=%s "
+                  "TTS=%s voices[atis=%s tower=%s ground=%s]",
+                  settings::mistral_stt_model().c_str(),
+                  settings::mistral_lm_model().c_str(),
+                  settings::mistral_tts_model().c_str(),
+                  settings::mistral_tts_voice_atis().c_str(),
+                  settings::mistral_tts_voice_tower().c_str(),
+                  settings::mistral_tts_voice_ground().c_str());
+    return;
+  }
+#ifdef XPWELLYS_USE_LOCAL_INFERENCE
+  if (mode == "local") {
+    const auto &whisper = models_catalog::local_whisper_entries();
+    const auto &llama = models_catalog::local_llama_entries();
+    const auto &voices = models_catalog::local_piper_voices();
+    logging::info(
+        "[xp_wellys_devfr_atc] ACTIVE MODELS [Local]: STT=%s LM=%s TTS=%s",
+        whisper.empty() ? "(none)" : whisper.front().filename.c_str(),
+        llama.empty() ? "(none)" : llama.front().filename.c_str(),
+        voices.empty() ? "(none)" : voices.front().voice_id.c_str());
+  }
+#endif
+}
+
 void run_worker() {
   // Guard against any std::filesystem / whisper.cpp / llama.cpp /
   // Piper exception escaping into std::thread destructor and
@@ -611,6 +654,7 @@ void run_worker() {
       mode = "openai";
     }
 #endif
+    log_active_models(mode);
     if (mode == "openai") {
       logging::info(
           "[xp_wellys_devfr_atc] BACKEND MODE: OPENAI (api.openai.com). "
