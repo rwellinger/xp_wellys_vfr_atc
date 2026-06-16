@@ -48,6 +48,24 @@ enum class Element {
   Squawk,    // §25 b) Nr. 1 iii) — SSR code
 };
 
+// Structured snapshot of a readback-demanding tower clearance. Built at
+// clearance-generation time from the template variable map (the exact
+// values the controller spoke), NOT re-parsed from rendered free text.
+// `required` carries which Kat-1 elements (NfL §25 b) Nr. 1) THIS
+// transmission actually obligated the pilot to read back — a fixed
+// phraseological table per clearance type, gated by what was issued
+// (e.g. QNH only when the controller passed it, not when it came from
+// ATIS). `callsign` is the phonetic-expanded session callsign; the
+// value fields hold raw-digit forms ("06", "1013", "118.300").
+struct ClearanceComponents {
+  std::string callsign;
+  std::string runway;
+  std::string qnh;
+  std::string frequency;
+  std::string squawk;
+  std::vector<Element> required;
+};
+
 // Stable lowercase short name ("qnh", "runway", ...) for logging.
 const char *element_name(Element e);
 
@@ -69,6 +87,33 @@ std::vector<Element> extract_required(const std::string &tower_response);
 std::vector<Element> check_pilot_readback(const std::string &pilot_transcript,
                                           const std::vector<Element> &required,
                                           const std::string &pilot_callsign);
+
+// Character-robust readback coverage check against a structured
+// clearance. The pilot transcript is canonicalised — lowercase, spoken
+// number words reverse-normalised to digits (de_phraseology::
+// parse_spoken_number), known Whisper NATO-letter variants unified, then
+// all whitespace + punctuation stripped — and each stored value is
+// searched as a substring. Because word boundaries are eliminated,
+// Whisper word-welds ("Start frei" -> "startfrei", "Piste 06" ->
+// "piste06", "QNH 1013" -> "qnh1013") still match by construction.
+// Returns the subset of comp.required that is MISSING (empty = every
+// mandated element was read back). This replaces the word-boundary
+// regexes of check_pilot_readback for the value-precise path and is the
+// single matcher used by both readback recognition (engine) and the
+// BZF-strict completeness check (state machine).
+std::vector<Element> missing_readback_elements(const ClearanceComponents &comp,
+                                               const std::string &pilot_transcript);
+
+// Recognition threshold (deliberately lenient, distinct from the strict
+// completeness obligation). Returns true when the utterance is a readback
+// ATTEMPT: the callsign AND at least one fact element (Runway/QNH/
+// Frequency/Squawk) of the clearance are covered. Callsign ALONE does not
+// qualify — otherwise any utterance carrying the callsign would be
+// silently accepted as a phantom readback. If the clearance has no fact
+// element at all, a covered callsign suffices. `missing` is the output of
+// missing_readback_elements for the same clearance.
+bool readback_covers_core(const std::vector<Element> &required,
+                          const std::vector<Element> &missing);
 
 // Build the corrective tower response. With multiple missing elements,
 // uses the "missing_multi" template; with exactly one, picks the

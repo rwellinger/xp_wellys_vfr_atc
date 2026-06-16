@@ -255,3 +255,91 @@ TEST_CASE("missing_key maps each Element to its bzf_strict template key",
     REQUIRE(std::string(bzf_compliance::missing_key(Element::Squawk)) ==
             "missing_squawk");
 }
+
+// ── missing_readback_elements: char-robust soll-ist match ──────────
+
+using bzf_compliance::ClearanceComponents;
+using bzf_compliance::missing_readback_elements;
+using bzf_compliance::readback_covers_core;
+
+// The EDNY regression that motivated the whole change: the departure
+// clearance issued only callsign + runway ("Piste 06, Start frei, ...").
+// Whisper welded "Start frei" into "startfrei", so the keyword parser
+// returned UNKNOWN/0.00. The structured matcher only checks the mandated
+// values (runway 06, callsign) — "startfrei" is irrelevant filler — so
+// the readback is fully covered.
+TEST_CASE("missing_readback_elements: welded 'startfrei' readback is complete",
+          "[bzf_compliance][readback]") {
+    ClearanceComponents comp;
+    comp.callsign = "Hotel Bravo Whiskey Romeo Oscar";
+    comp.runway = "06";
+    comp.required = {Element::Callsign, Element::Runway};
+    auto missing = missing_readback_elements(
+        comp, "Piste 06 startfrei Hotel Bravo Whiskey Romeo Oscar");
+    REQUIRE(missing.empty());
+    REQUIRE(readback_covers_core(comp.required, missing));
+}
+
+TEST_CASE("missing_readback_elements: welded qnh/piste tokens still match",
+          "[bzf_compliance][readback]") {
+    ClearanceComponents comp;
+    comp.callsign = "D-EXYZ";
+    comp.runway = "06";
+    comp.qnh = "1018";
+    comp.required = {Element::Callsign, Element::Runway, Element::QNH};
+    // No spaces around the values — the canonical char stream eliminates
+    // the word boundary the welding broke.
+    auto missing = missing_readback_elements(comp, "piste06 qnh1018 d-exyz");
+    REQUIRE(missing.empty());
+}
+
+TEST_CASE("missing_readback_elements: spoken digit words are normalised",
+          "[bzf_compliance][readback]") {
+    ClearanceComponents comp;
+    comp.callsign = "Hotel Bravo Whiskey Romeo Oscar";
+    comp.runway = "06";
+    comp.qnh = "1018";
+    comp.required = {Element::Callsign, Element::Runway, Element::QNH};
+    auto missing = missing_readback_elements(
+        comp,
+        "Piste null sechs QNH eins null eins acht Hotel Bravo Whiskey Romeo "
+        "Oscar");
+    REQUIRE(missing.empty());
+}
+
+TEST_CASE("missing_readback_elements: missing QNH is reported (completeness)",
+          "[bzf_compliance][readback]") {
+    ClearanceComponents comp;
+    comp.callsign = "D-EXYZ";
+    comp.runway = "06";
+    comp.qnh = "1018";
+    comp.required = {Element::Callsign, Element::Runway, Element::QNH};
+    auto missing = missing_readback_elements(comp, "Piste 06 D-EXYZ");
+    REQUIRE(missing.size() == 1);
+    REQUIRE(missing[0] == Element::QNH);
+    // Recognition (lenient) still accepts it — callsign + runway covered.
+    REQUIRE(readback_covers_core(comp.required, missing));
+}
+
+// ── readback_covers_core: recognition threshold ────────────────────
+
+TEST_CASE("readback_covers_core: callsign alone is not a readback",
+          "[bzf_compliance][readback][core]") {
+    ClearanceComponents comp;
+    comp.callsign = "D-EXYZ";
+    comp.runway = "06";
+    comp.required = {Element::Callsign, Element::Runway};
+    // Only the callsign present -> Runway missing -> phantom guard fires.
+    auto missing = missing_readback_elements(comp, "verstanden D-EXYZ");
+    REQUIRE_FALSE(readback_covers_core(comp.required, missing));
+}
+
+TEST_CASE("readback_covers_core: callsign-only clearance accepts callsign",
+          "[bzf_compliance][readback][core]") {
+    ClearanceComponents comp;
+    comp.callsign = "D-EXYZ";
+    comp.required = {Element::Callsign};
+    auto missing = missing_readback_elements(comp, "verstanden D-EXYZ");
+    REQUIRE(missing.empty());
+    REQUIRE(readback_covers_core(comp.required, missing));
+}

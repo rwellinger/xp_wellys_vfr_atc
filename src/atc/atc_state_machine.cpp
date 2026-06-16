@@ -33,8 +33,10 @@
 #include <atomic>
 #include <cassert>
 #include <deque>
+#include <map>
 #include <thread>
 #include <unordered_map>
+#include <vector>
 
 namespace atc_state_machine {
 
@@ -124,6 +126,16 @@ struct AtcMachineState {
   // readback expectation resolves. Consumed by the BZF-strict
   // conformance check on the next READBACK intent.
   std::string last_clearance_text_;
+
+  // Structured form of last_clearance_text_: the exact values the
+  // controller passed plus which Kat-1 elements THIS transmission
+  // obligated the pilot to read back (NfL §25 b) Nr. 1, fixed
+  // phraseological table per clearance type, gated by what was issued).
+  // Set/cleared in lockstep with last_clearance_text_. Drives the
+  // deterministic readback recognition in the engine (a readback is a
+  // soll-ist match against this, not an intent-classification problem)
+  // and the BZF-strict completeness check.
+  bzf_compliance::ClearanceComponents last_clearance_components_;
 
   // Most recent NON-corrective tower utterance — used by
   // REQUEST_REPEAT to replay "the last real clearance". Set in
@@ -354,6 +366,7 @@ void init() {
   g_state.history_.clear();
   g_state.last_now_secs_ = 0.0;
   g_state.last_clearance_text_.clear();
+  g_state.last_clearance_components_ = {};
 
   // Honor the user's "where am I starting" setting. The default
   // engines_running keeps the IDLE start above; ready_for_takeoff
@@ -378,6 +391,7 @@ void stop() {
   g_state.history_.clear();
   g_state.last_now_secs_ = 0.0;
   g_state.last_clearance_text_.clear();
+  g_state.last_clearance_components_ = {};
   g_state.last_tower_response_text_.clear();
 }
 
@@ -394,6 +408,7 @@ void reset() {
   g_state.history_.clear();
   g_state.last_now_secs_ = 0.0;
   g_state.last_clearance_text_.clear();
+  g_state.last_clearance_components_ = {};
   g_state.last_tower_response_text_.clear();
   logging::info("ATC state machine reset to IDLE");
 }
@@ -415,6 +430,7 @@ void disregard(const xplane_context::XPlaneContext &ctx,
   traffic_dialog::reset();
   g_state.readback_pending_ = false;
   g_state.last_clearance_text_.clear();
+  g_state.last_clearance_components_ = {};
   g_state.last_tower_response_text_.clear();
 
   if (!flight_phase::is_airborne(phase)) {
@@ -449,6 +465,10 @@ ATCState get_state() { return g_state.state_; }
 
 bool is_readback_pending() { return g_state.readback_pending_; }
 
+bzf_compliance::ClearanceComponents last_clearance_components() {
+  return g_state.last_clearance_components_;
+}
+
 bool was_airborne() { return g_state.was_airborne_; }
 
 void set_was_airborne(bool v) { internal::set_was_airborne(v); }
@@ -477,6 +497,97 @@ std::string effective_runway(const xplane_context::XPlaneContext &ctx) {
                                           : g_state.assigned_runway_;
 }
 
+// ── Readback obligation table (NfL §25 b) Nr. 1) ────────────────────
+
+// Which Kat-1 elements a clearance type obligates the pilot to read back,
+// keyed on the pilot intent that triggered the clearance. Callsign is
+// mandatory on every clearance (§14 c) Nr. 2). QNH/Frequency appear as
+// candidates but only become required when actually ISSUED in this
+// transmission (gated below by template-placeholder presence) — §25 b) 1
+// iii) ties the QNH readback to the controller passing it, not to ambient
+// ATIS. Wind is NfL convention, never readback-mandatory, so never a
+// candidate. Kat-2 elements (taxi route "ueber Alpha") are never counted.
+static std::vector<bzf_compliance::Element>
+clearance_candidates(intent_parser::PilotIntent trigger) {
+  using PI = intent_parser::PilotIntent;
+  using E = bzf_compliance::Element;
+  switch (trigger) {
+  case PI::REQUEST_TAXI:
+  case PI::INITIAL_CALL_INBOUND:
+    return {E::Callsign, E::Runway, E::QNH};
+  case PI::READY_FOR_DEPARTURE:
+  case PI::READY_FOR_DEPARTURE_VFR:
+  case PI::REQUEST_LANDING:
+  case PI::REQUEST_TOUCH_AND_GO:
+    return {E::Callsign, E::Runway};
+  case PI::REQUEST_FREQUENCY:
+    return {E::Callsign, E::Frequency};
+  default:
+    // Any other readback-demanding clearance: at least the callsign.
+    return {E::Callsign};
+  }
+}
+
+// Build the structured clearance snapshot from the template variable map
+// and the raw (pre-fill) template string. Values are the exact tokens the
+// controller spoke; `required` is the NfL candidate set filtered to the
+// elements THIS transmission actually issued — detected structurally via
+// the template placeholder, never re-parsed from rendered free text.
+static bzf_compliance::ClearanceComponents
+build_clearance_components(const intent_parser::PilotMessage &msg,
+                           const std::map<std::string, std::string> &vars,
+                           const std::string &response_template) {
+  using E = bzf_compliance::Element;
+  auto var = [&](const char *k) -> std::string {
+    auto it = vars.find(k);
+    return it == vars.end() ? std::string{} : it->second;
+  };
+  auto tmpl_has = [&](const char *placeholder) {
+    return response_template.find(placeholder) != std::string::npos;
+  };
+
+  bzf_compliance::ClearanceComponents comp;
+  comp.callsign = var("callsign");
+  comp.runway = var("runway");
+  comp.qnh = var("qnh");
+  // The taxi / handoff templates use different frequency placeholders;
+  // record whichever this template actually rendered.
+  if (tmpl_has("{frequency}"))
+    comp.frequency = var("frequency");
+  else if (tmpl_has("{tower_frequency}"))
+    comp.frequency = var("tower_frequency");
+  else if (tmpl_has("{ground_frequency}"))
+    comp.frequency = var("ground_frequency");
+  comp.squawk = var("squawk");
+
+  // required = candidates ∩ {issued this transmission}. Callsign always;
+  // a fact element only when its placeholder is in the template AND it
+  // carries a value.
+  for (E e : clearance_candidates(msg.intent)) {
+    bool keep = false;
+    switch (e) {
+    case E::Callsign:
+      keep = true;
+      break;
+    case E::Runway:
+      keep = tmpl_has("{runway}") && !comp.runway.empty();
+      break;
+    case E::QNH:
+      keep = tmpl_has("{qnh}") && !comp.qnh.empty();
+      break;
+    case E::Frequency:
+      keep = !comp.frequency.empty();
+      break;
+    case E::Squawk:
+      keep = tmpl_has("{squawk}") && !comp.squawk.empty();
+      break;
+    }
+    if (keep)
+      comp.required.push_back(e);
+  }
+  return comp;
+}
+
 // ── Post-template hooks ─────────────────────────────────────────────
 
 // BZF-Strict-Mode pilot-utterance conformance check. Active only when
@@ -496,10 +607,12 @@ static bool apply_bzf_strict_check(const intent_parser::PilotMessage &msg,
   if (g_state.last_clearance_text_.empty())
     return false;
 
-  const auto required =
-      bzf_compliance::extract_required(g_state.last_clearance_text_);
-  const auto missing = bzf_compliance::check_pilot_readback(
-      msg.raw_transcript, required, settings::pilot_callsign());
+  // Value-precise, weld-robust completeness check against the stored
+  // structured clearance. This is the STRICT threshold: every actually
+  // issued Kat-1 element must be read back (vs. the lenient recognition
+  // threshold in the engine, which only needs callsign + one element).
+  const auto missing = bzf_compliance::missing_readback_elements(
+      g_state.last_clearance_components_, msg.raw_transcript);
   if (missing.empty())
     return false;
 
@@ -531,18 +644,22 @@ static bool apply_bzf_strict_check(const intent_parser::PilotMessage &msg,
 static void
 apply_post_transition_hooks(const intent_parser::PilotMessage &msg,
                             const xplane_context::XPlaneContext &ctx,
-                            ATCResponse &resp) {
+                            ATCResponse &resp,
+                            const bzf_compliance::ClearanceComponents &components) {
   // Track readback state.
   if (msg.intent == intent_parser::PilotIntent::READBACK) {
     bump_gen();
     g_state.readback_pending_ = false;
     g_state.last_clearance_text_.clear();
+    g_state.last_clearance_components_ = {};
   } else if (resp.requires_readback) {
     bump_gen();
     g_state.readback_pending_ = true;
-    // Snapshot the clearance text so the next READBACK intent can be
-    // checked against it by the BZF-strict conformance pass.
+    // Snapshot the clearance (text + structured components) so the next
+    // pilot utterance can be matched against it by the deterministic
+    // readback recognition and the BZF-strict conformance pass.
     g_state.last_clearance_text_ = resp.text;
+    g_state.last_clearance_components_ = components;
   }
 
   // Leaving the controller's frequency or resetting drops stale readback
@@ -554,6 +671,7 @@ apply_post_transition_hooks(const intent_parser::PilotMessage &msg,
     bump_gen();
     g_state.readback_pending_ = false;
     g_state.last_clearance_text_.clear();
+    g_state.last_clearance_components_ = {};
   }
 
   // Lock runway on first clearance that references a runway. Same fallback
@@ -711,6 +829,13 @@ ATCResponse process(const intent_parser::PilotMessage &msg,
   resp.next_state = state_from_name(tmpl.next_state);
   resp.requires_readback = tmpl.requires_readback;
 
+  // Structured snapshot of this clearance for readback matching. Built
+  // from the variable map + raw template (the values the controller
+  // spoke + which Kat-1 elements this transmission issued), stored by
+  // apply_post_transition_hooks() iff requires_readback.
+  auto clearance_components =
+      build_clearance_components(msg, vars, tmpl.response_template);
+
   // Phase-4: per-flow sequencing overlay. The Pattern side owns the
   // "number N to land, follow X on Y" / "continue approach, traffic on
   // the runway" rewrites; the XC side is a no-op placeholder for
@@ -760,7 +885,7 @@ ATCResponse process(const intent_parser::PilotMessage &msg,
        msg.intent == PI::INITIAL_CALL_TOWER || msg.intent == PI::INITIAL_CALL))
     internal::set_was_airborne(false);
 
-  apply_post_transition_hooks(msg, ctx, resp);
+  apply_post_transition_hooks(msg, ctx, resp, clearance_components);
   return resp;
 }
 

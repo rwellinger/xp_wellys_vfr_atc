@@ -12,6 +12,7 @@
 
 #include "atc/atc_state_machine.hpp"
 #include "atc/atc_templates.hpp"
+#include "atc/bzf_compliance.hpp"
 #include "atc/flight_phase.hpp"
 #include "atc/landing_sequence.hpp"
 #include "atc/traffic_advisor.hpp"
@@ -346,6 +347,37 @@ void process_transcript(Input in, Done done) {
 
   using PI = intent_parser::PilotIntent;
 
+  // ── Readback recognition (deterministic, no LM, backend-agnostic) ──
+  // A pending readback is a soll-ist match against the known clearance,
+  // not a classification problem — the controller already knows what it
+  // sent. When the rule parser is unsure (UNKNOWN / conf < 0.7) but a
+  // readback is owed, match the utterance char-robustly (weld-proof)
+  // against the stored clearance components instead of guessing an intent
+  // or paying an LM round-trip. Runs BEFORE the LM-not-ready fast path so
+  // it works headless and identically across all backends. A clear
+  // alternative intent (position report, go-around) keeps conf >= 0.7 and
+  // is handled by the authoritative rule path below, so this never steals
+  // it. Recognition is lenient (callsign + one fact element); the
+  // BZF-strict completeness check inside the state machine enforces the
+  // full obligation.
+  if ((parsed.intent == PI::UNKNOWN || parsed.confidence < 0.7f) &&
+      atc_state_machine::is_readback_pending()) {
+    const auto comp = atc_state_machine::last_clearance_components();
+    const auto missing =
+        bzf_compliance::missing_readback_elements(comp, in.transcript);
+    if (bzf_compliance::readback_covers_core(comp.required, missing)) {
+      auto rb = parsed;
+      rb.intent = PI::READBACK;
+      rb.confidence = 0.9f;
+      if (settings::debug_logging())
+        logging::debug("Readback recognised vs clearance (deterministic, "
+                       "no LM); missing elements=%zu",
+                       missing.size());
+      done(run_state_machine(rb, ctx, in.now_secs));
+      return;
+    }
+  }
+
   // ── LM-not-ready fast path ────────────────────────────────────────
   // Headless tools, scenario tests, and the brief window between
   // plugin start and "models verified" all hit this path. The
@@ -453,7 +485,7 @@ void process_transcript(Input in, Done done) {
        {"hint_intent", intent_parser::intent_name(parsed.intent)}});
 
   if (settings::debug_logging())
-    logging::debug("Routing to local LM classify_with_repair (rule hint=%s "
+    logging::debug("Routing to LM backend classify_with_repair (rule hint=%s "
                    "conf=%.2f)",
                    intent_parser::intent_name(parsed.intent),
                    parsed.confidence);
@@ -469,12 +501,16 @@ void process_transcript(Input in, Done done) {
   // after the state machine has moved on, but the post-landing
   // plausibility decision must reflect the moment the pilot spoke.
   bool just_landed_snapshot = just_landed_flag;
+  // Snapshot whether a readback was owed at the moment the pilot spoke —
+  // the deterministic safety net below turns an LM _INVALID into a silent
+  // readback rather than a "say again" loop.
+  bool readback_pending_snapshot = atc_state_machine::is_readback_pending();
   ++lm_inferences_;
   backends::lm::classify_with_repair_async(
       in.transcript, sys_prompt, valid,
       // NOLINTNEXTLINE(bugprone-exception-escape)
       [parsed, ctx_snapshot, now_secs, fallback_cs, original_transcript,
-       just_landed_snapshot, done = std::move(done)](
+       just_landed_snapshot, readback_pending_snapshot, done = std::move(done)](
           const backends::lm::ClassifyResult &result) mutable {
         std::string intent_key =
             result.success ? result.intent_name : std::string("_INVALID");
@@ -561,6 +597,24 @@ void process_transcript(Input in, Done done) {
         // _INVALID: controller asks for say-again. Tier picks itself
         // based on whether anything in the transcript was recognisable.
         if (intent_key == "_INVALID") {
+          // Deterministic safety net: a readback was owed and the LM
+          // couldn't place the utterance. A real controller silently
+          // accepts an expected readback rather than looping "say again,
+          // use standard phraseology". This net deliberately skips the
+          // coverage check (recognition already failed above) — a silent
+          // ack is the lesser evil over the loop. With bzf_strict_mode on,
+          // run_state_machine -> apply_bzf_strict_check still validates the
+          // content against the stored clearance and asks for what's
+          // missing, so this only silently absorbs a complete readback.
+          if (readback_pending_snapshot) {
+            auto rb = parsed;
+            rb.intent = PI::READBACK;
+            rb.confidence = 0.7f;
+            logging::info("ATC: LM _INVALID but readback pending -> accept "
+                          "readback (no say-again loop)");
+            done(run_state_machine(rb, ctx_snapshot, now_secs));
+            return;
+          }
           Output out;
           out.parsed = parsed;
           out.response_text = build_unclear_response(parsed, fallback_cs);

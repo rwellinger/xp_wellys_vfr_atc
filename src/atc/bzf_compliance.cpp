@@ -18,7 +18,9 @@
 
 #include "atc/bzf_compliance.hpp"
 #include "atc/atc_templates.hpp"
+#include "atc/de_phraseology.hpp"
 
+#include <algorithm>
 #include <cctype>
 #include <regex>
 #include <string>
@@ -170,6 +172,36 @@ bool pilot_has_callsign(const std::string &pilot_lc,
   return p.find(short_form) != std::string::npos;
 }
 
+// Canonical char-stream for value matching: lowercase, spoken digit
+// words reverse-normalised to raw digits, Whisper NATO variants unified,
+// then every non-alphanumeric char dropped. Stripping whitespace +
+// punctuation is what makes the match weld-proof: "Start frei" and
+// "startfrei" both collapse to "startfrei", "118.300" to "118300".
+std::string canon_stripped(const std::string &s) {
+  std::string out = to_lower(s);
+  out = de_phraseology::parse_spoken_number(out);
+  out = to_lower(out); // parse_spoken_number may re-introduce casing
+  normalize_whisper_nato_variants(out);
+  std::string stripped;
+  stripped.reserve(out.size());
+  for (char c : out) {
+    unsigned char uc = static_cast<unsigned char>(c);
+    if (std::isalnum(uc))
+      stripped += static_cast<char>(uc);
+  }
+  return stripped;
+}
+
+// Is the canonicalised clearance value present as a substring of the
+// canonicalised pilot transcript? An empty value cannot be checked, so
+// give the benefit of the doubt (mirrors pilot_has_callsign).
+bool value_covered(const std::string &haystack_canon, const std::string &value) {
+  const std::string v = canon_stripped(value);
+  if (v.empty())
+    return true;
+  return haystack_canon.find(v) != std::string::npos;
+}
+
 } // namespace
 
 const char *element_name(Element e) {
@@ -251,6 +283,58 @@ std::vector<Element> check_pilot_readback(const std::string &pilot_transcript,
       missing.push_back(e);
   }
   return missing;
+}
+
+std::vector<Element> missing_readback_elements(const ClearanceComponents &comp,
+                                               const std::string &pilot_transcript) {
+  std::vector<Element> missing;
+  const std::string pilot_lc = to_lower(pilot_transcript);
+  const std::string pilot_canon = canon_stripped(pilot_transcript);
+  for (Element e : comp.required) {
+    bool ok = true;
+    switch (e) {
+    case Element::Callsign:
+      ok = pilot_has_callsign(pilot_lc, to_lower(comp.callsign));
+      break;
+    case Element::Runway:
+      ok = value_covered(pilot_canon, comp.runway);
+      break;
+    case Element::QNH:
+      ok = value_covered(pilot_canon, comp.qnh);
+      break;
+    case Element::Frequency:
+      ok = value_covered(pilot_canon, comp.frequency);
+      break;
+    case Element::Squawk:
+      ok = value_covered(pilot_canon, comp.squawk);
+      break;
+    }
+    if (!ok)
+      missing.push_back(e);
+  }
+  return missing;
+}
+
+bool readback_covers_core(const std::vector<Element> &required,
+                          const std::vector<Element> &missing) {
+  auto covered = [&](Element e) {
+    return std::find(required.begin(), required.end(), e) != required.end() &&
+           std::find(missing.begin(), missing.end(), e) == missing.end();
+  };
+  // Callsign is the anchor — a readback without it isn't a readback.
+  if (!covered(Element::Callsign))
+    return false;
+  // If the clearance carried no fact element at all, a covered callsign
+  // is the whole readback.
+  bool has_fact_element =
+      std::any_of(required.begin(), required.end(),
+                  [](Element e) { return e != Element::Callsign; });
+  if (!has_fact_element)
+    return true;
+  // Otherwise demand at least one fact element — callsign alone must not
+  // trigger a (phantom) readback acceptance.
+  return covered(Element::Runway) || covered(Element::QNH) ||
+         covered(Element::Frequency) || covered(Element::Squawk);
 }
 
 std::string build_correction_response(const std::string &callsign,

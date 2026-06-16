@@ -19,6 +19,7 @@
 #ifndef ATC_STATE_MACHINE_HPP
 #define ATC_STATE_MACHINE_HPP
 
+#include "atc/bzf_compliance.hpp"
 #include "atc/flight_phase.hpp"
 #include "atc/intent_parser.hpp"
 #include "core/xplane_context.hpp"
@@ -84,6 +85,15 @@ void disregard(const xplane_context::XPlaneContext &ctx,
 ATCState get_state();
 const char *state_name(ATCState state);
 bool is_readback_pending();
+
+// Structured snapshot of the most recent readback-demanding clearance:
+// the exact values the controller passed plus which Kat-1 elements
+// (NfL §25 b) Nr. 1) THIS transmission obligated the pilot to read back.
+// Armed alongside is_readback_pending(); empty `required` when no
+// readback is outstanding. Consumed by the deterministic readback
+// recognition in engine::process_transcript (matching, not classifying)
+// and by the BZF-strict completeness check.
+bzf_compliance::ClearanceComponents last_clearance_components();
 
 // Session-lifecycle flag, paired with just_landed() (see table near
 // the bottom of this header). True iff the aircraft has been airborne
