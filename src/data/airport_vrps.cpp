@@ -202,7 +202,12 @@ std::string find_in_transcript(const std::string &icao,
   // Position marker words — require one to precede the VRP name so we don't
   // match phonetic callsign letters like "Whiskey" in registration numbers.
   static const std::vector<std::string> kMarkers = {
-      "over ", "at ", "passing ", "approaching ", "abeam ", "via "};
+      // EN / ICAO bridge markers + mixed transmissions.
+      "over ", "at ", "passing ", "approaching ", "abeam ", "via ",
+      // DE — NfL Sprechfunk 2024 uses "UEBER (markanter Punkt)" as the
+      // standard German position reference. Both spellings because Whisper
+      // is inconsistent with the umlaut (same fold rationale as the lexicon).
+      "ueber ", "über "};
 
   for (const auto &marker : kMarkers) {
     size_t pos = 0;

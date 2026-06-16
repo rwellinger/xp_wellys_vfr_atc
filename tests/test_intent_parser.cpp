@@ -57,24 +57,24 @@ static xplane_context::XPlaneContext airborne_ctx()
     return ctx;
 }
 
-// Whisper occasionally prefixes the first utterance with a dash ("-Tower, ...").
-// `match_request_landing` excludes transcripts that mention "tower" so the
-// initial inbound call routes to INITIAL_CALL_INBOUND. The exclusion broke
-// when `has_facility_keyword` only handled clean word boundaries — leading
-// punctuation made "tower" invisible to the guard, and the call was
+// Whisper occasionally prefixes the first utterance with a dash ("-Turm, ...").
+// REQUEST_LANDING excludes transcripts that mention the tower facility ("turm")
+// so the initial inbound call routes to INITIAL_CALL_INBOUND. The exclusion
+// broke when has_facility only handled clean word boundaries — leading
+// punctuation made "turm" invisible to the guard, and the call was
 // misclassified as REQUEST_LANDING (which then hits _INVALID from IDLE).
-TEST_CASE("parse: leading-dash 'Tower' still routes to INITIAL_CALL_INBOUND", "[intent][parse]")
+TEST_CASE("parse: leading-dash 'Turm' still routes to INITIAL_CALL_INBOUND", "[intent][parse]")
 {
     auto ctx = airborne_ctx();
 
-    auto m1 = parse("-Tower, Hotel Bravo Delta Charlie Hotel inbound runway 06, request full stop landing.", ctx);
+    auto m1 = parse("-Turm, Hotel Bravo Delta Charlie Hotel, Anflug Piste 06, zur Landung.", ctx);
     REQUIRE(m1.intent == PilotIntent::INITIAL_CALL_INBOUND);
 
-    auto m2 = parse("Tower, Hotel Bravo Delta Charlie Hotel inbound runway 06, request full stop landing.", ctx);
+    auto m2 = parse("Turm, Hotel Bravo Delta Charlie Hotel, Anflug Piste 06, zur Landung.", ctx);
     REQUIRE(m2.intent == PilotIntent::INITIAL_CALL_INBOUND);
 
     // Without facility keyword the same body should route to REQUEST_LANDING.
-    auto m3 = parse("Hotel Bravo Delta Charlie Hotel inbound runway 06, request full stop landing.", ctx);
+    auto m3 = parse("Hotel Bravo Delta Charlie Hotel, Anflug Piste 06, zur Landung.", ctx);
     REQUIRE(m3.intent == PilotIntent::REQUEST_LANDING);
 }
 
@@ -83,28 +83,28 @@ TEST_CASE("parse: facility keyword is punctuation-tolerant", "[intent][parse]")
     auto ctx = airborne_ctx();
     ctx.on_ground = true;
 
-    // Leading-comma artifact still detects "ground" as facility.
-    auto m = parse(",Ground, Hotel Bravo Delta Charlie Hotel at parking, request taxi runway 14.", ctx);
+    // Leading-comma artifact still detects "boden" as facility.
+    auto m = parse(",Boden, Hotel Bravo Delta Charlie Hotel, erbitte Rollen Piste 14.", ctx);
     REQUIRE((m.intent == PilotIntent::INITIAL_CALL_GROUND ||
              m.intent == PilotIntent::REQUEST_TAXI));
 }
 
-// Pilot's clearance readback after Approach/Tower issues "cleared into the
-// control zone, runway X, joining instructions ..." must classify as
-// READBACK rather than UNKNOWN. Whisper sometimes drops the leading word
-// (logged as "-Control-Zone runway 32 Delta Charlie Hotel") and without
-// these patterns the rule parser landed on UNKNOWN, letting the LM
-// classify the readback as REPORT_POSITION_DOWNWIND.
+// Pilot's clearance readback after Tower issues "freigegeben in die
+// Kontrollzone, Piste X, ..." must classify as READBACK rather than UNKNOWN.
+// Whisper sometimes drops the leading word (logged as "-Kontrollzone Piste 32
+// Delta Charlie Hotel"), and the standalone "QNH" readback must also land on
+// READBACK rather than be left to the LM (which could misclassify it as a
+// position report).
 TEST_CASE("parse: control zone clearance readback classifies as READBACK", "[intent][parse][readback]")
 {
     auto ctx = airborne_ctx();
 
-    auto m1 = parse("Cleared into the control zone runway 32 Delta Charlie Hotel", ctx);
+    auto m1 = parse("freigegeben in die Kontrollzone Piste 32 Delta Charlie Hotel", ctx);
     REQUIRE(m1.intent == PilotIntent::READBACK);
 
-    auto m2 = parse("-Control-Zone runway 32 Delta Charlie Hotel", ctx);
+    auto m2 = parse("-Kontrollzone Piste 32 Delta Charlie Hotel", ctx);
     REQUIRE(m2.intent == PilotIntent::READBACK);
 
-    auto m3 = parse("Joining instructions, runway 32, QNH 1013, Delta Charlie Hotel", ctx);
+    auto m3 = parse("Piste 32, QNH 1013, Delta Charlie Hotel", ctx);
     REQUIRE(m3.intent == PilotIntent::READBACK);
 }

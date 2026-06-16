@@ -350,18 +350,27 @@ void process_transcript(Input in, Done done) {
   // ── Readback recognition (deterministic, no LM, backend-agnostic) ──
   // A pending readback is a soll-ist match against the known clearance,
   // not a classification problem — the controller already knows what it
-  // sent. When the rule parser is unsure (UNKNOWN / conf < 0.7) but a
-  // readback is owed, match the utterance char-robustly (weld-proof)
-  // against the stored clearance components instead of guessing an intent
-  // or paying an LM round-trip. Runs BEFORE the LM-not-ready fast path so
-  // it works headless and identically across all backends. A clear
-  // alternative intent (position report, go-around) keeps conf >= 0.7 and
-  // is handled by the authoritative rule path below, so this never steals
-  // it. Recognition is lenient (callsign + one fact element); the
-  // BZF-strict completeness check inside the state machine enforces the
-  // full obligation.
-  if ((parsed.intent == PI::UNKNOWN || parsed.confidence < 0.7f) &&
-      atc_state_machine::is_readback_pending()) {
+  // sent. Whenever a readback is owed, match the utterance char-robustly
+  // (weld-proof) against the stored clearance components instead of
+  // guessing an intent or paying an LM round-trip. Runs BEFORE the
+  // LM-not-ready fast path AND before the authoritative high-conf rule
+  // path, so it works headless and identically across all backends.
+  //
+  // This gate fires regardless of the rule parser's confidence: a taxi
+  // readback ("Rollen zur Rollhaltpiste 06 ... <callsign>") shares its
+  // keywords ("rollen", "Piste") with the REQUEST_TAXI clearance the
+  // tower just issued, so the context-free parser scores it REQUEST_TAXI
+  // at 0.90 — a collision that previously slipped past this gate and
+  // re-issued the clearance forever. readback_covers_core() (not the
+  // confidence threshold) is the guard against stealing a genuinely
+  // different intent: it demands the callsign PLUS at least one fact
+  // element (Runway/QNH/Frequency/Squawk) of the stored clearance. An
+  // utterance that carries none of the owed soll values (a query, "say
+  // again", a divergent request) fails the cover check and falls through
+  // to the rule/LM path below. Recognition is lenient (callsign + one
+  // fact element); the BZF-strict completeness check inside the state
+  // machine enforces the full obligation.
+  if (atc_state_machine::is_readback_pending()) {
     const auto comp = atc_state_machine::last_clearance_components();
     const auto missing =
         bzf_compliance::missing_readback_elements(comp, in.transcript);
