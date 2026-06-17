@@ -321,7 +321,7 @@ Implementierung:
 
 ```sh
 git clone --recurse-submodules <repo-url>
-cd xp_wellys_vfr_atc
+cd xp_wellys_devfr_atc
 make setup     # X-Plane SDK, Dear ImGui, nlohmann/json, Catch2, Spike-Submodule
 make build     # Universal-Release-Build → build/xp_wellys_devfr_atc.xpl (arm64
                # mit allen drei Backends + x86_64 cloud-only, zu einem
