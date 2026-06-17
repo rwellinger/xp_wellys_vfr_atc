@@ -14,6 +14,9 @@ vendor/
 *.dylib
 .DS_Store
 data/imgui.ini
+data/flightlog/
+cross_country_session.log
+flightlog/
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake

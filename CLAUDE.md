@@ -181,7 +181,7 @@ xp_wellys_vfr_atc/
 │   │   └── downloader.hpp/.cpp         # libcurl + Range-Resume + SHA256 (plugin-only)
 │   ├── core/
 │   │   ├── logging.hpp/.cpp            # XPLMDebugString + level-basiertes Logging
-│   │   ├── cross_country_log.hpp/.cpp  # JSON-Lines-Funk-Logger fuer die Messsession (SDK-frei, rein beobachtend)
+│   │   ├── cross_country_log.hpp/.cpp  # Per-Flug-JSON-Funk-Logger + ATC-Logbuch (SDK-frei, rein beobachtend)
 │   │   ├── xplane_context.hpp/.cpp     # SDK-freier XPlaneContext-Struct + Helfer
 │   │   └── xplane_context_runtime.cpp  # SDK-gekoppelter DataRef-Reader (plugin-only)
 │   ├── data/
@@ -398,23 +398,37 @@ vor jedem Pilotenzug, Restore-oder-`REQUEST_REPEAT` bei TTS-Fehler mit
 Squelch-Burst) lebt ebenfalls hier — siehe README für den
 Verhaltensvertrag.
 
-**`cross_country_log`** — SDK-freier, **rein beobachtender**
-JSON-Lines-Funk-Logger für die Cross-Country-Messsession. Schreibt pro
-verarbeiteter Funke eine Zeile nach `cross_country_session.log` (relativ
-→ X-Plane-Arbeitsverzeichnis, neben `Log.txt`). `engine::process_transcript`
-fädelt die Felder an jedem Ausstiegspunkt zusammen, **nachdem** `outcome`
-feststeht — ohne Eingriff ins Matching, Routing oder die Klassifikation.
-Felder: `transcript`/`quality`, `intent`/`confidence`, `path`
-(`rule_skip_lm` | `lm_fallback` | `clearance_match`), `lm_used` +
-`lm_backend`/`lm_ready`, `outcome` (`classified` | `unknown` |
-`tower_reported_garbled`), `state`/`flight_phase` (zum Zeitpunkt der
-Funke gesnapshottet), `expected_intent` (valid_intents-CSV),
-`vrp_name_set`/`vrp_name`, `readback_missing_elements` (nur READBACK) und
-`failure_locus` — ein **unverbindlicher** Heuristik-Vorschlag, nur gesetzt
-bei `outcome != classified` oder LM-Fallback. Das Backend-Label setzt der
-`loader` per `cross_country_log::set_lm_backend(mode)`; Engine-Code
-inspiziert `backend_mode` nie selbst (siehe **Backend Adapter Rule**).
-Details: README.
+**`cross_country_log`** — SDK-freier, **rein beobachtender** Funk-Logger +
+ATC-Flug-Logbuch für die Cross-Country-Messsession. Schreibt **ein
+gültiges, hübsch formatiertes JSON-Dokument pro Flug** nach
+`<plugin>/data/flightlog/YYYY-MM-DD_HHMM_<AIRPORT>.json` (Verzeichnis via
+`set_dir`, vom Plugin in `main.cpp` auf `settings::get_data_dir()`
+gesetzt). Das ganze Dokument wird **nach jeder Funke** atomar (Temp-Datei
++ `rename`) neu geschrieben — es ist also stets vollständig und valide
+samt aktuellem `summary`; ein „Flug-fertig"-Event ist nicht nötig.
+Aufbau: `{ version, flight{started_at, departure_airport,
+pilot_callsign}, summary{transmissions, classified, unknown, garbled,
+lm_fallbacks, readback_issues, phases[]}, transmissions[] }`.
+`engine::process_transcript` fädelt die Per-Funke-Felder an jedem
+Ausstiegspunkt zusammen, **nachdem** `outcome` feststeht — ohne Eingriff
+ins Matching, Routing oder die Klassifikation. Funke-Felder: `time`,
+`transcript`/`quality`, `intent`/`confidence`, `path` (`rule_skip_lm` |
+`lm_fallback` | `clearance_match`), `lm_used` + `lm_backend`/`lm_ready`,
+`outcome` (`classified` | `unknown` | `tower_reported_garbled`),
+`state`/`flight_phase` (zum Zeitpunkt der Funke gesnapshottet),
+`expected_intent` (valid_intents-CSV), `vrp_name_set`/`vrp_name`,
+`readback_missing_elements` (nur READBACK) und `failure_locus` — ein
+**unverbindlicher** Heuristik-Vorschlag, nur gesetzt bei `outcome !=
+classified` oder LM-Fallback. **Flug-Trennung** ist reine Logging-Logik
+(kein Verhaltens-Change): airborne gewesen + wieder am Boden in `IDLE` →
+neuer Abflug → neue Datei; Touch-and-Go/Platzrunde bleibt ein Flug;
+Cross-Country-Flugplatzwechsel rotiert nicht. `begin_new_flight()`
+erzwingt eine neue Datei — verdrahtet an den `XPLM_MSG_AIRPORT_LOADED`/
+`PLANE_LOADED`-Auto-Reset in `main.cpp` und den „Neuer Flug"-Button im
+Settings-Tab. Das Backend-Label setzt der `loader` per
+`cross_country_log::set_lm_backend(mode)`; Engine-Code inspiziert
+`backend_mode` nie selbst (siehe **Backend Adapter Rule**). Details:
+README.
 
 **`audio_player`** — Spielt PCM direkt auf dem X-Plane-Funkbus,
 respektiert `settings.volume`.

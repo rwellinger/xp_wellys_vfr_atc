@@ -30,6 +30,7 @@
   "btn.save_key": "Schluessel speichern",
   "btn.delete_key": "Schluessel loeschen",
   "btn.save_settings": "Einstellungen speichern",
+  "btn.new_flight": "Neuer Flug",
   "btn.disregard": "Verwerfen",
   "btn.send": "Senden",
 
@@ -179,6 +180,9 @@
   "settings.conflicts_header": "Bekannte Konflikte mit Standard-ATC",
   "settings.conflicts_body": "Verbale ATC-Meldungen und das ATC-Verlaufs-Popup werden unterdrueckt. Die folgenden X-Plane-Befehle koennen weiterhin Standard-ATC-Verhalten ausloesen, wenn sie an eine Taste oder einen Joystick-Button gebunden sind. Heben Sie die Belegung in den X-Plane-Tastatureinstellungen auf, um Konflikte zu vermeiden:",
   "settings.about_header": "Ueber",
+
+  "flightlog.header": "Flugprotokoll (ATC-Logbuch)",
+  "flightlog.new_flight_tip": "Beginnt eine neue Flugprotokoll-Datei unter data/flightlog. Nutzen, wenn die automatische Flug-Trennung einen Wechsel nicht erkannt hat.",
 
   "pattern.left": "links",
   "pattern.right": "rechts",

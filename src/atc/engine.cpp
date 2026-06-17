@@ -291,6 +291,8 @@ struct CcBase {
   std::string state;
   std::string flight_phase;
   std::string expected_intent; // valid_intents CSV for `state`
+  std::string airport_id;      // ctx.nearest_airport_id (flight-header source)
+  std::string pilot_callsign;  // pilot callsign for the flight header
 };
 
 // CSV of the intents valid in the current state — raw material for the
@@ -366,6 +368,8 @@ static void cc_log(const std::string &transcript, float quality,
   e.state = base.state;
   e.flight_phase = base.flight_phase;
   e.expected_intent = base.expected_intent;
+  e.airport_id = base.airport_id;
+  e.pilot_callsign = base.pilot_callsign;
   e.vrp_name_set = !msg.vrp_name.empty();
   e.vrp_name = msg.vrp_name;
   e.is_readback = msg.intent == intent_parser::PilotIntent::READBACK;
@@ -392,8 +396,11 @@ void process_transcript(Input in, Done done) {
   CcBase cc_base;
   cc_base.state = atc_state_machine::state_name(atc_state_machine::get_state());
   cc_base.flight_phase = flight_phase::phase_name(flight_phase::get());
-  if (in.ctx != nullptr)
+  cc_base.pilot_callsign = in.pilot_callsign;
+  if (in.ctx != nullptr) {
     cc_base.expected_intent = expected_intents_csv(*in.ctx);
+    cc_base.airport_id = in.ctx->nearest_airport_id;
+  }
 
   // Poor transcript quality — likely noise or engine sounds. Even at
   // very low quality the transcript may still contain a recognised

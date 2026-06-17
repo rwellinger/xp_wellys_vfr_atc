@@ -36,6 +36,7 @@
 #include "backends/downloader.hpp"
 #include "backends/loader.hpp"
 #include "backends/manager.hpp"
+#include "core/cross_country_log.hpp"
 #include "core/logging.hpp"
 #include "core/xplane_context.hpp"
 #include "data/airport_vrps.hpp"
@@ -134,6 +135,9 @@ PLUGIN_API int XPluginStart(char *name, char *sig, char *desc) {
   logging::info("Plugin started");
 
   settings::init();
+  // Per-flight ATC logbook lives under <plugin>/data/flightlog (get_data_dir
+  // has no trailing slash). The directory is created lazily on first write.
+  cross_country_log::set_dir(settings::get_data_dir() + "/flightlog");
   atc_templates::init();
   phraseology_hints::init();
   ui_strings::init();
@@ -270,4 +274,11 @@ PLUGIN_API void XPluginDisable() {
   backends::loader::stop();
 }
 
-PLUGIN_API void XPluginReceiveMessage(XPLMPluginID, int, void *) {}
+PLUGIN_API void XPluginReceiveMessage(XPLMPluginID, int inMessage, void *) {
+  // A new airport loaded (user repositioned / picked a new start location) or
+  // the user aircraft was reloaded means a fresh flight — start a new logbook
+  // file. On the very first load no flight is open yet, so this is a no-op.
+  if (inMessage == XPLM_MSG_AIRPORT_LOADED ||
+      inMessage == XPLM_MSG_PLANE_LOADED)
+    cross_country_log::begin_new_flight();
+}

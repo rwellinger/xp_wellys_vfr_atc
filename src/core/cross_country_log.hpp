@@ -14,12 +14,21 @@
 #include <string>
 #include <vector>
 
-// Per-transmission failure logging for the cross-country measurement
-// session. PURELY OBSERVATIONAL — this module never feeds matching,
-// routing or classification. It records one JSON-Lines record per
+// Per-transmission failure logging + per-flight logbook for the
+// cross-country measurement session. PURELY OBSERVATIONAL — this module
+// never feeds matching, routing or classification. It records every
 // processed pilot transmission so the raw material to decide whether a
 // phraseology fuzzy-layer or a location-aware proper-name recogniser is
-// needed can be evaluated offline.
+// needed can be evaluated offline, while doubling as an ATC-side flight
+// logbook.
+//
+// One valid, pretty-printed JSON document per flight is written to
+// <dir>/YYYY-MM-DD_HHMM_<AIRPORT>.json. The whole document is rewritten
+// (atomically, temp file + rename) after every transmission, so it is
+// always a complete, well-formed file with an up-to-date summary — no
+// "flight finished" event is required. Flights are split by a logging-
+// only heuristic (airborne -> back on the ground + IDLE = new departure)
+// or forced via begin_new_flight().
 //
 // SDK-free. Lives in the xp_atc_engine OBJECT lib (file I/O only, no
 // XPLM headers) so atc_repl and the scenario tests can exercise it too.
@@ -50,6 +59,12 @@ struct Entry {
   std::string state;        // ATC state name
   std::string flight_phase; // flight phase name
 
+  // ── Flight-header source (only consumed when a new flight opens) ────
+  // Used to name the per-flight file and fill its "flight" block; ignored
+  // on transmissions appended to an already-open flight.
+  std::string airport_id;     // ctx.nearest_airport_id at time of speech
+  std::string pilot_callsign; // pilot callsign for this flight
+
   // ── Raw material for offline failure attribution ───────────────────
   // The set of intents plausibly expected in this state (valid_intents
   // CSV). Combined with transcript + vrp_name this lets the evaluator
@@ -79,11 +94,22 @@ struct Entry {
 // reported here, which this module folds into each record.
 void set_lm_backend(const std::string &backend);
 
-// Override the output file path. Default: "cross_country_session.log"
-// (relative -> lands in the X-Plane working directory, next to Log.txt).
-void set_path(const std::string &path);
+// Set the directory the per-flight JSON logbook files are written to.
+// Default: "flightlog" (relative -> X-Plane working directory). The
+// plugin points this at <plugin>/data/flightlog. The directory is
+// created lazily on the first write.
+void set_dir(const std::string &dir);
 
-// Append one JSON-Lines record (one object per line). Thread-safe.
+// Force the next write() to start a fresh flight file, regardless of the
+// automatic split heuristic. The currently open flight is already fully
+// persisted on disk; this just drops it so the next transmission opens a
+// new document. Lazy — no empty file is created if no transmission
+// follows. Wired to the manual "new flight" button and to X-Plane
+// reposition / plane-reload messages.
+void begin_new_flight();
+
+// Append one transmission to the current flight, recompute its summary
+// and atomically rewrite the flight's JSON file. Thread-safe.
 void write(const Entry &e);
 
 } // namespace cross_country_log

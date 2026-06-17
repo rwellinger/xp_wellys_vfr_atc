@@ -713,8 +713,8 @@ src/
 │                           #   Die drei Client-Sätze teilen weder Header
 │                           #   noch Code-Pfad — Audit-Invariante durch
 │                           #   Tests erzwungen.
-├── core/                   # Logging, cross_country_log (JSON-Lines-
-│                           #   Funk-Logger für die Messsession),
+├── core/                   # Logging, cross_country_log (Per-Flug-JSON-
+│                           #   Funk-Logger + ATC-Logbuch),
 │                           #   XPlaneContext (SDK-freier Struct +
 │                           #   SDK-gekoppelter DataRef-Reader)
 ├── data/                   # Airport-VRPs, apt.dat-abgeleiteter Airspace-
@@ -745,23 +745,60 @@ liegen im Plugin-Bundle neben dem `.xpl`. Der x86_64-Slice hat keine
 dieser Abhängigkeiten; er linkt nur libcurl + Security + die
 Audio-Frameworks und liefert beide Cloud-Provider-Clients.
 
-## Cross-Country-Messsession-Log (`cross_country_session.log`)
+## Flug-Logbuch / Cross-Country-Messsession (`data/flightlog/`)
 
-Für die Auswertung von Cross-Country-Flügen schreibt das Modul
-`core/cross_country_log` pro verarbeiteter Funke eine maschinenlesbare
-Zeile (JSON-Lines, ein Objekt pro Zeile) in die Datei
-`cross_country_session.log` im X-Plane-Arbeitsverzeichnis (neben
-`Log.txt`). Der Logger ist **rein beobachtend** — er greift nie ins
-Matching, Routing oder die Klassifikation ein, sondern fädelt nur die
-Werte zusammen, die `engine::process_transcript` ohnehin erzeugt, und
+Das Modul `core/cross_country_log` schreibt **ein gültiges, hübsch
+formatiertes JSON-Dokument pro Flug** nach
+`<plugin>/data/flightlog/YYYY-MM-DD_HHMM_<AIRPORT>.json`. Es dient
+zweifach: als Mess-Datensatz für die Cross-Country-Auswertung **und** als
+ATC-seitiges Flug-Logbuch. Der Logger ist **rein beobachtend** — er greift
+nie ins Matching, Routing oder die Klassifikation ein, sondern fädelt nur
+die Werte zusammen, die `engine::process_transcript` ohnehin erzeugt, und
 schreibt sie an der Stelle, an der `outcome` feststeht.
 
-Zweck: genug Rohmaterial sammeln, um offline zu entscheiden, ob ein
-Phraseologie-Fuzzy-Layer oder eine ortsbezogene Eigennamen-Erkennung
-nötig ist. Felder pro Zeile:
+Das **ganze Dokument wird nach jeder Funke** atomar (Temp-Datei +
+`rename`) neu geschrieben. Es ist damit jederzeit vollständig, valide und
+im Editor formatierbar — auch bei einem Sim-Absturz steht alles bis zur
+letzten Funke auf Platte. Ein „Flug-fertig"-Event ist nicht nötig: der
+`summary` wird bei jeder Funke neu berechnet, der letzte Stand ist immer
+der finale.
+
+Dokument-Aufbau:
+
+```jsonc
+{
+  "version": 1,
+  "flight": { "started_at": "...", "departure_airport": "EDNY",
+              "pilot_callsign": "..." },
+  "summary": { "transmissions": 6, "classified": 6, "unknown": 0,
+               "garbled": 0, "lm_fallbacks": 0, "readback_issues": 0,
+               "phases": ["PARKED","PATTERN"] },
+  "transmissions": [ { /* eine Funke, Felder siehe unten */ } ]
+}
+```
+
+Der `summary`-Block wird rein aus den geloggten Funken gezählt (keine neue
+Klassifikations-Heuristik): `garbled` = `tower_reported_garbled`,
+`lm_fallbacks` = Funken mit LM-Aufruf, `readback_issues` = READBACKs mit
+nicht-leerem `readback_missing_elements`, `phases` = durchlaufene
+Flugphasen in Reihenfolge des ersten Auftretens.
+
+**Flug-Trennung** ist reine Logging-Logik und ändert kein ATC-Verhalten:
+War der offene Flug bereits airborne und kommt eine Funke wieder am Boden
+in `IDLE`, gilt das als neuer Abflug → neue Datei. Touch-and-Go /
+Platzrunde bleibt **ein** Flug; ein Cross-Country-Flugplatzwechsel mid-air
+rotiert **nicht**. Zusätzlich erzwingt `begin_new_flight()` eine neue
+Datei — verdrahtet an (a) den X-Plane-Reposition/Plane-Reload-Hook
+(`XPLM_MSG_AIRPORT_LOADED` / `PLANE_LOADED` in `main.cpp`) und (b) den
+**„Neuer Flug"-Button** im Settings-Tab als manuellen Backstop. So
+entstehen bei A→B→C drei saubere Dateien, egal ob durchgeflogen oder per
+Menü umpositioniert.
+
+Felder pro Funke (`transmissions[]`):
 
 | Feld | Bedeutung |
 |---|---|
+| `time` | Wall-Clock-Zeitstempel der Funke (`YYYY-MM-DDTHH:MM:SS`) |
 | `transcript`, `quality` | Roh-Whisper-Output (unverändert) + Whisper-Quality |
 | `intent`, `confidence` | klassifizierter Intent + Konfidenz |
 | `path` | `rule_skip_lm` \| `lm_fallback` \| `clearance_match` — welcher Pfad die Funke trug |
@@ -781,6 +818,11 @@ bei leerem VRP → Phraseologie. Das Backend-Label setzt der `loader` beim
 Bring-up (`cross_country_log::set_lm_backend(mode)`); Engine-Code
 inspiziert `backend_mode` nie selbst — siehe **Backend Adapter Rule** in
 `CLAUDE.md`.
+
+> Grenzen: Ein Plugin-Neustart mitten im Flug beginnt eine neue
+> Flug-Datei (die Heuristik kann das nicht überbrücken). Der Zeitstempel
+> ist lokale Wall-Clock-Zeit, nicht Sim-Zulu-Zeit. Das Verzeichnis
+> `data/flightlog/` ist generierte Laufzeit-Daten und nicht eingecheckt.
 
 ## Drittanbieter-Abhängigkeiten
 

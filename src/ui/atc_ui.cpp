@@ -30,6 +30,7 @@
 #include "backends/downloader.hpp"
 #include "backends/loader.hpp"
 #include "backends/manager.hpp"
+#include "core/cross_country_log.hpp"
 #include "core/logging.hpp"
 #include "core/xplane_context.hpp"
 #include "data/airport_vrps.hpp"
@@ -1715,6 +1716,17 @@ static void draw_settings_tab() {
     ImGui::BulletText("sim/operation/toggle_auto_readback");
     ImGui::BulletText("sim/operation/toggle_taxi_arrows");
   }
+
+  // Flight logbook — manual backstop for splitting flights when the
+  // automatic heuristic / X-Plane reposition message does not catch a
+  // transition. Starts a fresh data/flightlog/*.json on the next call.
+  ImGui::Separator();
+  ImGui::TextDisabled("%s", ui_strings::tr("flightlog.header"));
+  if (ImGui::Button(ui_strings::tr("btn.new_flight"))) {
+    cross_country_log::begin_new_flight();
+  }
+  if (ImGui::IsItemHovered())
+    ImGui::SetTooltip("%s", ui_strings::tr("flightlog.new_flight_tip"));
 
   // About section
   ImGui::Separator();
