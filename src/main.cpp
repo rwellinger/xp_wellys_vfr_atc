@@ -279,6 +279,10 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID, int inMessage, void *) {
   // the user aircraft was reloaded means a fresh flight — start a new logbook
   // file. On the very first load no flight is open yet, so this is a no-op.
   if (inMessage == XPLM_MSG_AIRPORT_LOADED ||
-      inMessage == XPLM_MSG_PLANE_LOADED)
+      inMessage == XPLM_MSG_PLANE_LOADED) {
     cross_country_log::begin_new_flight();
+    // Fresh flight → fresh ATIS session state (clears a stale cooldown and
+    // any in-flight TTS-retry counter from the previous flight).
+    atc_session::reset_atis_cooldown();
+  }
 }

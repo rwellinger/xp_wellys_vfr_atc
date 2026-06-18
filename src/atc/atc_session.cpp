@@ -82,6 +82,16 @@ static constexpr float kAtisCooldownSec = 120.0f;
 static float atis_tuned_timer_ = 0.0f;           // how long tuned to ATIS freq
 static constexpr float kAtisTuneDelaySec = 2.0f; // wait before playing
 
+// ATIS TTS retry: a transient cloud-TTS timeout (15 s curl limit) used to
+// leave the pilot waiting silently for the full 120 s cooldown. Instead we
+// re-try the broadcast a few times with a short gap, then warn the user via
+// a transcript line + squelch burst (the user does not watch Log.txt). The
+// short retry runs through the existing flight-loop cooldown poller, so PTT
+// stays free between attempts.
+static constexpr int kAtisMaxTtsTries = 3;        // attempts before giving up
+static constexpr float kAtisRetryDelaySec = 15.0f; // gap between failed tries
+static int atis_tts_failures_ = 0;                 // consecutive TTS failures
+
 // Map the pilot's currently-tuned frequency to a logical voice role.
 // The transmitting controller is whichever one owns the freq the pilot
 // is listening to — *not* the state machine's next_state. Without this,
@@ -123,10 +133,15 @@ role_for_frequency(const xplane_context::XPlaneContext &ctx) {
 // the ATIS path to delay the transcript line until the user actually
 // hears the broadcast, so a silent TTS failure does not leave a ghost
 // entry in the history.
+//
+// `on_failure` (optional) fires on the main thread when synthesis fails.
+// Used by the ATIS path to drive the retry/give-up logic; on success the
+// failure callback is never invoked.
 static void
 speak_response(const std::string &text, model_manifest::VoiceRole role,
                float length_scale = 1.0f, int com_override = 0,
-               std::function<void()> on_playback_starting = nullptr) {
+               std::function<void()> on_playback_starting = nullptr,
+               std::function<void()> on_failure = nullptr) {
   state_ = PTTState::PLAYING;
   tts_pending_ = true;
   ++total_inferences_; // TTS inference
@@ -140,8 +155,9 @@ speak_response(const std::string &text, model_manifest::VoiceRole role,
 
   backends::tts::synthesize_async(
       final_text, role, length_scale,
-      [com_override, on_playback_starting = std::move(on_playback_starting)](
-          backends::tts::Audio audio, bool success) {
+      [com_override, on_playback_starting = std::move(on_playback_starting),
+       on_failure = std::move(on_failure)](backends::tts::Audio audio,
+                                           bool success) {
         tts_pending_ = false;
         if (success && !audio.pcm16.empty()) {
           if (settings::debug_logging()) {
@@ -163,6 +179,8 @@ speak_response(const std::string &text, model_manifest::VoiceRole role,
           XPLMDebugString(
               "[xp_wellys_devfr_atc][ERROR] TTS failed, skipping playback\n");
           state_ = PTTState::IDLE;
+          if (on_failure)
+            on_failure();
         }
       });
 }
@@ -342,6 +360,7 @@ void init() {
   atis_active_com_ = 0;
   atis_cooldown_ = 0.0f;
   atis_tuned_timer_ = 0.0f;
+  atis_tts_failures_ = 0;
 }
 
 void stop() {
@@ -653,6 +672,7 @@ void update() {
     atis_tuned_timer_ += dt;
   } else {
     atis_tuned_timer_ = 0.0f;
+    atis_tts_failures_ = 0; // tuning away abandons the retry series
   }
 
   // Pilot retuned (or powered off) the specific COM that's playing ATIS
@@ -712,16 +732,41 @@ void update() {
     // ATIS reads slower than tower/ground — Piper length_scale > 1
     // produces the slower rate the OpenAI path used to get from
     // speed=0.85.
-    speak_response(atis_text, model_manifest::VoiceRole::Atis, 1.18f, atis_com,
-                   [entry = std::move(pending_entry)]() mutable {
-                     transcript_.push_back(std::move(entry));
-                   });
+    speak_response(
+        atis_text, model_manifest::VoiceRole::Atis, 1.18f, atis_com,
+        [entry = std::move(pending_entry)]() mutable {
+          atis_tts_failures_ = 0;
+          transcript_.push_back(std::move(entry));
+        },
+        []() {
+          // TTS failed: re-trigger after a short gap (the cooldown poller
+          // re-fires while the pilot stays tuned), then give up + warn.
+          atis_playing_ = false;
+          ++atis_tts_failures_;
+          if (atis_tts_failures_ < kAtisMaxTtsTries) {
+            atis_cooldown_ = kAtisRetryDelaySec;
+            XPLMDebugString("[xp_wellys_devfr_atc] ATIS TTS failed, retry "
+                            "scheduled in 15s\n");
+          } else {
+            audio_player::play_squelch_burst(settings::active_com());
+            transcript_.push_back(TranscriptEntry{
+                static_cast<double>(XPLMGetElapsedTime()),
+                TranscriptKind::System,
+                "Kommunikation gestoert - Sprachausgabe (TTS) nicht "
+                "verfuegbar. Bitte Internetverbindung und Backend pruefen.",
+                "",
+            });
+            atis_cooldown_ = kAtisCooldownSec;
+            atis_tts_failures_ = 0;
+          }
+        });
   }
 }
 
 void reset_atis_cooldown() {
   atis_cooldown_ = 0.0f;
   atis_tuned_timer_ = 0.0f;
+  atis_tts_failures_ = 0;
 }
 
 PTTState ptt_state() { return state_; }
