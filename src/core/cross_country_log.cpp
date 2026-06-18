@@ -93,6 +93,7 @@ json entry_to_json(const Entry &e, const std::string &datetime) {
   j["time"] = datetime;
   j["transcript"] = e.transcript;
   j["quality"] = e.quality;
+  j["atc_response"] = e.atc_response;
   j["intent"] = e.intent;
   j["confidence"] = e.confidence;
   j["path"] = e.path;

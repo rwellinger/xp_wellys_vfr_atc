@@ -355,10 +355,12 @@ static void cc_log(const std::string &transcript, float quality,
                    const intent_parser::PilotMessage &msg,
                    const std::string &path, bool lm_used,
                    const std::string &outcome, const CcBase &base,
-                   const std::vector<bzf_compliance::Element> *missing) {
+                   const std::vector<bzf_compliance::Element> *missing,
+                   const std::string &atc_response) {
   cross_country_log::Entry e;
   e.transcript = transcript;
   e.quality = quality;
+  e.atc_response = atc_response;
   e.intent = intent_parser::intent_name(msg.intent);
   e.confidence = msg.confidence;
   e.path = path;
@@ -415,7 +417,7 @@ void process_transcript(Input in, Done done) {
     intent_parser::PilotMessage stub;
     stub.raw_transcript = in.transcript;
     cc_log(in.transcript, in.quality, stub, "rule_skip_lm", false,
-           unclear_outcome(stub), cc_base, nullptr);
+           unclear_outcome(stub), cc_base, nullptr, out.response_text);
     done(std::move(out));
     return;
   }
@@ -443,7 +445,7 @@ void process_transcript(Input in, Done done) {
     Output out;
     if (try_traffic_dialog(parsed, ctx, in.now_secs, out)) {
       cc_log(in.transcript, in.quality, out.parsed, "rule_skip_lm", false,
-             "classified", cc_base, nullptr);
+             "classified", cc_base, nullptr, out.response_text);
       done(std::move(out));
       return;
     }
@@ -469,7 +471,7 @@ void process_transcript(Input in, Done done) {
     // Coherent (if rude) utterance — no "say again" loop carries over.
     mark_clear();
     cc_log(in.transcript, in.quality, parsed, "rule_skip_lm", false,
-           "classified", cc_base, nullptr);
+           "classified", cc_base, nullptr, out.response_text);
     done(std::move(out));
     return;
   }
@@ -513,7 +515,7 @@ void process_transcript(Input in, Done done) {
                        missing.size());
       Output out = run_state_machine(rb, ctx, in.now_secs);
       cc_log(in.transcript, in.quality, rb, "clearance_match", false,
-             "classified", cc_base, &missing);
+             "classified", cc_base, &missing, out.response_text);
       done(std::move(out));
       return;
     }
@@ -532,13 +534,13 @@ void process_transcript(Input in, Done done) {
       logging::info("ATC (LM unavailable, UNKNOWN): %s",
                     out.response_text.c_str());
       cc_log(in.transcript, in.quality, parsed, "rule_skip_lm", false,
-             unclear_outcome(parsed), cc_base, nullptr);
+             unclear_outcome(parsed), cc_base, nullptr, out.response_text);
       done(std::move(out));
       return;
     }
     Output out = run_state_machine(parsed, ctx, in.now_secs);
     cc_log(in.transcript, in.quality, parsed, "rule_skip_lm", false,
-           "classified", cc_base, nullptr);
+           "classified", cc_base, nullptr, out.response_text);
     done(std::move(out));
     return;
   }
@@ -564,7 +566,7 @@ void process_transcript(Input in, Done done) {
                      parsed.confidence);
     Output out = run_state_machine(parsed, ctx, in.now_secs);
     cc_log(in.transcript, in.quality, parsed, "rule_skip_lm", false,
-           "classified", cc_base, nullptr);
+           "classified", cc_base, nullptr, out.response_text);
     done(std::move(out));
     return;
   }
@@ -772,7 +774,8 @@ void process_transcript(Input in, Done done) {
             auto missing = bzf_compliance::missing_readback_elements(
                 rb_comp_snapshot, original_transcript);
             cc_log(original_transcript, quality_snapshot, rb, "lm_fallback",
-                   true, "classified", cc_base_snapshot, &missing);
+                   true, "classified", cc_base_snapshot, &missing,
+                   out.response_text);
             done(std::move(out));
             return;
           }
@@ -781,7 +784,8 @@ void process_transcript(Input in, Done done) {
           out.response_text = build_unclear_response(parsed, fallback_cs);
           logging::info("ATC (LM _INVALID): %s", out.response_text.c_str());
           cc_log(original_transcript, quality_snapshot, parsed, "lm_fallback",
-                 true, unclear_outcome(parsed), cc_base_snapshot, nullptr);
+                 true, unclear_outcome(parsed), cc_base_snapshot, nullptr,
+                 out.response_text);
           done(std::move(out));
           return;
         }
@@ -806,7 +810,8 @@ void process_transcript(Input in, Done done) {
         Output out;
         if (try_traffic_dialog(lm_msg, ctx_snapshot, now_secs, out)) {
           cc_log(original_transcript, quality_snapshot, out.parsed,
-                 "lm_fallback", true, "classified", cc_base_snapshot, nullptr);
+                 "lm_fallback", true, "classified", cc_base_snapshot, nullptr,
+                 out.response_text);
           done(std::move(out));
           return;
         }
@@ -826,7 +831,8 @@ void process_transcript(Input in, Done done) {
         out.parsed = lm_msg;
         out.response_text = atc_resp.text;
         cc_log(original_transcript, quality_snapshot, lm_msg, "lm_fallback",
-               true, "classified", cc_base_snapshot, nullptr);
+               true, "classified", cc_base_snapshot, nullptr,
+               out.response_text);
         done(std::move(out));
       });
 }

@@ -800,6 +800,7 @@ Felder pro Funke (`transmissions[]`):
 |---|---|
 | `time` | Wall-Clock-Zeitstempel der Funke (`YYYY-MM-DDTHH:MM:SS`) |
 | `transcript`, `quality` | Roh-Whisper-Output (unverändert) + Whisper-Quality |
+| `atc_response` | Tower-Antwort, die die Funke erzeugt hat (Freigabe / Anweisung / Korrektur / „say again"); leer = stiller Zustandswechsel. Pilot- und Tower-Seite stehen so im selben Datensatz, womit Freigaben und die zugehörigen Readbacks als vollständiger Austausch lesbar sind. |
 | `intent`, `confidence` | klassifizierter Intent + Konfidenz |
 | `path` | `rule_skip_lm` \| `lm_fallback` \| `clearance_match` — welcher Pfad die Funke trug |
 | `lm_used`, `lm_backend`, `lm_ready` | ob der LM lief; falls ja Backend (`openai`/`mistral`/`local`) + Ready-Flag, sonst `null` |

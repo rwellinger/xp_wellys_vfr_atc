@@ -20,7 +20,9 @@
 // processed pilot transmission so the raw material to decide whether a
 // phraseology fuzzy-layer or a location-aware proper-name recogniser is
 // needed can be evaluated offline, while doubling as an ATC-side flight
-// logbook.
+// logbook. Each record pairs the pilot transmission with the controller
+// reply it produced (atc_response), so clearances and the readbacks that
+// answer them read as a complete exchange.
 //
 // One valid, pretty-printed JSON document per flight is written to
 // <dir>/YYYY-MM-DD_HHMM_<AIRPORT>.json. The whole document is rewritten
@@ -38,6 +40,14 @@ struct Entry {
   // ── Raw observation ────────────────────────────────────────────────
   std::string transcript; // raw Whisper output, unmodified (engine in.transcript)
   float quality = 0.0f;   // Whisper quality value
+
+  // ── Tower side of the exchange ─────────────────────────────────────
+  // The controller reply the pilot transmission produced (clearance,
+  // instruction, correction or say-again). Empty = silent transition
+  // (state changed but nothing was spoken). Pairing the reply into the
+  // same record makes clearances and the readbacks that answer them
+  // legible without a separate tower-only stream.
+  std::string atc_response;
 
   // ── Classification result ──────────────────────────────────────────
   std::string intent;     // classified / rule-hinted intent name
