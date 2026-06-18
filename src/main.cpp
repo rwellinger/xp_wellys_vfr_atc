@@ -135,9 +135,9 @@ PLUGIN_API int XPluginStart(char *name, char *sig, char *desc) {
   logging::info("Plugin started");
 
   settings::init();
-  // Per-flight ATC logbook lives under <plugin>/data/flightlog (get_data_dir
-  // has no trailing slash). The directory is created lazily on first write.
-  cross_country_log::set_dir(settings::get_data_dir() + "/flightlog");
+  // Per-flight ATC logbook lives under <X-Plane>/Output/xp_wellys_devfr_atc/
+  // flightlog so it survives plugin re-installs. Created lazily on first write.
+  cross_country_log::set_dir(settings::output_dir() + "/flightlog");
   atc_templates::init();
   phraseology_hints::init();
   ui_strings::init();

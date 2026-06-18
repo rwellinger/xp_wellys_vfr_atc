@@ -48,6 +48,13 @@ std::string vrps_data_path();
 // call if absent.
 std::string user_prefs_dir();
 
+// Runtime output directory — under <X-Plane>/Output/xp_wellys_devfr_atc/.
+// Top-level under Output/ (not the plugin dir) so generated artifacts like
+// the per-flight ATC logbook survive plugin re-installs, mirroring how other
+// plugins (e.g. StableApproach) write to Output/[name]. Created on first
+// call if absent.
+std::string output_dir();
+
 // Getters
 std::string pilot_callsign();
 int active_com();

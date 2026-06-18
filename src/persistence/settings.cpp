@@ -238,6 +238,18 @@ std::string user_prefs_dir() {
   return path;
 }
 
+std::string output_dir() {
+  // <X-Plane>/Output/xp_wellys_devfr_atc — runtime output (flight logs).
+  // Lives under Output/ (not the plugin dir) so it survives plugin
+  // re-installs, mirroring how StableApproach writes to Output/[name].
+  // XPLMGetSystemPath returns the X-Plane root with a trailing slash.
+  char xp_root[2048] = {};
+  XPLMGetSystemPath(xp_root);
+  std::string path = std::string(xp_root) + "Output/xp_wellys_devfr_atc";
+  mkdir(path.c_str(), 0755);
+  return path;
+}
+
 void save() {
   std::string json_path = data_dir_path + "/settings.json";
   std::ofstream out(json_path);
