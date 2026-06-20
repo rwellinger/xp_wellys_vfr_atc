@@ -9,14 +9,14 @@ all dependencies are GPLv3-compatible.
 
 | Component | Version | License | How it ships |
 |---|---|---|---|
-| [whisper.cpp](https://github.com/ggerganov/whisper.cpp) | v1.7.6 | MIT | Static library inside the `.xpl` |
-| [llama.cpp](https://github.com/ggerganov/llama.cpp) | gguf-v0.17.1-1250 | MIT | Static library inside the `.xpl` |
+| [whisper.cpp](https://github.com/ggml-org/whisper.cpp) | v1.9.1 | MIT | Static library inside the `.xpl` |
+| [llama.cpp](https://github.com/ggml-org/llama.cpp) | b9733 | MIT | Static library inside the `.xpl` |
 | [Piper](https://github.com/OHF-Voice/piper1-gpl) | v1.4.2 | MIT (libpiper); GPL-3.0 (espeak-ng) | `libpiper.dylib` next to the `.xpl` |
 | [onnxruntime](https://github.com/microsoft/onnxruntime) | 1.22.0 | MIT | `libonnxruntime.1.22.0.dylib` next to the `.xpl` (prebuilt vendor binary) |
 | [espeak-ng](https://github.com/espeak-ng/espeak-ng) | bundled with Piper | GPL-3.0-or-later | Statically linked inside `libpiper.dylib`; data dir bundled |
-| [Dear ImGui](https://github.com/ocornut/imgui) | v1.91.9 | MIT | Compiled into the `.xpl` |
-| [nlohmann/json](https://github.com/nlohmann/json) | v3.11.3 | MIT | Header-only, compiled into the `.xpl` |
-| [Catch2](https://github.com/catchorg/Catch2) | v3.7.1 | BSL-1.0 | Test-only; not shipped with the release |
+| [Dear ImGui](https://github.com/ocornut/imgui) | v1.92.8 | MIT | Compiled into the `.xpl` |
+| [nlohmann/json](https://github.com/nlohmann/json) | v3.12.0 | MIT | Header-only, compiled into the `.xpl` |
+| [Catch2](https://github.com/catchorg/Catch2) | v3.15.1 | BSL-1.0 | Test-only; not shipped with the release |
 | libcurl | system (`/usr/lib/libcurl.4.dylib`) | curl/MIT-style | macOS-system; dynamically loaded |
 | X-Plane SDK | XPSDK430 | freely redistributable for plugin development | Headers only at build time |
 

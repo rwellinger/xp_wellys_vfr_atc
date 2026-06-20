@@ -130,7 +130,9 @@ if(XPWELLYS_USE_LOCAL_INFERENCE)
     set(GGML_ACCELERATE             ON  CACHE BOOL "" FORCE)
     set(GGML_BLAS                   OFF CACHE BOOL "" FORCE)
 
-    # --- llama.cpp (provides `ggml`, `llama`, `common`) ---
+    # --- llama.cpp (provides `ggml`, `llama`, `llama-common`) ---
+    # NB: the common helper target was renamed `common` -> `llama-common`
+    # in upstream llama.cpp (b9733-era); link the new name below.
     set(LLAMA_BUILD_COMMON       ON  CACHE BOOL "" FORCE)
     set(LLAMA_BUILD_TOOLS        OFF CACHE BOOL "" FORCE)
     set(LLAMA_BUILD_EXAMPLES     OFF CACHE BOOL "" FORCE)
@@ -370,7 +372,7 @@ if(APPLE)
             # and is resolved at runtime via @loader_path — see rpath
             # setup below.
             whisper
-            common
+            llama-common
             llama
             piper
         )

@@ -15,7 +15,7 @@ CATCH2_SENTINEL := vendor/catch2/catch_amalgamated.hpp
 # submodule init runs and lands all three.
 SUBMODULES_SENTINEL := spikes/spike_whisper/third_party/whisper.cpp/CMakeLists.txt
 
-CATCH2_VERSION := 3.7.1
+CATCH2_VERSION := 3.15.1
 
 .PHONY: all help setup build install clean distclean format lint sanitize release release-build cleanup-tags cleanup-branches cleanup-runs repl run-repl test test-unit test-scenarios
 
@@ -85,14 +85,14 @@ $(SDK_SENTINEL):
 	@echo "SDK headers installed."
 
 $(IMGUI_SENTINEL):
-	@echo "Downloading Dear ImGui v1.91.9..."
+	@echo "Downloading Dear ImGui v1.92.8..."
 	@set -euo pipefail; \
 	TMP=$$(mktemp -d); \
 	trap "rm -rf $$TMP" EXIT; \
 	mkdir -p vendor/imgui/backends; \
-	curl -fsSL "https://github.com/ocornut/imgui/archive/refs/tags/v1.91.9.zip" -o "$$TMP/imgui.zip"; \
+	curl -fsSL "https://github.com/ocornut/imgui/archive/refs/tags/v1.92.8.zip" -o "$$TMP/imgui.zip"; \
 	unzip -q "$$TMP/imgui.zip" -d "$$TMP/"; \
-	SRC="$$TMP/imgui-1.91.9"; \
+	SRC="$$TMP/imgui-1.92.8"; \
 	cp "$$SRC"/imgui.{h,cpp} vendor/imgui/; \
 	cp "$$SRC"/imgui_{draw,tables,widgets}.cpp vendor/imgui/; \
 	cp "$$SRC"/imgui_internal.h "$$SRC"/imconfig.h vendor/imgui/; \
@@ -101,9 +101,9 @@ $(IMGUI_SENTINEL):
 	@echo "Dear ImGui installed."
 
 $(JSON_SENTINEL):
-	@echo "Downloading nlohmann/json v3.11.3..."
+	@echo "Downloading nlohmann/json v3.12.0..."
 	@mkdir -p vendor
-	@curl -fsSL "https://github.com/nlohmann/json/releases/download/v3.11.3/json.hpp" \
+	@curl -fsSL "https://github.com/nlohmann/json/releases/download/v3.12.0/json.hpp" \
 	     -o vendor/json.hpp
 	@echo "nlohmann/json installed."
 
@@ -199,7 +199,11 @@ test-unit: $(SUBMODULES_SENTINEL) $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTI
 	cmake --build build --target xp_wellys_devfr_atc_tests --parallel
 	@echo ""
 	@echo "=== Running unit tests ==="
-	@./build/xp_wellys_devfr_atc_tests
+	@# --order decl: Catch2 >= 3.x defaults to random test order, which is
+	@# non-deterministic across runs (seed-dependent) and exposes latent
+	@# global-static state coupling between a few state-machine cases.
+	@# Pin declaration order so `make test` is reproducible in CI.
+	@./build/xp_wellys_devfr_atc_tests --order decl
 
 test-scenarios: repl
 	@echo "=== Running scenario tests ==="
