@@ -69,6 +69,17 @@ make test      # Catch2-Unit-Tests + Szenario-Tests (inkl. Audit-Invariante)
 make sanitize  # ASan- + UBSan-Build der Engine-OBJECT-Lib + atc_repl + Tests
 ```
 
+**Test-Reihenfolge (wichtig beim Debuggen von Testfehlern):** `make test` pinnt die
+Catch2-Unit-Tests bewusst auf `--order decl` (deterministisch, reproduzierbar). Das
+Binary selbst defaultet auf `--order rand`. Die Suite hat einen **bekannten, noch
+offenen Test-Isolations-Defekt**: einige Tests teilen globalen Zustand
+(`atc_state_machine` `was_airborne_`/`history_`, geleaktes `settings::bzf_strict_mode`),
+sind reihenfolgeabhängig und fallen unter `--order rand` (seed-abhängig 2–4 Fehler),
+unter `--order decl` grün. Wenn ein direkter `./build/xp_wellys_devfr_atc_tests`-Lauf
+rot ist, `make test` aber grün: zuerst Reihenfolgeabhängigkeit verdächtigen (nicht die
+eigene Änderung) und gegen die **unveränderte Basis** unter `--order rand` gegenprüfen,
+bevor man eine Regression behauptet. Maßgeblich ist `make test` (decl).
+
 `make build` erzeugt stets das Universal Binary: CMake läuft zweimal —
 arm64 mit `XPWELLYS_USE_LOCAL_INFERENCE=ON` (build-arm64/), x86_64 mit
 demselben Flag `OFF` (build-x86_64/) — und `lipo`-merged die zwei `.xpl`s
@@ -150,6 +161,7 @@ xp_wellys_vfr_atc/
 │   │   ├── traffic_dialog.hpp/.cpp     # Piloten-Antwort-Parser ("in Sicht" / "negativ") (SDK-frei)
 │   │   ├── landing_sequence.hpp/.cpp   # Phase-4-Sequenzierung + Runway-Occupancy-Primitive (SDK-frei)
 │   │   ├── bzf_compliance.hpp/.cpp     # NfL §25 b) Nr. 1 Readback-Prüfung (SDK-frei)
+│   │   ├── initial_call_conformance.hpp/.cpp # BZF-Erstanruf-Pflichtinhalt-Check (SDK-frei, datengetrieben)
 │   │   ├── de_phraseology.hpp/.cpp     # Rufzeichen-/Zahlen-Expansion (SDK-frei)
 │   │   └── flows/                      # Per-Kontext-Flow-Module (SDK-frei)
 │   │       ├── ground_operations.hpp/.cpp   # Taxi / Clearance-Delivery / Engine-Start
@@ -207,7 +219,7 @@ xp_wellys_vfr_atc/
 │   ├── atc_prompt_templates.json       # whisper_prompt + gpt_classify_prompt_de + gpt_fallback_prompt_de
 │   ├── vrps/airport_vrps.json          # VRP-/Platzrunden-DB (durch User-Datei überschreibbar)
 │   └── atc_profiles/
-│       └── de/{atc_templates,flight_rules,intent_rules,phraseology_hints,ui_strings}.json
+│       └── de/{atc_templates,flight_rules,intent_rules,phraseology_hints,ui_strings,conformance}.json
 ├── tools/atc_repl/                     # Headless-Dev-Tool (nur Engine-OBJECT-Lib)
 ├── tests/                              # Catch2-Unit- + Szenario-Tests
 ├── spikes/                             # Spike-Submodule + Experimente
@@ -381,6 +393,28 @@ Ground-Klasse-Intents auf der TOWER-Frequenz aus. Zudem:
 `check_auto_correction(phase, dt)`, `build_vars()`, `state_from_name()`,
 `set_state()`, und der BZF-Strict-Check (`apply_bzf_strict_check()`) beim
 READBACK-Intent.
+
+**`initial_call_conformance`** — SDK-freier, datengetriebener
+BZF-Erstanruf-Pflichtinhalt-Check. Lädt `data/atc_profiles/de/conformance.json`:
+pro Intent **zwei Sets** — `required` (NfL-zwingende Elemente) und `recommended`
+(didaktische BZF-Vollform). `bzf_strict_mode` wählt das harte Set: strict=false
+erzwingt nur `required`, strict=true `required ∪ recommended`. `evaluate()` ist eine
+reine Detektion (position via Parser-Signal, atis_letter via „Information"+NATO-
+Buchstabe, intention/aircraft_type via `element_keywords`/Live-acf_ICAO);
+`build_request_prompt()` baut die gezielte Nachforderung. Eingehängt als
+`ground_ops::apply_initial_call_conformance()`-Guard in `process()` **vor** dem
+Template-Lookup. Aktuell verdrahtet/getestet: nur `INITIAL_CALL_GROUND` (dort ist
+`required` leer → Simulator-Verhalten unverändert, Nachforderung nur im Trainer); die
+Datenstruktur ist generisch für spätere Intents. **Befund (NfL 2024 §1.4.7/§1.4.3,
+Primärquelle unter `docs/bzf/`):** im Erstanruf ist nur das Roll-Anliegen (ERBITTE
+ROLLEN, separater `REQUEST_TAXI`-Sprechakt) zwingend; Luftfahrzeugmuster/Standort/
+Absichten/ATIS sind [optional] — die „5-Pflichtelemente" sind BZF-Didaktik, kein
+NfL-Pflichtumfang (eckige Klammern = optional). **H2-Invariante:** der
+Erstkontakt-Hint (`flight_rules.json` `pilot_phraseology`) ist Lehrautorität und muss
+deckungsgleich mit dem `recommended`-Set sein, sonst wird der Schüler im Trainer für
+das verbatim Abgelesene nachgefordert; `tests/test_initial_call_conformance.cpp`
+erzwingt das (rendert den Hint → `evaluate` → `missing_recommended` leer). Daher
+gehört „ERBITTE ROLLEN" NICHT in den Erstkontakt-Hint, sondern zu `REQUEST_TAXI`.
 
 **`atc_session`** — Besitzt die PTT-State-Machine
 (`IDLE → RECORDING → PROCESSING → PLAYING`). Koordiniert die volle
