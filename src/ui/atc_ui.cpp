@@ -1758,6 +1758,10 @@ static void draw_settings_tab() {
   ImGui::TextDisabled("%s", ui_strings::tr("flightlog.header"));
   if (ImGui::Button(ui_strings::tr("btn.new_flight"))) {
     cross_country_log::begin_new_flight();
+    // Mirror the airport/plane-reload path: disarm was_airborne so a manual
+    // "new flight" is treated as fresh-spawn-IDLE, not post-landing-IDLE.
+    // Flag only — not a full reset() (see main.cpp XPluginReceiveMessage).
+    atc_state_machine::set_was_airborne(false);
   }
   if (ImGui::IsItemHovered())
     ImGui::SetTooltip("%s", ui_strings::tr("flightlog.new_flight_tip"));

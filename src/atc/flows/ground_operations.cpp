@@ -361,6 +361,14 @@ void apply_tower_only_initial_collapse(PilotMessage &msg,
     return;
   if (internal::get_state_ref() != ATCState::IDLE)
     return;
+  // IDLE is overloaded: fresh-spawn-IDLE (never flew) vs post-landing-IDLE
+  // (flew, landed, back on the ground). The apron-first-contact collapse is
+  // only correct for the former. was_airborne distinguishes them and still
+  // reads true here (the line-~905 reset runs later in process()), so a
+  // post-landing sign-off misclassified as INITIAL_CALL_TOWER is NOT turned
+  // into a new ground first contact.
+  if (atc_state_machine::was_airborne())
+    return;
   if (msg.intent != intent_parser::PilotIntent::INITIAL_CALL_TOWER)
     return;
   msg.intent = intent_parser::PilotIntent::INITIAL_CALL_GROUND;

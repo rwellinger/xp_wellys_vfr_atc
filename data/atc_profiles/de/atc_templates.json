@@ -77,6 +77,11 @@
         "next_state": "IDLE",
         "requires_readback": true
       },
+      "LEAVING_FREQUENCY": {
+        "response": "{callsign}, Verlassen der Frequenz genehmigt, auf Wiederhoeren.",
+        "next_state": "IDLE",
+        "requires_readback": false
+      },
       "_INVALID": {
         "response": "{callsign}, wiederholen Sie Ihre Anfrage.",
         "next_state": "IDLE",

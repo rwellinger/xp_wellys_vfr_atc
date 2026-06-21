@@ -41,9 +41,15 @@ void reload();
 TemplateEntry lookup(bool is_towered, const std::string &state,
                      const std::string &intent_key, bool tower_only = false);
 
-// Return valid intent keys for a given state (excluding _INVALID)
-std::vector<std::string> valid_intents(bool is_towered,
-                                       const std::string &state);
+// Return valid intent keys for a given state (excluding _INVALID).
+// post_landing splits the overloaded towered IDLE state: when true
+// (was_airborne — flew and back on the ground) the apron/inbound first-
+// contact intents are dropped and the sign-off (LEAVING_FREQUENCY) is
+// offered; when false (fresh spawn, never flew) the sign-off is dropped and
+// the first-contact intents stay. Only affects towered IDLE; every other
+// state returns the full key set regardless.
+std::vector<std::string> valid_intents(bool is_towered, const std::string &state,
+                                       bool post_landing);
 
 // Replace {key} placeholders in template string with values from vars
 std::string fill(const std::string &tmpl,

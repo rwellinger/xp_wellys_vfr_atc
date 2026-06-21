@@ -18,6 +18,8 @@
 
 #include "atc/atc_templates.hpp"
 #include "core/logging.hpp"
+
+#include <set>
 #include "persistence/settings.hpp"
 
 #include <json.hpp>
@@ -120,8 +122,8 @@ TemplateEntry lookup(bool is_towered, const std::string &state,
   };
 }
 
-std::vector<std::string> valid_intents(bool is_towered,
-                                       const std::string &state) {
+std::vector<std::string> valid_intents(bool is_towered, const std::string &state,
+                                       bool post_landing) {
   std::vector<std::string> result;
 
   if (!loaded_)
@@ -132,9 +134,26 @@ std::vector<std::string> valid_intents(bool is_towered,
   if (!templates_.contains(type) || !templates_[type].contains(state))
     return result;
 
+  // Towered IDLE carries the union of first-contact and post-landing intents
+  // under one key (the state machine cannot tell fresh-spawn-IDLE from post-
+  // landing-IDLE). Select the half matching the session phase so the LM
+  // classifier (post-hoc validated against this set) cannot pick a first
+  // contact after a completed flight, nor a sign-off before one. Other states
+  // and uncontrolled fields are unaffected.
+  static const std::set<std::string> kFirstContactOnly = {
+      "INITIAL_CALL_GROUND", "INITIAL_CALL_TOWER", "INITIAL_CALL_INBOUND",
+      "INITIAL_CALL_INBOUND_VRP"};
+  static const std::set<std::string> kPostLandingOnly = {"LEAVING_FREQUENCY"};
+  const bool filter_idle = is_towered && state == "IDLE";
+
   for (auto &[key, _] : templates_[type][state].items()) {
-    if (key != "_INVALID")
-      result.push_back(key);
+    if (key == "_INVALID")
+      continue;
+    if (filter_idle && post_landing && kFirstContactOnly.count(key))
+      continue;
+    if (filter_idle && !post_landing && kPostLandingOnly.count(key))
+      continue;
+    result.push_back(key);
   }
   return result;
 }

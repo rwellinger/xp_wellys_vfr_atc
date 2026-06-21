@@ -350,8 +350,11 @@ double last_now_secs() { return g_state.last_now_secs_; }
 
 void init() {
   // Capture flight-loop thread fingerprint for assert_flight_loop_thread.
-  // Allowed to run multiple times — main.cpp calls init() on XPluginStart
-  // and after settings reload.
+  // Allowed to run multiple times. In the live plugin main.cpp calls init()
+  // only on XPluginStart; settings reload does NOT re-init the state machine.
+  // The session-lifecycle was_airborne flag is therefore reset here only at
+  // startup; airport/plane reload disarm it via set_was_airborne(false) in
+  // XPluginReceiveMessage, and a post-landing new departure via line ~905.
   g_flight_loop_thread_id.store(std::this_thread::get_id());
 
   // Full reset is one semantic transition — single bump_gen() covers

@@ -286,5 +286,13 @@ PLUGIN_API void XPluginReceiveMessage(XPLMPluginID, int inMessage, void *) {
     // Fresh flight → fresh ATIS session state (clears a stale cooldown and
     // any in-flight TTS-retry counter from the previous flight).
     atc_session::reset_atis_cooldown();
+    // Disarm the session-lifecycle was_airborne flag so the fresh start is
+    // seen as fresh-spawn-IDLE, not post-landing-IDLE. Without this the flag
+    // stays sticky from the previous flight (flight_phase never mirrors it
+    // back to false), and the IDLE intent whitelist / tower-only collapse
+    // would offer post-landing intents at a brand-new airport. Targeted to
+    // the flag only — a full state-machine reset() is deliberately not used
+    // here (would wipe an in-progress flight on a non-reposition message).
+    atc_state_machine::set_was_airborne(false);
   }
 }

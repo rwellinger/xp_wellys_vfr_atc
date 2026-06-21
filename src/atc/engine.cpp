@@ -303,7 +303,8 @@ static std::string expected_intents_csv(const xplane_context::XPlaneContext &ctx
                     ctx.frequency_type != FT::CTAF;
   std::string state_str =
       atc_state_machine::state_name(atc_state_machine::get_state());
-  auto valid = atc_templates::valid_intents(is_towered, state_str);
+  auto valid = atc_templates::valid_intents(is_towered, state_str,
+                                            atc_state_machine::was_airborne());
   std::string csv;
   for (const auto &v : valid) {
     if (!csv.empty())
@@ -591,7 +592,8 @@ void process_transcript(Input in, Done done) {
       atc_state_machine::state_name(atc_state_machine::previous_state());
   std::string state_history_csv = atc_state_machine::history_csv();
   bool just_landed_flag = atc_state_machine::just_landed(in.now_secs);
-  auto valid = atc_templates::valid_intents(is_towered, state_str);
+  auto valid = atc_templates::valid_intents(is_towered, state_str,
+                                            atc_state_machine::was_airborne());
 
   // Always include the traffic-acknowledgement intents — they are
   // valid any time the controller has just issued a traffic advisory,
