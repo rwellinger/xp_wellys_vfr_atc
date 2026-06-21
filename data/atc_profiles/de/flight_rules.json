@@ -250,7 +250,7 @@
     "REQUEST_TAXI": "{airport} {taxi_controller}, {callsign}, {intention}, erbitte Rollen zum Rollhalt Piste {runway}",
     "REQUEST_TAXI_PARKING": "{airport} {taxi_controller}, {callsign}, erbitte Rollen zum Vorfeld",
     "READY_FOR_DEPARTURE": "{airport} Tower, {callsign}, Piste {runway}, abflugbereit",
-    "READY_FOR_DEPARTURE_VFR": "{airport} Tower, {callsign}, Piste {runway}, abflugbereit, Kurs nach {destination}",
+    "READY_FOR_DEPARTURE_VFR": "{airport} Tower, {callsign}, Piste {runway}, abflugbereit{vfr_course_phrase}",
     "REPORT_POSITION": "{airport} Tower, {callsign}, in der Platzrunde Piste {runway}",
     "REPORT_POSITION_DOWNWIND": "{airport} Tower, {callsign}, Mitte Gegenanflug Piste {runway}",
     "REPORT_POSITION_BASE": "{airport} Tower, {callsign}, im Queranflug Piste {runway}",

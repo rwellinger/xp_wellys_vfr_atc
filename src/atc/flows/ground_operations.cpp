@@ -217,16 +217,21 @@ std::map<std::string, std::string> build_vars(const PilotMessage &msg,
 
   // VFR intention element (NfL 2024 1.4.7 a/b). The sim has no flight plan,
   // so the pilot's intent is a user setting: Platzrunde vs. Ueberlandflug.
-  // {intention} carries the full spoken phrase; {destination} is the bare
-  // aerodrome token for the "Kurs nach <dest>" departure call (falls back to
-  // "Plan" so READY_FOR_DEPARTURE_VFR keeps reading naturally when unset).
+  // {intention} carries the full spoken first-call/taxi phrase.
+  // {vfr_course_phrase} is the optional ", Kurs nach <dest>" tail for the
+  // VFR departure call: a leading-comma fragment only when a cross-country
+  // destination is set, empty otherwise — so the empty case reads as the
+  // speakable "... abflugbereit" with NO "nach Plan" placeholder.
   const std::string vfr_dest = settings::vfr_destination();
+  const bool cross_country = (settings::vfr_flight_type() == "cross_country");
   std::string intention;
-  if (settings::vfr_flight_type() == "cross_country")
+  if (cross_country)
     intention = vfr_dest.empty() ? "VFR Ueberlandflug" : "VFR nach " + vfr_dest;
   else
     intention = "VFR Platzrunde";
-  const std::string destination = vfr_dest.empty() ? "Plan" : vfr_dest;
+  std::string vfr_course_phrase;
+  if (cross_country && !vfr_dest.empty())
+    vfr_course_phrase = ", Kurs nach " + vfr_dest;
 
   return {
       {"callsign", get_callsign(msg)},
@@ -241,7 +246,7 @@ std::map<std::string, std::string> build_vars(const PilotMessage &msg,
       {"ground_frequency", format_freq(ground_freq)},
       {"taxi_controller", taxi_controller},
       {"intention", intention},
-      {"destination", destination},
+      {"vfr_course_phrase", vfr_course_phrase},
       {"aircraft_type", ctx.aircraft_icao},
       {"aircraft_type_phrase", aircraft_type_phrase},
       {"position", extract_position(msg, ctx)},

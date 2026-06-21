@@ -327,10 +327,10 @@ TEST_CASE("vfr intention: cross-country with destination renders 'VFR nach X'",
 
     auto vars = ground_ops::build_vars(first_call("", false), ctx);
     REQUIRE(vars["intention"] == "VFR nach EDDS");
-    REQUIRE(vars["destination"] == "EDDS");
+    REQUIRE(vars["vfr_course_phrase"] == ", Kurs nach EDDS");
 
     // REQUEST_TAXI carries the intention (NfL 1.4.7 b home of the
-    // destination); READY_FOR_DEPARTURE_VFR carries the course token.
+    // destination); READY_FOR_DEPARTURE_VFR carries the course tail.
     std::string taxi = atc_templates::fill(
         flight_phase::get_pilot_phraseology("REQUEST_TAXI"), vars);
     REQUIRE(taxi.find("VFR nach EDDS") != std::string::npos);
@@ -356,11 +356,19 @@ TEST_CASE("vfr intention: cross-country without destination falls back",
 
     auto vars = ground_ops::build_vars(first_call("", false), ctx);
     REQUIRE(vars["intention"] == "VFR Ueberlandflug");
-    REQUIRE(vars["destination"] == "Plan");
+    // No destination -> the course tail vanishes entirely. The departure
+    // call must NOT fall back to the unspeakable "nach Plan" placeholder.
+    REQUIRE(vars["vfr_course_phrase"].empty());
 
     std::string dep = atc_templates::fill(
         flight_phase::get_pilot_phraseology("READY_FOR_DEPARTURE_VFR"), vars);
-    REQUIRE(dep.find("Kurs nach Plan") != std::string::npos);
+    REQUIRE(dep.find("nach Plan") == std::string::npos);
+    REQUIRE(dep.find("Kurs") == std::string::npos);
+    // Speakable zielfreie Form: ends on "abflugbereit".
+    REQUIRE(dep.size() >= std::string("abflugbereit").size());
+    REQUIRE(dep.compare(dep.size() - std::string("abflugbereit").size(),
+                        std::string("abflugbereit").size(),
+                        "abflugbereit") == 0);
 }
 
 // ── Tower-only first contact: INITIAL_CALL_TOWER -> INITIAL_CALL_GROUND ──
