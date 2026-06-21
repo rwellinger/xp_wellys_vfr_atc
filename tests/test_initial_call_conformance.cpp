@@ -1,6 +1,8 @@
 #include "atc/atc_state_machine.hpp"
 #include "atc/atc_templates.hpp"
+#include "atc/atis_generator.hpp"
 #include "atc/flight_phase.hpp"
+#include "atc/flows/ground_operations.hpp"
 #include "atc/initial_call_conformance.hpp"
 #include "atc/intent_parser.hpp"
 #include "core/xplane_context.hpp"
@@ -243,4 +245,42 @@ TEST_CASE("conformance behaviour: complete call clears in both modes",
         REQUIRE(atc_state_machine::get_state() ==
                 atc_state_machine::state_from_name("GROUND_CONTACT"));
     }
+}
+
+// ── H2 (PR 2): hint ⇔ conformance consistency ─────────────────────────
+//
+// The INITIAL_CALL_GROUND phraseology hint (flight_rules.json ::
+// pilot_phraseology) is teaching authority: a student who reads it back
+// verbatim must NEVER be re-requested by the strict-mode conformance
+// check. This asserts set-equality between the hint's rendered elements
+// and the recommended set: render the hint exactly as the UI does
+// (atc_templates::fill over ground_ops::build_vars), run it through the
+// real parser, and require evaluate() to find nothing missing. It breaks
+// if the hint wording and the detectors drift apart — e.g. if the hint
+// loses its position / intention token, or "erbitte Rollen" creeps back
+// in place of an explicit Vorhaben.
+TEST_CASE("H2: INITIAL_CALL_GROUND hint satisfies every recommended element",
+          "[conformance][hint][h2]") {
+    load_de_profile();
+    atis_generator::init(); // deterministic letter 'A' -> "Alpha"
+    auto ctx = ground_ctx(); // aircraft_icao == "DV20"
+
+    PilotMessage seed = first_call("", false);
+    auto vars = ground_ops::build_vars(seed, ctx);
+    std::string tmpl =
+        flight_phase::get_pilot_phraseology("INITIAL_CALL_GROUND");
+    REQUIRE_FALSE(tmpl.empty());
+    std::string rendered = atc_templates::fill(tmpl, vars);
+
+    // The corrected hint must NOT teach the taxi request — that belongs to
+    // REQUEST_TAXI, not the first contact.
+    REQUIRE(rendered.find("erbitte Rollen") == std::string::npos);
+
+    // Read the rendered hint back through the real parser, then evaluate.
+    auto parsed = intent_parser::parse(rendered, ctx);
+    auto r =
+        initial_call_conformance::evaluate("INITIAL_CALL_GROUND", parsed, ctx);
+    INFO("rendered hint: " << rendered);
+    REQUIRE(r.missing_recommended.empty());
+    REQUIRE(r.missing_required.empty());
 }

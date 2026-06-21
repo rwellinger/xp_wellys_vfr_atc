@@ -243,7 +243,7 @@
     }
   },
   "pilot_phraseology": {
-    "INITIAL_CALL_GROUND": "{airport} {taxi_controller}, {callsign}{aircraft_type_phrase}, am Vorfeld, erbitte Rollen, Information {atis_letter}",
+    "INITIAL_CALL_GROUND": "{airport} {taxi_controller}, {callsign}{aircraft_type_phrase}, am Vorfeld, VFR nach Plan, Information {atis_letter}",
     "INITIAL_CALL_TOWER": "{airport} Tower, {callsign}{aircraft_type_phrase}, Rollhalt Piste {runway}, abflugbereit",
     "INITIAL_CALL_INBOUND": "{airport} Tower, {callsign}{aircraft_type_phrase}, zur Landung, erbitte Einflugverfahren",
     "INITIAL_CALL_INBOUND_VRP": "{airport} Tower, {callsign}{aircraft_type_phrase}, ueber {entry_vrp}, zur Landung, Information {atis_letter}",
