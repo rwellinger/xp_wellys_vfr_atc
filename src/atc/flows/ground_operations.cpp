@@ -215,6 +215,19 @@ std::map<std::string, std::string> build_vars(const PilotMessage &msg,
   if (!ctx.aircraft_icao.empty())
     aircraft_type_phrase = ", " + ctx.aircraft_icao;
 
+  // VFR intention element (NfL 2024 1.4.7 a/b). The sim has no flight plan,
+  // so the pilot's intent is a user setting: Platzrunde vs. Ueberlandflug.
+  // {intention} carries the full spoken phrase; {destination} is the bare
+  // aerodrome token for the "Kurs nach <dest>" departure call (falls back to
+  // "Plan" so READY_FOR_DEPARTURE_VFR keeps reading naturally when unset).
+  const std::string vfr_dest = settings::vfr_destination();
+  std::string intention;
+  if (settings::vfr_flight_type() == "cross_country")
+    intention = vfr_dest.empty() ? "VFR Ueberlandflug" : "VFR nach " + vfr_dest;
+  else
+    intention = "VFR Platzrunde";
+  const std::string destination = vfr_dest.empty() ? "Plan" : vfr_dest;
+
   return {
       {"callsign", get_callsign(msg)},
       {"airport", airport_name(ctx)},
@@ -227,6 +240,8 @@ std::map<std::string, std::string> build_vars(const PilotMessage &msg,
       {"tower_frequency", format_freq(tower_freq)},
       {"ground_frequency", format_freq(ground_freq)},
       {"taxi_controller", taxi_controller},
+      {"intention", intention},
+      {"destination", destination},
       {"aircraft_type", ctx.aircraft_icao},
       {"aircraft_type_phrase", aircraft_type_phrase},
       {"position", extract_position(msg, ctx)},
@@ -327,6 +342,25 @@ void apply_state_reverts(const PilotMessage &msg) {
       internal::set_departure_type(internal::DepartureType::PATTERN);
     return;
   }
+}
+
+void apply_tower_only_initial_collapse(PilotMessage &msg,
+                                       const XPlaneContext &ctx) {
+  if (settings::atc_profile() != "DE")
+    return;
+  // Only the genuine apron first contact: tower-only field, on the ground,
+  // dialog still in IDLE (no prior taxi clearance), classified as a Tower
+  // initial call. The holding-point "abflugbereit" Tower call has already
+  // advanced past IDLE; an airborne inbound is not on_ground / not TOWER.
+  if (!ctx.tower_only || !ctx.on_ground)
+    return;
+  if (internal::get_state_ref() != ATCState::IDLE)
+    return;
+  if (msg.intent != intent_parser::PilotIntent::INITIAL_CALL_TOWER)
+    return;
+  msg.intent = intent_parser::PilotIntent::INITIAL_CALL_GROUND;
+  logging::info("Tower-only collapse: INITIAL_CALL_TOWER -> "
+                "INITIAL_CALL_GROUND (apron first contact)");
 }
 
 bool handle_unicom_flow(const PilotMessage &msg, const XPlaneContext &ctx,

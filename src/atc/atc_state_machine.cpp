@@ -761,11 +761,17 @@ apply_post_transition_hooks(const intent_parser::PilotMessage &msg,
 
 // ── Main pipeline ───────────────────────────────────────────────────
 
-ATCResponse process(const intent_parser::PilotMessage &msg,
+ATCResponse process(const intent_parser::PilotMessage &msg_in,
                     const xplane_context::XPlaneContext &ctx, double now_secs) {
   assert_flight_loop_thread();
   g_state.last_now_secs_ = now_secs; // heartbeat — no gen bump
   ATCResponse resp;
+
+  // Mutable working copy: the tower-only first-contact collapse rewrites the
+  // intent in place below (see apply_tower_only_initial_collapse). Every
+  // downstream guard, the conformance check and the template lookup then see
+  // the effective intent uniformly.
+  intent_parser::PilotMessage msg = msg_in;
 
   // Airport-change reset is also done per-frame in check_airport_change();
   // this in-process call is a safety net.
@@ -811,6 +817,12 @@ ATCResponse process(const intent_parser::PilotMessage &msg,
 
   if (ground_ops::handle_idle_redirects(msg, ctx, resp))
     return resp;
+
+  // Tower-only apron first contact collapses INITIAL_CALL_TOWER ->
+  // INITIAL_CALL_GROUND so the GROUND conformance check + hint apply. Runs
+  // before the guards so phase/freq preconditions, conformance and the
+  // template lookup all see the effective intent.
+  ground_ops::apply_tower_only_initial_collapse(msg, ctx);
 
   if (ground_ops::check_phase_precondition(msg, ctx, resp))
     return resp;

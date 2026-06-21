@@ -37,6 +37,16 @@ void set_pilot_callsign_raw(const std::string &v) { g_pilot_callsign = v; }
 std::string pattern_direction() { return "left"; }
 float auto_correction_factor() { return 1.0f; }
 
+// VFR intention defaults (mutable so scenario/REPL/tests can drive the
+// {intention} / {destination} hint variables; env override for the REPL).
+static std::string g_vfr_flight_type =
+    env_or("XP_ATC_VFR_FLIGHT_TYPE", "pattern");
+static std::string g_vfr_destination = env_or("XP_ATC_VFR_DESTINATION", "");
+std::string vfr_flight_type() { return g_vfr_flight_type; }
+std::string vfr_destination() { return g_vfr_destination; }
+void set_vfr_flight_type(const std::string &v) { g_vfr_flight_type = v; }
+void set_vfr_destination(const std::string &v) { g_vfr_destination = v; }
+
 // German-VFR-only build: there is exactly one ATC profile ("DE").
 std::string atc_profile() { return "DE"; }
 

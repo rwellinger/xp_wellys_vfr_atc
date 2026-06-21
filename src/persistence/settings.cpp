@@ -47,6 +47,8 @@ static json default_config() {
       {"volume", 1.0},
       {"debug_logging", false},
       {"pattern_direction", "left"},
+      {"vfr_flight_type", "pattern"},
+      {"vfr_destination", ""},
       {"disable_default_atc", false},
       {"skip_radio_power_check", false},
       {"show_phraseology_hints", true},
@@ -282,6 +284,12 @@ bool debug_logging() { return cfg.value("debug_logging", false); }
 std::string pattern_direction() {
   return cfg.value("pattern_direction", std::string("left"));
 }
+std::string vfr_flight_type() {
+  return cfg.value("vfr_flight_type", std::string("pattern"));
+}
+std::string vfr_destination() {
+  return cfg.value("vfr_destination", std::string(""));
+}
 bool disable_default_atc() { return cfg.value("disable_default_atc", false); }
 bool skip_radio_power_check() {
   return cfg.value("skip_radio_power_check", false);
@@ -401,6 +409,8 @@ void set_active_com(int com) { cfg["active_com"] = com; }
 void set_pattern_direction(const std::string &v) {
   cfg["pattern_direction"] = v;
 }
+void set_vfr_flight_type(const std::string &v) { cfg["vfr_flight_type"] = v; }
+void set_vfr_destination(const std::string &v) { cfg["vfr_destination"] = v; }
 void set_disable_default_atc(bool v) { cfg["disable_default_atc"] = v; }
 void set_skip_radio_power_check(bool v) { cfg["skip_radio_power_check"] = v; }
 void set_show_phraseology_hints(bool v) { cfg["show_phraseology_hints"] = v; }

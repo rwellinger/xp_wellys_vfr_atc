@@ -12,6 +12,8 @@
   "bzf_strict_mode": false,
   "atc_profile": "DE",
   "start_mode": "engines_running",
+  "vfr_flight_type": "pattern",
+  "vfr_destination": "",
   "backend_mode": "local",
   "api_key_saved": false,
   "openai_stt_model": "whisper-1",

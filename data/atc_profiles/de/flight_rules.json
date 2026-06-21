@@ -243,14 +243,14 @@
     }
   },
   "pilot_phraseology": {
-    "INITIAL_CALL_GROUND": "{airport} {taxi_controller}, {callsign}{aircraft_type_phrase}, am Vorfeld, VFR nach Plan, Information {atis_letter}",
+    "INITIAL_CALL_GROUND": "{airport} {taxi_controller}, {callsign}{aircraft_type_phrase}, am Vorfeld, {intention}, Information {atis_letter}",
     "INITIAL_CALL_TOWER": "{airport} Tower, {callsign}{aircraft_type_phrase}, Rollhalt Piste {runway}, abflugbereit",
     "INITIAL_CALL_INBOUND": "{airport} Tower, {callsign}{aircraft_type_phrase}, zur Landung, erbitte Einflugverfahren",
     "INITIAL_CALL_INBOUND_VRP": "{airport} Tower, {callsign}{aircraft_type_phrase}, ueber {entry_vrp}, zur Landung, Information {atis_letter}",
-    "REQUEST_TAXI": "{airport} {taxi_controller}, {callsign}, erbitte Rollen zum Rollhalt Piste {runway}",
+    "REQUEST_TAXI": "{airport} {taxi_controller}, {callsign}, {intention}, erbitte Rollen zum Rollhalt Piste {runway}",
     "REQUEST_TAXI_PARKING": "{airport} {taxi_controller}, {callsign}, erbitte Rollen zum Vorfeld",
     "READY_FOR_DEPARTURE": "{airport} Tower, {callsign}, Piste {runway}, abflugbereit",
-    "READY_FOR_DEPARTURE_VFR": "{airport} Tower, {callsign}, Piste {runway}, abflugbereit, Kurs nach Plan",
+    "READY_FOR_DEPARTURE_VFR": "{airport} Tower, {callsign}, Piste {runway}, abflugbereit, Kurs nach {destination}",
     "REPORT_POSITION": "{airport} Tower, {callsign}, in der Platzrunde Piste {runway}",
     "REPORT_POSITION_DOWNWIND": "{airport} Tower, {callsign}, Mitte Gegenanflug Piste {runway}",
     "REPORT_POSITION_BASE": "{airport} Tower, {callsign}, im Queranflug Piste {runway}",

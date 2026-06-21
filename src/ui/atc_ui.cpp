@@ -86,6 +86,13 @@ static bool buffers_initialized = false;
 static const char *pattern_dir_names[] = {"left", "right"};
 static int pattern_dir_selection = 0; // default: left
 
+// Planned VFR flight type for the departure phraseology hints (NfL 1.4.7
+// a/b). Keys persisted to settings; labels are display-only. Destination
+// buffer feeds "VFR nach <dest>" for the cross-country case.
+static const char *vfr_flight_type_names[] = {"pattern", "cross_country"};
+static int vfr_flight_type_selection = 0; // default: pattern (Platzrunde)
+static char vfr_destination_buf[64] = {};
+
 // Cockpit start mode — drives the initial ATCState the state machine
 // adopts at plugin boot. Display labels are user-friendly; the keys
 // stored in settings.json are snake_case (cold_and_dark, etc.).
@@ -1193,6 +1200,10 @@ static void draw_settings_tab() {
                  sizeof(callsign_raw_buf) - 1);
     std::string pdir = settings::pattern_direction();
     pattern_dir_selection = (pdir == "right") ? 1 : 0;
+    vfr_flight_type_selection =
+        (settings::vfr_flight_type() == "cross_country") ? 1 : 0;
+    std::strncpy(vfr_destination_buf, settings::vfr_destination().c_str(),
+                 sizeof(vfr_destination_buf) - 1);
     std::string sm = settings::start_mode();
     start_mode_selection = 1; // engines_running default
     for (size_t i = 0; i < sizeof(start_mode_keys) / sizeof(start_mode_keys[0]);
@@ -1495,6 +1506,29 @@ static void draw_settings_tab() {
                    &pattern_dir_selection, pattern_dir_labels, 2)) {
     settings::set_pattern_direction(pattern_dir_names[pattern_dir_selection]);
     settings::save();
+  }
+
+  // VFR flight type — drives the {intention} departure hint (Platzrunde vs.
+  // Ueberlandflug, NfL 1.4.7 a/b). The destination field below it feeds
+  // "VFR nach <dest>" and is only relevant for the cross-country case.
+  const char *vfr_flight_type_labels[2] = {
+      ui_strings::tr("settings.vfr_type_pattern"),
+      ui_strings::tr("settings.vfr_type_cross_country"),
+  };
+  if (ImGui::Combo(ui_strings::tr("settings.vfr_type_label"),
+                   &vfr_flight_type_selection, vfr_flight_type_labels, 2)) {
+    settings::set_vfr_flight_type(
+        vfr_flight_type_names[vfr_flight_type_selection]);
+    settings::save();
+  }
+  if (vfr_flight_type_selection == 1) {
+    if (ImGui::InputText(ui_strings::tr("settings.vfr_destination_label"),
+                         vfr_destination_buf, sizeof(vfr_destination_buf),
+                         ImGuiInputTextFlags_EnterReturnsTrue)) {
+      settings::set_vfr_destination(vfr_destination_buf);
+      settings::save();
+    }
+    ImGui::TextDisabled("%s", ui_strings::tr("settings.vfr_destination_hint"));
   }
 
   // German-VFR-only build: the ATC phraseology is fixed to NfL

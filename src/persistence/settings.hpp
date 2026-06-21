@@ -61,6 +61,14 @@ int active_com();
 float volume();
 bool debug_logging();
 std::string pattern_direction();
+// Planned VFR flight type for the departure phraseology hints: "pattern"
+// (Platzrunde, default) or "cross_country" (Ueberlandflug). Drives the
+// {intention} hint variable (NfL 2024 1.4.7 a/b). User-selected up front;
+// the sim has no flight plan to derive it from.
+std::string vfr_flight_type();
+// Destination aerodrome for cross-country departures ("VFR nach <dest>",
+// NfL 2024 1.4.7 b). Free text, empty by default.
+std::string vfr_destination();
 bool disable_default_atc();
 bool skip_radio_power_check();
 bool show_phraseology_hints();
@@ -193,6 +201,8 @@ void set_volume(float v);
 void set_debug_logging(bool v);
 void set_active_com(int com);
 void set_pattern_direction(const std::string &v);
+void set_vfr_flight_type(const std::string &v);
+void set_vfr_destination(const std::string &v);
 void set_disable_default_atc(bool v);
 void set_skip_radio_power_check(bool v);
 void set_show_phraseology_hints(bool v);

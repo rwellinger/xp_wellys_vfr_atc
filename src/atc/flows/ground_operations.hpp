@@ -58,6 +58,17 @@ bool handle_negative_correction(const PilotMessage &msg,
 
 void apply_state_reverts(const PilotMessage &msg);
 
+// Tower-only first contact collapse (DE profile). At a tower-only field the
+// apron initial call is addressed to "Turm" (no separate Ground frequency),
+// so the text-based parser yields INITIAL_CALL_TOWER. Rewrite it in place to
+// INITIAL_CALL_GROUND so the existing BZF conformance check and the GROUND
+// first-contact hint apply — exactly as at a field WITH Ground. Only the
+// IDLE apron call collapses; the holding-point "abflugbereit" Tower call
+// (state already advanced past IDLE) and airborne/inbound calls are left
+// untouched. Mutates msg.intent; no-op for every other case.
+void apply_tower_only_initial_collapse(PilotMessage &msg,
+                                       const XPlaneContext &ctx);
+
 bool handle_unicom_flow(const PilotMessage &msg, const XPlaneContext &ctx,
                         ATCResponse &resp);
 
