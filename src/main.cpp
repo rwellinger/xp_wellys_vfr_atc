@@ -28,6 +28,7 @@
 #include "atc/atc_templates.hpp"
 #include "atc/atis_generator.hpp"
 #include "atc/flight_phase.hpp"
+#include "atc/initial_call_conformance.hpp"
 #include "atc/phraseology_hints.hpp"
 #include "atc/traffic_dialog.hpp"
 #include "audio/audio_player.hpp"
@@ -139,6 +140,7 @@ PLUGIN_API int XPluginStart(char *name, char *sig, char *desc) {
   // flightlog so it survives plugin re-installs. Created lazily on first write.
   cross_country_log::set_dir(settings::output_dir() + "/flightlog");
   atc_templates::init();
+  initial_call_conformance::init();
   phraseology_hints::init();
   ui_strings::init();
   airport_vrps::init();

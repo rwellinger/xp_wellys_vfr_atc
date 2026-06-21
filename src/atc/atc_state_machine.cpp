@@ -818,6 +818,13 @@ ATCResponse process(const intent_parser::PilotMessage &msg,
   if (ground_ops::check_freq_precondition(msg, ctx, resp))
     return resp;
 
+  // BZF first-call conformance (DE, INITIAL_CALL_GROUND only). strict=false
+  // only logs missing recommended elements for debrief and proceeds to the
+  // normal initial-contact reply; strict=true sends a targeted re-request
+  // and holds IDLE until the call is complete. See initial_call_conformance.
+  if (ground_ops::apply_initial_call_conformance(msg, ctx, resp))
+    return resp;
+
   // Template-based response lookup.
   auto vars = ground_ops::build_vars(msg, ctx);
   std::string intent_key = intent_parser::intent_template_key(msg.intent);

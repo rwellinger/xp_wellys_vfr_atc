@@ -77,6 +77,15 @@ bool check_phase_precondition(const PilotMessage &msg, const XPlaneContext &ctx,
 bool check_freq_precondition(const PilotMessage &msg, const XPlaneContext &ctx,
                              ATCResponse &resp);
 
+// BZF first-call conformance guard (DE profile, INITIAL_CALL_GROUND only).
+// Always logs missing elements for later debrief. In strict mode, an
+// incomplete first call yields a targeted re-request (state held) and the
+// function returns true so the caller stops before the normal reply. In
+// non-strict mode `required` is empty for this intent, so it returns false
+// and the standard initial-contact reply proceeds unchanged.
+bool apply_initial_call_conformance(const PilotMessage &msg,
+                                    const XPlaneContext &ctx, ATCResponse &resp);
+
 } // namespace ground_ops
 
 #endif // ATC_FLOWS_GROUND_OPERATIONS_HPP

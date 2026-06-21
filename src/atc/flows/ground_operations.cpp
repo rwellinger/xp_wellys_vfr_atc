@@ -22,6 +22,7 @@
 #include "atc/atis_generator.hpp"
 #include "atc/flight_phase.hpp"
 #include "atc/flows/state_storage.hpp"
+#include "atc/initial_call_conformance.hpp"
 #include "core/logging.hpp"
 #include "data/airport_vrps.hpp"
 #include "persistence/settings.hpp"
@@ -478,6 +479,57 @@ bool check_freq_precondition(const PilotMessage &msg, const XPlaneContext &ctx,
   resp.next_state = internal::get_state_ref();
   logging::info("Frequency guard: %s blocked on freq_type %d",
                 intent_key.c_str(), static_cast<int>(ctx.frequency_type));
+  return true;
+}
+
+static std::string join_csv(const std::vector<std::string> &items) {
+  std::string out;
+  for (const auto &i : items) {
+    if (!out.empty())
+      out += ",";
+    out += i;
+  }
+  return out;
+}
+
+bool apply_initial_call_conformance(const PilotMessage &msg,
+                                    const XPlaneContext &ctx,
+                                    ATCResponse &resp) {
+  if (msg.intent != intent_parser::PilotIntent::INITIAL_CALL_GROUND)
+    return false;
+  if (settings::atc_profile() != "DE")
+    return false;
+
+  const std::string intent_key = "INITIAL_CALL_GROUND";
+  auto r = initial_call_conformance::evaluate(intent_key, msg, ctx);
+
+  // Debrief log: record missing elements regardless of mode (for later
+  // training review). ASCII only — Log.txt and the in-sim font reject
+  // non-ASCII.
+  if (!r.missing_required.empty() || !r.missing_recommended.empty())
+    logging::info(
+        "BZF conformance: INITIAL_CALL_GROUND missing required=[%s] "
+        "recommended=[%s]",
+        join_csv(r.missing_required).c_str(),
+        join_csv(r.missing_recommended).c_str());
+
+  // Enforce set: strict=false -> only `required` (empty for this intent,
+  // so the guard never fires -> no behaviour change vs. today); strict=true
+  // -> required + recommended.
+  std::vector<std::string> enforce = r.missing_required;
+  if (settings::bzf_strict_mode())
+    enforce.insert(enforce.end(), r.missing_recommended.begin(),
+                   r.missing_recommended.end());
+  if (enforce.empty())
+    return false;
+
+  auto vars = build_vars(msg, ctx);
+  resp.text = initial_call_conformance::build_request_prompt(
+      intent_key, vars["callsign"], enforce);
+  resp.next_state = internal::get_state_ref(); // hold current state (IDLE)
+  resp.requires_readback = false;
+  logging::info("BZF strict: INITIAL_CALL_GROUND re-request for [%s]",
+                join_csv(enforce).c_str());
   return true;
 }
 
