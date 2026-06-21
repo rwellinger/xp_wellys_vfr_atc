@@ -76,7 +76,7 @@
     { "intent": "SELF_ANNOUNCE", "confidence": 0.90, "any": ["verkehr"] },
 
     {
-      "_note": "Readback. DE phrases: 'verstanden', 'rollen Sie' (ATC instruction echo), 'Rollhalt'/'Haltepunkt', 'kontaktiere', 'Startfreigabe'/'Landefreigabe'. Also the compact Tower echo phrases 'Start frei' (take-off clearance readback) and 'Landung frei' (landing clearance readback) — Whisper renders the Tower's wording verbatim, so the pilot's repeat-back shows up as the same short tokens. A post-landing adjustment below demotes 'Landung frei' to RUNWAY_VACATED when at_airport_after_landing fires.",
+      "_note": "Readback. DE phrases: 'verstanden', 'rollen Sie' (ATC instruction echo), 'Rollhalt'/'Haltepunkt', 'kontaktiere', 'Startfreigabe'/'Landefreigabe'. Also the compact Tower echo phrases 'Start frei' (take-off clearance readback) and 'Landung frei' (landing clearance readback) — Whisper renders the Tower's wording verbatim, so the pilot's repeat-back shows up as the same short tokens. A post-landing adjustment below demotes 'Landung frei' to RUNWAY_VACATED when at_airport_after_landing fires. The position/departure echo patterns require the Sie-imperative 'melden sie' (the Tower instruction being read back) — NOT the bare verb 'melde': a pilot's first-person report 'melde Endanflug/Gegenanflug/abflugbereit' is a REPORT_POSITION_*/READY_FOR_DEPARTURE act, not a readback, and must fall through to those rules.",
       "intent": "READBACK",
       "confidence": 0.90,
       "any": [
@@ -110,11 +110,11 @@
         ]},
         { "all": [
             { "any": ["abflug"] },
-            { "any": ["melden", "melde"] }
+            { "any": ["melden sie"] }
         ]},
         { "all": [
             { "any": ["gegenanflug", "queranflug", "endanflug"] },
-            { "any": ["melden", "melde"] }
+            { "any": ["melden sie"] }
         ]},
         { "ends_with": " links" },
         { "ends_with": " rechts" },

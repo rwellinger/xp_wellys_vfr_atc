@@ -570,6 +570,54 @@ TEST_CASE("DE: Echte Endanflug-Meldung ohne 'melden sie' bleibt FINAL",
     REQUIRE(m.intent == intent_parser::PilotIntent::REPORT_POSITION_FINAL);
 }
 
+// ── 1.-Person-Meldung "melde X" ist Report, kein Readback ────────────
+// User-Log EDNY 2026-06-21: Pilot funkt "melde Endanflug Piste 06"; die
+// READBACK-Regel fing das mit dem Verb-Set [melden,melde] ab und
+// lieferte eine stille Antwort -> keine Landefreigabe. Der Sie-Imperativ
+// "melden sie" (Tower-Echo) bleibt READBACK, die Ich-Form "melde" muss
+// zu REPORT_POSITION_*/READY_FOR_DEPARTURE durchfallen. Systematisch
+// ueber alle drei Positionsmeldungen + die Abflugbereitschaft.
+
+TEST_CASE("DE: 'melde Endanflug' (Ich-Form) -> REPORT_POSITION_FINAL",
+          "[intent][de][position]") {
+    DeRegionGuard g;
+    auto ctx = airborne_ctx();
+    auto m = parse("Friedrichshafen Turm, Delta Whiskey Echo Alfa Victor, "
+                   "melde Endanflug Piste 06.",
+                   ctx);
+    REQUIRE(m.intent == intent_parser::PilotIntent::REPORT_POSITION_FINAL);
+}
+
+TEST_CASE("DE: 'melde Gegenanflug' (Ich-Form) -> REPORT_POSITION_DOWNWIND",
+          "[intent][de][position]") {
+    DeRegionGuard g;
+    auto ctx = airborne_ctx();
+    auto m = parse("Friedrichshafen Turm, Delta Whiskey Echo Alfa Victor, "
+                   "melde Gegenanflug Piste 06.",
+                   ctx);
+    REQUIRE(m.intent == intent_parser::PilotIntent::REPORT_POSITION_DOWNWIND);
+}
+
+TEST_CASE("DE: 'melde Queranflug' (Ich-Form) -> REPORT_POSITION_BASE",
+          "[intent][de][position]") {
+    DeRegionGuard g;
+    auto ctx = airborne_ctx();
+    auto m = parse("Friedrichshafen Turm, Delta Whiskey Echo Alfa Victor, "
+                   "melde Queranflug Piste 06.",
+                   ctx);
+    REQUIRE(m.intent == intent_parser::PilotIntent::REPORT_POSITION_BASE);
+}
+
+TEST_CASE("DE: 'melde abflugbereit' (Ich-Form) -> READY_FOR_DEPARTURE",
+          "[intent][de][departure]") {
+    DeRegionGuard g;
+    auto ctx = ground_ctx();
+    auto m = parse("Delta Whiskey Echo Alfa Victor, am Rollhalt Piste 06, "
+                   "melde abflugbereit.",
+                   ctx);
+    REQUIRE(m.intent == intent_parser::PilotIntent::READY_FOR_DEPARTURE);
+}
+
 // ── DoD aggregate check ──────────────────────────────────────────────
 // Sanity that the parser does NOT regress to LM-bound UNKNOWN on the
 // 20 BZF cases above; Catch2 counts each TEST_CASE individually, so

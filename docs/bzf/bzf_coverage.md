@@ -257,6 +257,13 @@ die zukünftige Notfall-Milestone. Die §9-Zeilen zählen **nicht** in den K-Cou
 - 3.1 Rollanmeldung — „ERBITTE ROLLEN" + Pflichtelemente
 - 3.4 / 4.3 Konditionelle Freigaben — Wiederholung der Bedingung im Readback
 - 5.1–5.3 Position-in-Pattern — Strict-Mode kann Pflicht-Suffix-Konformität prüfen
+- 5.4 **Phasen-Plausibilität der Positionsmeldung** — `REPORT_POSITION_FINAL` hat
+  `allowed_phases` inkl. `PATTERN` (`flight_rules.json:62`); ein im Gegenanflug fälschlich
+  gefunktes „melde Endanflug" löst heute die Landefreigabe aus. Für den Simulator-Mode
+  vorbestehend & akzeptabel (bare „Endanflug" verhält sich genauso); im Strict-/Trainer-Mode
+  soll der Endanflug nur aus einer plausiblen Queranflug/Gegenanflug-Sequenz akzeptiert
+  werden. Aufgedeckt beim Fix der „melde Endanflug"→READBACK-Fehlklassifikation
+  (User-Log EDNY 2026-06-21), bewusst aus jenem Fix herausgehalten (Scope-Disziplin)
 - 10.5 Erstanruf nach Frequenzwechsel — Flughöhe Pflicht
 - 11.1 Readback-Pflicht-Liste (NfL §25 b) Nr. 1) — die zentrale Datengrundlage
 - 11.3 Konditionelle Freigaben — vollständige Bedingungs-Wiederholung
