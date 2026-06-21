@@ -192,6 +192,7 @@ add_library(xp_atc_engine OBJECT
     src/atc/atis_generator.cpp
     src/atc/de_phraseology.cpp
     src/atc/bzf_compliance.cpp
+    src/atc/initial_call_conformance.cpp
     src/atc/traffic_advisor.cpp
     src/atc/traffic_dialog.cpp
     src/atc/landing_sequence.cpp
