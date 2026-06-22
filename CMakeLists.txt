@@ -139,6 +139,14 @@ if(XPWELLYS_USE_LOCAL_INFERENCE)
     set(LLAMA_BUILD_SERVER       OFF CACHE BOOL "" FORCE)
     set(LLAMA_BUILD_TESTS        OFF CACHE BOOL "" FORCE)
     set(LLAMA_CURL               OFF CACHE BOOL "" FORCE)
+    # LLAMA_OPENSSL gates the bundled cpp-httplib's find_package(OpenSSL)
+    # (llama.cpp/vendor/cpp-httplib). Left ON, httplib links Homebrew's
+    # openssl@3 and propagates it through llama-common into our .xpl as a hard
+    # LC_LOAD_DYLIB on an absolute /opt/homebrew path that does not exist on
+    # end-user Macs (and warns about a 13.3-vs-15.0 deployment mismatch). We
+    # never use httplib's HTTPS path (our downloader + cloud clients use system
+    # libcurl), so disable it — drops the spurious openssl dependency entirely.
+    set(LLAMA_OPENSSL            OFF CACHE BOOL "" FORCE)
     add_subdirectory(${SPIKES_DIR}/spike_llama/third_party/llama.cpp
                      ${CMAKE_BINARY_DIR}/llama.cpp EXCLUDE_FROM_ALL)
 
