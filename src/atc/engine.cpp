@@ -448,6 +448,17 @@ void process_transcript(Input in, Done done) {
     if (settings::debug_logging())
       logging::debug("Cross-country destination set from speech: %s",
                      parsed.destination.c_str());
+  } else if (to_lower_copy(in.transcript).find("platzrunde") !=
+             std::string::npos) {
+    // Spoken "Platzrunde": flip the declared flight type back to pattern. A
+    // destination extracted this utterance is more specific and wins (handled
+    // above), so only apply when none was found. Lets the pilot verbally
+    // switch a previously-declared cross-country flight back to a pattern
+    // flight without touching the Flugvorbereitung tab.
+    settings::set_vfr_flight_type("pattern");
+    settings::set_vfr_destination("");
+    if (settings::debug_logging())
+      logging::debug("Pattern flight type set from speech: 'Platzrunde'");
   }
 
   // Traffic dialog short-circuit. When the controller is awaiting a
