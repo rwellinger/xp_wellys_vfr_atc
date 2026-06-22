@@ -20,6 +20,7 @@
 
 #include "atc/atc_templates.hpp"
 #include "atc/atis_generator.hpp"
+#include "atc/de_phraseology.hpp"
 #include "atc/flight_phase.hpp"
 #include "atc/flows/state_storage.hpp"
 #include "atc/initial_call_conformance.hpp"
@@ -240,16 +241,26 @@ std::map<std::string, std::string> build_vars(const PilotMessage &msg,
   // VFR departure call: a leading-comma fragment only when a cross-country
   // destination is set, empty otherwise — so the empty case reads as the
   // speakable "... abflugbereit" with NO "nach Plan" placeholder.
-  const std::string vfr_dest = settings::vfr_destination();
-  const bool cross_country = (settings::vfr_flight_type() == "cross_country");
+  // Spoken ICAO destination (msg.destination, e.g. "EDMA") takes precedence
+  // over the pre-flight field; either presence implies a cross-country flight.
+  // The ICAO is expanded phonetically so TTS speaks it letter-by-letter
+  // ("EDMA" -> "Echo Delta Mike Alfa") instead of as a word.
+  const std::string vfr_dest =
+      !msg.destination.empty() ? msg.destination : settings::vfr_destination();
+  const bool cross_country =
+      !msg.destination.empty() ||
+      (settings::vfr_flight_type() == "cross_country");
+  const std::string dest_spoken =
+      vfr_dest.empty() ? "" : de_phraseology::expand_callsign_phonetic(vfr_dest);
   std::string intention;
   if (cross_country)
-    intention = vfr_dest.empty() ? "VFR Ueberlandflug" : "VFR nach " + vfr_dest;
+    intention =
+        dest_spoken.empty() ? "VFR Ueberlandflug" : "VFR nach " + dest_spoken;
   else
     intention = "VFR Platzrunde";
   std::string vfr_course_phrase;
-  if (cross_country && !vfr_dest.empty())
-    vfr_course_phrase = ", Kurs nach " + vfr_dest;
+  if (cross_country && !dest_spoken.empty())
+    vfr_course_phrase = ", Kurs nach " + dest_spoken;
 
   return {
       {"callsign", get_callsign(msg)},

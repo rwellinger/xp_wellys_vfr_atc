@@ -325,18 +325,20 @@ TEST_CASE("vfr intention: cross-country with destination renders 'VFR nach X'",
     settings::set_vfr_destination("EDDS");
     auto ctx = ground_ctx();
 
+    // The ICAO field is expanded phonetically so TTS speaks it letter by
+    // letter ("EDDS" -> "Echo Delta Delta Sierra").
     auto vars = ground_ops::build_vars(first_call("", false), ctx);
-    REQUIRE(vars["intention"] == "VFR nach EDDS");
-    REQUIRE(vars["vfr_course_phrase"] == ", Kurs nach EDDS");
+    REQUIRE(vars["intention"] == "VFR nach Echo Delta Delta Sierra");
+    REQUIRE(vars["vfr_course_phrase"] == ", Kurs nach Echo Delta Delta Sierra");
 
     // REQUEST_TAXI carries the intention (NfL 1.4.7 b home of the
     // destination); READY_FOR_DEPARTURE_VFR carries the course tail.
     std::string taxi = atc_templates::fill(
         flight_phase::get_pilot_phraseology("REQUEST_TAXI"), vars);
-    REQUIRE(taxi.find("VFR nach EDDS") != std::string::npos);
+    REQUIRE(taxi.find("VFR nach Echo Delta Delta Sierra") != std::string::npos);
     std::string dep = atc_templates::fill(
         flight_phase::get_pilot_phraseology("READY_FOR_DEPARTURE_VFR"), vars);
-    REQUIRE(dep.find("Kurs nach EDDS") != std::string::npos);
+    REQUIRE(dep.find("Kurs nach Echo Delta Delta Sierra") != std::string::npos);
 
     // H2 still holds — "nach" is an intention keyword.
     std::string rendered = atc_templates::fill(

@@ -856,4 +856,61 @@ std::string expand_callsign_phonetic(const std::string &raw) {
   return out;
 }
 
+// Reverse lookup for a single spoken NATO letter word -> uppercase letter.
+// Returns '\0' when the token is not a recognized NATO letter word. Tolerant
+// of dash stripping (x-ray) and common variants (alpha, juliet).
+static char nato_word_to_letter(const std::string &w) {
+  std::string key;
+  for (char c : w)
+    if (c != '-')
+      key += c;
+  for (std::size_t i = 0; i < kNatoLetters.size(); ++i) {
+    std::string lw;
+    for (const char *p = kNatoLetters[i]; *p; ++p) {
+      char c = *p;
+      if (c == '-')
+        continue;
+      lw += (c >= 'A' && c <= 'Z') ? static_cast<char>(c + 32) : c;
+    }
+    if (key == lw)
+      return static_cast<char>('A' + i);
+  }
+  if (key == "alpha")
+    return 'A';
+  if (key == "juliet")
+    return 'J';
+  return '\0';
+}
+
+std::string parse_spoken_icao(const std::string &words_lower) {
+  std::string icao;
+  std::size_t i = 0;
+  const std::size_t n = words_lower.size();
+  bool started = false;
+  while (i < n) {
+    while (i < n && !is_alpha(words_lower[i]))
+      ++i; // skip separators (spaces, commas)
+    const std::size_t start = i;
+    while (i < n && (is_alpha(words_lower[i]) || words_lower[i] == '-'))
+      ++i;
+    if (start == i)
+      break;
+    const char letter =
+        nato_word_to_letter(words_lower.substr(start, i - start));
+    if (letter) {
+      icao += letter;
+      started = true;
+    } else {
+      if (started)
+        break;    // run ended at first non-NATO word
+      return {};  // leading word is not a NATO letter -> miss
+    }
+    if (icao.size() > 4)
+      return {}; // too long to be an ICAO code
+  }
+  if (icao.size() < 3 || icao.size() > 4)
+    return {};
+  return icao;
+}
+
 } // namespace de_phraseology

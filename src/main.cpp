@@ -51,6 +51,7 @@
 static XPLMMenuID menu_id = nullptr;
 static int menu_container_idx = -1;
 static XPLMCommandRef cmd_atc_panel_ = nullptr;
+static XPLMCommandRef cmd_transcript_ = nullptr;
 
 static void menu_handler(void *, void *item_ref) {
   intptr_t idx = reinterpret_cast<intptr_t>(item_ref);
@@ -60,12 +61,21 @@ static void menu_handler(void *, void *item_ref) {
     atc_ui::toggle_atc_panel();
   else if (idx == 2)
     atc_ui::reset_window_position();
+  else if (idx == 3)
+    atc_ui::toggle_transcript_window();
 }
 
 static int atc_panel_cmd_handler(XPLMCommandRef, XPLMCommandPhase phase,
                                  void *) {
   if (phase == xplm_CommandBegin)
     atc_ui::toggle_atc_panel();
+  return 0;
+}
+
+static int transcript_cmd_handler(XPLMCommandRef, XPLMCommandPhase phase,
+                                  void *) {
+  if (phase == xplm_CommandBegin)
+    atc_ui::toggle_transcript_window();
   return 0;
 }
 
@@ -196,6 +206,13 @@ PLUGIN_API int XPluginStart(char *name, char *sig, char *desc) {
                                      "Toggle ATC Commands Panel");
   XPLMRegisterCommandHandler(cmd_atc_panel_, atc_panel_cmd_handler, 1, nullptr);
 
+  // Transcript window command (bindable; toggles the radio-log / debug-text
+  // floating window).
+  cmd_transcript_ = XPLMCreateCommand("xp_wellys_devfr_atc/transcript",
+                                      "Toggle Transcript Window");
+  XPLMRegisterCommandHandler(cmd_transcript_, transcript_cmd_handler, 1,
+                             nullptr);
+
   // Menu
   menu_container_idx =
       XPLMAppendMenuItem(XPLMFindPluginsMenu(), "Welly's ATC", nullptr, 0);
@@ -205,6 +222,8 @@ PLUGIN_API int XPluginStart(char *name, char *sig, char *desc) {
   // NOLINTBEGIN(performance-no-int-to-ptr)
   XPLMAppendMenuItem(menu_id, "ATC Commands",
                      reinterpret_cast<void *>(uintptr_t{1}), 0);
+  XPLMAppendMenuItem(menu_id, "Transcript",
+                     reinterpret_cast<void *>(uintptr_t{3}), 0);
   XPLMAppendMenuItem(menu_id, "Reset Window Position",
                      reinterpret_cast<void *>(uintptr_t{2}), 0);
   // NOLINTEND(performance-no-int-to-ptr)

@@ -239,6 +239,29 @@ static std::string extract_runway(const std::string &text) {
 }
 
 // ---------------------------------------------------------------------------
+// Destination extraction (cross-country VFR intention, NfL 2024 1.4.7 b)
+// ---------------------------------------------------------------------------
+//
+// Recognizes a spoken ICAO destination after a "nach"/"richtung" anchor:
+// "VFR nach Echo Delta Mike Alfa" -> "EDMA". Resolution is NATO-letter only
+// (de_phraseology::parse_spoken_icao); spoken place names ("nach Augsburg")
+// are intentionally NOT matched and fall back to the user's pre-flight field.
+static std::string extract_destination(const std::string &text) {
+  static const std::vector<std::string> kAnchors = {"nach ", "richtung "};
+  for (const std::string &anchor : kAnchors) {
+    std::size_t pos = text.find(anchor);
+    while (pos != std::string::npos) {
+      const std::string tail = text.substr(pos + anchor.size());
+      std::string icao = de_phraseology::parse_spoken_icao(tail);
+      if (!icao.empty())
+        return icao;
+      pos = text.find(anchor, pos + 1);
+    }
+  }
+  return {};
+}
+
+// ---------------------------------------------------------------------------
 // Callsign extraction
 // ---------------------------------------------------------------------------
 
@@ -615,6 +638,7 @@ PilotMessage parse(const std::string &transcript,
   msg.callsign = extract_callsign(text);
   msg.runway = extract_runway(text);
   msg.vrp_name = airport_vrps::find_in_transcript(ctx.nearest_airport_id, text);
+  msg.destination = extract_destination(text);
   msg.has_position = detect_has_position(text);
 
   // 4. Match intent against the data-driven rule table

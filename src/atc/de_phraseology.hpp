@@ -62,4 +62,16 @@ std::string parse_spoken_number(const std::string &text);
 // (dash, space) are skipped.
 std::string expand_callsign_phonetic(const std::string &raw);
 
+// Reverse of expand_callsign_phonetic for a spoken ICAO destination:
+// consumes the leading run of contiguous NATO letter words and returns the
+// assembled uppercase ICAO code, empty if no valid 3..4 letter run starts
+// the input.
+//   "echo delta mike alfa"            -> "EDMA"
+//   "echo delta mike alpha, blah"     -> "EDMA"  (stops at first non-letter word)
+//   "links"                           -> ""      (not a NATO word)
+// Input is expected lowercase (post parse_spoken_number). Tolerant of common
+// Whisper / German spelling variants (alpha/alfa, juliet/juliett, x-ray/xray).
+// SDK-free; used by intent_parser::extract_destination.
+std::string parse_spoken_icao(const std::string &words_lower);
+
 } // namespace de_phraseology

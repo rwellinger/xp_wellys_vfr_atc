@@ -74,6 +74,26 @@ TEST_CASE("DE: VFR Abflug 'abflugbereit nach Osten' -> READY_FOR_DEPARTURE_VFR",
     REQUIRE(m.confidence >= 0.85f);
 }
 
+TEST_CASE("DE: spoken ICAO destination extracted into msg.destination",
+          "[intent][de][destination]") {
+    DeRegionGuard g;
+    auto ctx = ground_ctx();
+    auto m = parse("Augsburg Boden, Delta Echo Whiskey Lima Yankee, am Vorfeld, "
+                   "VFR nach Echo Delta Mike Alfa, Information Alfa.",
+                   ctx);
+    REQUIRE(m.destination == "EDMA");
+}
+
+TEST_CASE("DE: directional 'nach Osten' is not a destination",
+          "[intent][de][destination]") {
+    DeRegionGuard g;
+    auto ctx = ground_ctx();
+    auto m = parse("Delta Echo Whiskey Lima Yankee, am Rollhalt Piste zwo vier, "
+                   "abflugbereit, nach Osten.",
+                   ctx);
+    REQUIRE(m.destination.empty());
+}
+
 TEST_CASE("DE: 'abflugbereit Piste 24' -> READY_FOR_DEPARTURE",
           "[intent][de][departure]") {
     DeRegionGuard g;

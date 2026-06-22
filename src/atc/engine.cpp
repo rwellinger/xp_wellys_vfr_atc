@@ -436,6 +436,20 @@ void process_transcript(Input in, Done done) {
                    parsed.callsign.empty() ? "(none)"
                                            : parsed.callsign.c_str());
 
+  // Spoken cross-country destination ("VFR nach <ICAO>"): persist (in-memory)
+  // so the hint panel and Flugvorbereitung preview reflect the declared
+  // flight without typing. The extractor only fires on a NATO-spelled ICAO
+  // after a "nach"/"richtung" anchor, so this is safe to apply regardless of
+  // the (possibly pre-LM UNKNOWN) intent. No disk save here — the engine is
+  // SDK-free; the UI field flushes settings on edit.
+  if (!parsed.destination.empty()) {
+    settings::set_vfr_flight_type("cross_country");
+    settings::set_vfr_destination(parsed.destination);
+    if (settings::debug_logging())
+      logging::debug("Cross-country destination set from speech: %s",
+                     parsed.destination.c_str());
+  }
+
   // Traffic dialog short-circuit. When the controller is awaiting a
   // pilot acknowledgement of a traffic advisory and the pilot just
   // matched a TRAFFIC_* intent at high confidence, route directly there

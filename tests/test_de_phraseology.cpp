@@ -8,6 +8,7 @@
 
 using de_phraseology::expand_callsign_phonetic;
 using de_phraseology::normalize_for_speech;
+using de_phraseology::parse_spoken_icao;
 using de_phraseology::parse_spoken_number;
 
 // ── Pisten ───────────────────────────────────────────────────────────
@@ -377,4 +378,36 @@ TEST_CASE("expand_callsign_phonetic: dashes and spaces are skipped",
           "[de_phraseology][callsign][edge]") {
     REQUIRE(expand_callsign_phonetic("N 1-2-3 AB") ==
             "November eins zwo drei Alfa Bravo");
+}
+
+// ── parse_spoken_icao (NATO-reverse destination) ─────────────────────
+
+TEST_CASE("parse_spoken_icao: four NATO letters -> ICAO",
+          "[de_phraseology][icao]") {
+    REQUIRE(parse_spoken_icao("echo delta mike alfa") == "EDMA");
+}
+
+TEST_CASE("parse_spoken_icao: tolerant 'alpha' spelling variant",
+          "[de_phraseology][icao]") {
+    REQUIRE(parse_spoken_icao("echo delta mike alpha") == "EDMA");
+}
+
+TEST_CASE("parse_spoken_icao: stops at first non-NATO word",
+          "[de_phraseology][icao]") {
+    REQUIRE(parse_spoken_icao("echo delta delta sierra, information alfa") ==
+            "EDDS");
+}
+
+TEST_CASE("parse_spoken_icao: leading non-NATO word is a miss",
+          "[de_phraseology][icao][edge]") {
+    REQUIRE(parse_spoken_icao("links").empty());
+}
+
+TEST_CASE("parse_spoken_icao: too few letters is a miss",
+          "[de_phraseology][icao][edge]") {
+    REQUIRE(parse_spoken_icao("echo delta").empty());
+}
+
+TEST_CASE("parse_spoken_icao: empty input", "[de_phraseology][icao][edge]") {
+    REQUIRE(parse_spoken_icao("").empty());
 }

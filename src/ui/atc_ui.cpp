@@ -21,6 +21,7 @@
 #include "atc/atc_state_machine.hpp"
 #include "atc/atc_templates.hpp"
 #include "atc/atis_generator.hpp"
+#include "atc/de_phraseology.hpp"
 #include "atc/flight_phase.hpp"
 #include "atc/flows/ground_operations.hpp"
 #include "atc/intent_parser.hpp"
@@ -78,6 +79,7 @@ namespace atc_ui {
 static XPLMWindowID window_id = nullptr;
 static bool visible = false;
 static bool atc_panel_visible_ = false;
+static bool transcript_window_visible_ = false;
 
 // ImGui persistent buffers
 static char callsign_raw_buf[64] = {};
@@ -1194,16 +1196,11 @@ static void draw_audio_tab() {
 }
 
 static void draw_settings_tab() {
-  // One-time init of buffers from settings
+  // One-time init of buffers from settings (callsign now inits in the
+  // Flugvorbereitung tab, see draw_flightprep_tab).
   if (!buffers_initialized) {
-    std::strncpy(callsign_raw_buf, settings::pilot_callsign_raw().c_str(),
-                 sizeof(callsign_raw_buf) - 1);
     std::string pdir = settings::pattern_direction();
     pattern_dir_selection = (pdir == "right") ? 1 : 0;
-    vfr_flight_type_selection =
-        (settings::vfr_flight_type() == "cross_country") ? 1 : 0;
-    std::strncpy(vfr_destination_buf, settings::vfr_destination().c_str(),
-                 sizeof(vfr_destination_buf) - 1);
     std::string sm = settings::start_mode();
     start_mode_selection = 1; // engines_running default
     for (size_t i = 0; i < sizeof(start_mode_keys) / sizeof(start_mode_keys[0]);
@@ -1482,18 +1479,9 @@ static void draw_settings_tab() {
   ImGui::TextDisabled("%s", ui_strings::tr("settings.ptt_command"));
   ImGui::Separator();
 
-  // Pilot callsign — raw registration input + phonetic preview
-  if (ImGui::InputText(ui_strings::tr("settings.callsign_label"),
-                       callsign_raw_buf, sizeof(callsign_raw_buf))) {
-    settings::set_pilot_callsign_raw(callsign_raw_buf);
-  }
-  std::string phonetic = settings::pilot_callsign();
-  if (!phonetic.empty()) {
-    ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "  %s",
-                       phonetic.c_str());
-  } else {
-    ImGui::TextDisabled("%s", ui_strings::tr("settings.callsign_hint"));
-  }
+  // Pilot callsign (Kennzeichen) moved to the "Flugvorbereitung" tab in the
+  // ATC Commands Panel — it is per-flight identity, grouped with flight type
+  // and destination, not buried in config.
 
   // Pattern direction (left/right hand traffic). The names array doubles
   // as persistence key, so we keep it English ("left"/"right") and build
@@ -1508,28 +1496,9 @@ static void draw_settings_tab() {
     settings::save();
   }
 
-  // VFR flight type — drives the {intention} departure hint (Platzrunde vs.
-  // Ueberlandflug, NfL 1.4.7 a/b). The destination field below it feeds
-  // "VFR nach <dest>" and is only relevant for the cross-country case.
-  const char *vfr_flight_type_labels[2] = {
-      ui_strings::tr("settings.vfr_type_pattern"),
-      ui_strings::tr("settings.vfr_type_cross_country"),
-  };
-  if (ImGui::Combo(ui_strings::tr("settings.vfr_type_label"),
-                   &vfr_flight_type_selection, vfr_flight_type_labels, 2)) {
-    settings::set_vfr_flight_type(
-        vfr_flight_type_names[vfr_flight_type_selection]);
-    settings::save();
-  }
-  if (vfr_flight_type_selection == 1) {
-    if (ImGui::InputText(ui_strings::tr("settings.vfr_destination_label"),
-                         vfr_destination_buf, sizeof(vfr_destination_buf),
-                         ImGuiInputTextFlags_EnterReturnsTrue)) {
-      settings::set_vfr_destination(vfr_destination_buf);
-      settings::save();
-    }
-    ImGui::TextDisabled("%s", ui_strings::tr("settings.vfr_destination_hint"));
-  }
+  // VFR flight type + destination moved to the "Flugvorbereitung" tab in the
+  // ATC Commands Panel (see draw_flightprep_tab) so it sits with the operative
+  // flow rather than buried in Settings.
 
   // German-VFR-only build: the ATC phraseology is fixed to NfL
   // DACH-VFR (DE/BZF). No profile selector — there is exactly one
@@ -1958,7 +1927,7 @@ static void draw_pilot_actions(const xplane_context::XPlaneContext &ctx,
         key == "REQUEST_TAXI_PARKING")
       return collapse_ground ? BtnCat::TOWER_OPS : BtnCat::GROUND_OPS;
     if (key == "INITIAL_CALL_TOWER" || key == "READY_FOR_DEPARTURE" ||
-        key == "RUNWAY_VACATED")
+        key == "READY_FOR_DEPARTURE_VFR" || key == "RUNWAY_VACATED")
       return BtnCat::TOWER_OPS;
     if (key == "REPORT_POSITION" || key == "REPORT_POSITION_DOWNWIND" ||
         key == "REPORT_POSITION_BASE" || key == "REPORT_POSITION_FINAL" ||
@@ -2188,6 +2157,105 @@ static void draw_airport_tab(const xplane_context::XPlaneContext &ctx) {
   }
 }
 
+// ── Flight-prep tab content ─────────────────────────────────────
+//
+// Pre-flight intent the first radio call carries: VFR flight type
+// (Platzrunde / Ueberlandflug) plus the cross-country destination ICAO.
+// The destination can also be SPOKEN ("VFR nach Echo Delta Mike Alfa");
+// the engine persists that into settings, so the combo + field + preview
+// here mirror it without typing. The field is the silent fallback/override
+// when speech recognition does not resolve the destination.
+static void draw_flightprep_tab(const xplane_context::XPlaneContext &ctx) {
+  (void)ctx;
+  ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.0f, 1.0f), "%s",
+                     ui_strings::tr("flightprep.header"));
+  ImGui::Spacing();
+
+  // Pilot callsign (Kennzeichen) — raw registration input + phonetic preview.
+  // Per-flight identity, so it lives here with flight type + destination.
+  if (ImGui::InputText(ui_strings::tr("settings.callsign_label"),
+                       callsign_raw_buf, sizeof(callsign_raw_buf))) {
+    settings::set_pilot_callsign_raw(callsign_raw_buf);
+  }
+  // Keep the buffer in sync with settings when not actively typing, so it is
+  // populated on first open without relying on the Settings tab init.
+  if (!ImGui::IsItemActive()) {
+    const std::string cur = settings::pilot_callsign_raw();
+    if (cur != callsign_raw_buf) {
+      std::strncpy(callsign_raw_buf, cur.c_str(), sizeof(callsign_raw_buf) - 1);
+      callsign_raw_buf[sizeof(callsign_raw_buf) - 1] = '\0';
+    }
+  }
+  {
+    std::string phonetic = settings::pilot_callsign();
+    if (!phonetic.empty())
+      ImGui::TextColored(ImVec4(0.6f, 0.8f, 1.0f, 1.0f), "  %s",
+                         phonetic.c_str());
+    else
+      ImGui::TextDisabled("%s", ui_strings::tr("settings.callsign_hint"));
+  }
+
+  ImGui::Spacing();
+  ImGui::Separator();
+
+  // Sync the combo from settings every frame so a spoken "VFR nach <ICAO>"
+  // that flips the flight type is reflected here too.
+  vfr_flight_type_selection =
+      (settings::vfr_flight_type() == "cross_country") ? 1 : 0;
+  const char *vfr_flight_type_labels[2] = {
+      ui_strings::tr("settings.vfr_type_pattern"),
+      ui_strings::tr("settings.vfr_type_cross_country"),
+  };
+  if (ImGui::Combo(ui_strings::tr("settings.vfr_type_label"),
+                   &vfr_flight_type_selection, vfr_flight_type_labels, 2)) {
+    settings::set_vfr_flight_type(
+        vfr_flight_type_names[vfr_flight_type_selection]);
+    settings::save();
+  }
+
+  if (vfr_flight_type_selection == 1) {
+    if (ImGui::InputText(ui_strings::tr("settings.vfr_destination_label"),
+                         vfr_destination_buf, sizeof(vfr_destination_buf),
+                         ImGuiInputTextFlags_EnterReturnsTrue |
+                             ImGuiInputTextFlags_CharsUppercase)) {
+      settings::set_vfr_destination(vfr_destination_buf);
+      settings::save();
+    }
+    // Refresh the field from settings when the user is not actively typing,
+    // so a spoken destination update shows up in the input too.
+    if (!ImGui::IsItemActive()) {
+      const std::string cur = settings::vfr_destination();
+      if (cur != vfr_destination_buf) {
+        std::strncpy(vfr_destination_buf, cur.c_str(),
+                     sizeof(vfr_destination_buf) - 1);
+        vfr_destination_buf[sizeof(vfr_destination_buf) - 1] = '\0';
+      }
+    }
+    ImGui::TextDisabled("%s", ui_strings::tr("flightprep.dest_hint"));
+  }
+
+  ImGui::Spacing();
+  ImGui::Separator();
+
+  // Readonly preview of the intention element the first radio call will carry,
+  // rendered exactly as the pilot should speak it (ICAO expanded phonetically).
+  std::string preview;
+  if (vfr_flight_type_selection == 1) {
+    const std::string dest = settings::vfr_destination();
+    preview = dest.empty()
+                  ? "VFR Ueberlandflug"
+                  : "VFR nach " + de_phraseology::expand_callsign_phonetic(dest);
+  } else {
+    preview = "VFR Platzrunde";
+  }
+  ImGui::TextDisabled("%s", ui_strings::tr("flightprep.preview_label"));
+  ImGui::PushTextWrapPos(0.0f);
+  ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 1.0f, 0.5f, 1.0f));
+  ImGui::Text("  %s", preview.c_str());
+  ImGui::PopStyleColor();
+  ImGui::PopTextWrapPos();
+}
+
 // ── En-Route tab content ────────────────────────────────────────
 
 static void draw_enroute_tab(const xplane_context::XPlaneContext &ctx) {
@@ -2410,6 +2478,19 @@ static void draw_atc_panel() {
       }
     }
 
+    // Cross-country destination — shown like REG so the pilot sees the
+    // declared target at a glance: raw ICAO plus its spoken phonetic form.
+    if (settings::vfr_flight_type() == "cross_country") {
+      const std::string dest = settings::vfr_destination();
+      if (!dest.empty()) {
+        ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.2f, 1.0f),
+                           ui_strings::tr("panel.destination_format"),
+                           dest.c_str());
+        ImGui::TextDisabled("  %s",
+                            de_phraseology::expand_callsign_phonetic(dest).c_str());
+      }
+    }
+
     // Radio power warning (only when unpowered)
     if (!ctx.com_radio_powered) {
       ImGui::Spacing();
@@ -2460,6 +2541,12 @@ static void draw_atc_panel() {
         ImGui::EndTabItem();
       }
 
+      // Flugvorbereitung tab — VFR flight type + cross-country destination.
+      if (ImGui::BeginTabItem(ui_strings::tr("tab.flightprep"))) {
+        draw_flightprep_tab(ctx);
+        ImGui::EndTabItem();
+      }
+
       // En-Route tab (with notification hint)
       bool hint_colored = false;
       if (enroute_has_update_) {
@@ -2487,14 +2574,9 @@ static void draw_atc_panel() {
         ImGui::EndTabItem();
       }
 
-      // Transcript tab — moved here from the Settings window so the
-      // pilot can see the radio history without leaving the operative
-      // panel (essential when learning BZF strict-mode and a clearance
-      // needs reading back from memory).
-      if (ImGui::BeginTabItem(ui_strings::tr("tab.transcript"))) {
-        draw_transcript_tab();
-        ImGui::EndTabItem();
-      }
+      // Transcript now lives in its own floating window (draw_transcript_window)
+      // so the pilot can keep the radio history + debug text input open
+      // alongside the operative panel while reading back clearances.
 
       ImGui::EndTabBar();
     }
@@ -2503,6 +2585,29 @@ static void draw_atc_panel() {
 
   if (!open)
     atc_panel_visible_ = false;
+}
+
+// ── Transcript window (independent floating dialog) ──────────────
+//
+// Same content as the former Transcript tab (scrollback + optional
+// Debug-Texteingabe) but in its own window like the ATC Commands panel,
+// so it can stay open next to it for type-and-read testing without voice.
+static void draw_transcript_window() {
+  if (!transcript_window_visible_)
+    return;
+
+  ImGui::SetNextWindowSize(ImVec2(440, 420), ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSizeConstraints(ImVec2(280, 200), ImVec2(1200, 1000));
+
+  bool open = transcript_window_visible_;
+  if (ImGui::Begin(ui_strings::tr("window.transcript"), &open,
+                   ImGuiWindowFlags_NoCollapse)) {
+    draw_transcript_tab();
+  }
+  ImGui::End();
+
+  if (!open)
+    transcript_window_visible_ = false;
 }
 
 // ── XPLM window callbacks (input capture only) ──────────────────
@@ -2613,7 +2718,7 @@ static void wnd_key_cb(XPLMWindowID, char key, XPLMKeyFlags flags, char vkey,
 // ── Draw phase callback (ImGui rendering) ────────────────────────
 
 static int draw_phase_cb(XPLMDrawingPhase, int, void *) {
-  if (!visible && !atc_panel_visible_)
+  if (!visible && !atc_panel_visible_ && !transcript_window_visible_)
     return 1;
 
   int gl, gt, gr, gb;
@@ -2801,13 +2906,15 @@ static int draw_phase_cb(XPLMDrawingPhase, int, void *) {
     }
   } // end if (visible)
 
-  // ATC Commands panel (independent of main window)
+  // ATC Commands panel + Transcript window (both independent of main window)
   draw_atc_panel();
+  draw_transcript_window();
 
-  // If both windows are now closed, release the capture window so X-Plane
+  // If all windows are now closed, release the capture window so X-Plane
   // gets input back. Without this, the invisible full-screen capture window
   // swallows all mouse/keyboard events.
-  if (!visible && !atc_panel_visible_ && window_id) {
+  if (!visible && !atc_panel_visible_ && !transcript_window_visible_ &&
+      window_id) {
     XPLMSetWindowIsVisible(window_id, 0);
     XPLMTakeKeyboardFocus(nullptr);
   }
@@ -2822,7 +2929,8 @@ static int draw_phase_cb(XPLMDrawingPhase, int, void *) {
   // independently of which window is open, AND so X-Plane command
   // bindings (PTT, autopilot) keep firing when no text widget is
   // active.
-  if (window_id && (visible || atc_panel_visible_)) {
+  if (window_id &&
+      (visible || atc_panel_visible_ || transcript_window_visible_)) {
     bool want_text = ImGui::GetIO().WantTextInput;
     bool have_focus = XPLMHasKeyboardFocus(window_id) != 0;
     if (want_text && !have_focus)
@@ -2881,6 +2989,33 @@ void stop() {
   ImGui::DestroyContext();
 
   buffers_initialized = false;
+}
+
+// Create the full-screen invisible input-capture window if it does not yet
+// exist. Shared by all three window toggles (main / ATC panel / transcript).
+static void ensure_capture_window() {
+  if (window_id)
+    return;
+  int gl, gt, gr, gb;
+  XPLMGetScreenBoundsGlobal(&gl, &gt, &gr, &gb);
+
+  XPLMCreateWindow_t p{};
+  p.structSize = sizeof(p);
+  p.left = gl;
+  p.bottom = gb;
+  p.right = gr;
+  p.top = gt;
+  p.visible = 1;
+  p.drawWindowFunc = wnd_draw_cb;
+  p.handleMouseClickFunc = wnd_mouse_cb;
+  p.handleKeyFunc = wnd_key_cb;
+  p.handleCursorFunc = wnd_cursor_cb;
+  p.handleMouseWheelFunc = wnd_wheel_cb;
+  p.handleRightClickFunc = wnd_rclick_cb;
+  p.refcon = nullptr;
+  p.decorateAsFloatingWindow = xplm_WindowDecorationNone;
+  p.layer = xplm_WindowLayerFloatingWindows;
+  window_id = XPLMCreateWindowEx(&p);
 }
 
 void toggle() {
@@ -2973,6 +3108,26 @@ void toggle_atc_panel() {
       // X-Plane command key bindings (including the toggle key itself).
       if (visible)
         XPLMTakeKeyboardFocus(window_id);
+    } else {
+      XPLMSetWindowIsVisible(window_id, 0);
+      XPLMTakeKeyboardFocus(nullptr);
+    }
+  }
+}
+
+void toggle_transcript_window() {
+  transcript_window_visible_ = !transcript_window_visible_;
+
+  if (transcript_window_visible_)
+    ensure_capture_window();
+
+  if (window_id) {
+    if (visible || atc_panel_visible_ || transcript_window_visible_) {
+      XPLMSetWindowIsVisible(window_id, 1);
+      XPLMBringWindowToFront(window_id);
+      // Keyboard focus is granted per-frame by the WantTextInput logic in
+      // draw_phase_cb when the Debug-Texteingabe field is clicked, so we do
+      // not steal focus here (which would block X-Plane command bindings).
     } else {
       XPLMSetWindowIsVisible(window_id, 0);
       XPLMTakeKeyboardFocus(nullptr);
