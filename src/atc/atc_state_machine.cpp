@@ -828,6 +828,9 @@ ATCResponse process(const intent_parser::PilotMessage &msg_in,
 
   ground_ops::apply_state_reverts(msg);
 
+  if (ground_ops::handle_info_flow(msg, ctx, resp))
+    return resp;
+
   if (ground_ops::handle_unicom_flow(msg, ctx, resp))
     return resp;
 

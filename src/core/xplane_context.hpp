@@ -52,9 +52,19 @@ enum class FrequencyType {
   UNICOM,
   CTAF,
   ATIS,
+  INFO,  // German AFIS/Info facility (apt.dat code 1054 named "... Information")
+  RADIO, // Radio facility w/ Flugleiter (apt.dat code 1054 named "... Radio")
 };
 
 const char *frequency_type_name(FrequencyType ft);
+
+// Refine a frequency type using its apt.dat name. apt.dat encodes German
+// AFIS/Info and Radio facilities under the Tower row code (1054); the only
+// discriminator is the frequency name. Only TOWER is refined: a name ending in
+// Info/Information -> INFO, Radio -> RADIO, otherwise (incl. Tower/empty/
+// unknown) stays TOWER. All other base types pass through unchanged. SDK-free
+// so it is unit-testable without parsing an apt.dat file.
+FrequencyType classify_by_name(FrequencyType base, const std::string &name);
 
 struct AirportFrequency {
   uint32_t freq_khz =

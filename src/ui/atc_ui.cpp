@@ -1822,6 +1822,10 @@ static const char *freq_type_label(xplane_context::FrequencyType ft) {
     return "UNICOM";
   case xplane_context::FrequencyType::CTAF:
     return "CTAF";
+  case xplane_context::FrequencyType::INFO:
+    return "INFO";
+  case xplane_context::FrequencyType::RADIO:
+    return "RADIO";
   default:
     return "???";
   }

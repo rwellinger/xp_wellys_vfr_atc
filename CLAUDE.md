@@ -69,16 +69,21 @@ make test      # Catch2-Unit-Tests + Szenario-Tests (inkl. Audit-Invariante)
 make sanitize  # ASan- + UBSan-Build der Engine-OBJECT-Lib + atc_repl + Tests
 ```
 
-**Test-Reihenfolge (wichtig beim Debuggen von Testfehlern):** `make test` pinnt die
-Catch2-Unit-Tests bewusst auf `--order decl` (deterministisch, reproduzierbar). Das
-Binary selbst defaultet auf `--order rand`. Die Suite hat einen **bekannten, noch
-offenen Test-Isolations-Defekt**: einige Tests teilen globalen Zustand
-(`atc_state_machine` `was_airborne_`/`history_`, geleaktes `settings::bzf_strict_mode`),
-sind reihenfolgeabhängig und fallen unter `--order rand` (seed-abhängig 2–4 Fehler),
-unter `--order decl` grün. Wenn ein direkter `./build/xp_wellys_devfr_atc_tests`-Lauf
-rot ist, `make test` aber grün: zuerst Reihenfolgeabhängigkeit verdächtigen (nicht die
-eigene Änderung) und gegen die **unveränderte Basis** unter `--order rand` gegenprüfen,
-bevor man eine Regression behauptet. Maßgeblich ist `make test` (decl).
+**Test-Reihenfolge + Isolation (Issue #3, behoben):** `make test` läuft auf
+`--order rand --rng-seed 42` — reproduzierbar UND mit aktivem Latent-Bug-Detektor
+(zufällige Reihenfolge deckt geteilten globalen Zustand auf). Per-Test-Isolation
+erzwingt ein **Catch2-EventListener** (`tests/module_reset_listener.cpp`), der vor
+**jedem** Test-Case die Modul-Globals zurücksetzt: `atc_state_machine::init()` +
+`reset()` (g_state inkl. `was_airborne_`/`history_`, kaskadiert `crosscountry_flow`),
+`flight_phase::reset()` (Laufzeit-Phase `current_phase_`/`candidate_*`, Config bleibt
+geladen), `atis_generator::init()`, `settings::reset_for_test()` (Stub:
+`bzf_strict_mode`/VFR-Intention/Callsign). Die Modul-Globals liegen hinter
+**getrennten Modulgrenzen** — es gibt kein einzelnes Global; der Listener ruft daher
+N modul-eigene Resets. Neue Tests dürfen sich NICHT darauf verlassen, dass
+`flight_phase` ungeladen ist (frühere Falle: `ground_ctx()` mit `frequency_type=UNKNOWN`
+löste je nach Ladezustand den Wrong-Frequency-Hint-Guard aus) — immer eine realistische
+`frequency_type` setzen. Lokal neue Leaks jagen: andere Seeds durchprobieren, z. B.
+`./build/xp_wellys_devfr_atc_tests --order rand --rng-seed 7`.
 
 `make build` erzeugt stets das Universal Binary: CMake läuft zweimal —
 arm64 mit `XPWELLYS_USE_LOCAL_INFERENCE=ON` (build-arm64/), x86_64 mit

@@ -93,6 +93,18 @@ static bool g_bzf_strict_mode = false;
 bool bzf_strict_mode() { return g_bzf_strict_mode; }
 void set_bzf_strict_mode(bool v) { g_bzf_strict_mode = v; }
 
+// Restore the test-mutable statics to the same defaults their static
+// initializers use (env overrides honored, identical to startup). The
+// Catch2 module-reset listener calls this before every test case so a
+// flipped setting cannot leak across tests under --order rand (Issue #3).
+void reset_for_test() {
+  g_bzf_strict_mode = false;
+  g_vfr_flight_type = env_or("XP_ATC_VFR_FLIGHT_TYPE", "pattern");
+  g_vfr_destination = env_or("XP_ATC_VFR_DESTINATION", "");
+  g_pilot_callsign =
+      env_or("XP_ATC_CALLSIGN", "November One Two Three Alpha Bravo");
+}
+
 // Voice resolver — pulled into the engine library by backends::manager.
 // The headless tools never synthesize audio (TTS calls short-circuit on
 // `tts_ready() == false`) so this getter is only here to satisfy the

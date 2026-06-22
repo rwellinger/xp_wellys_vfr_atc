@@ -455,6 +455,102 @@
         "next_state": "IDLE",
         "requires_readback": false
       }
+    },
+    "INFO": {
+      "_comment": "AFIS/Info-Stelle (NfL 2024 Para 34 b / 35): Verkehrsinformation, keine Freigaben, kein Readback. {station} = '<Platz> Information'.",
+      "INITIAL_CALL_INBOUND": {
+        "response": "{callsign}, {station}, Piste {runway} in Betrieb, QNH {qnh}, kein gemeldeter Verkehr, melden Sie Gegenanflug.",
+        "next_state": "IDLE",
+        "requires_readback": false
+      },
+      "INITIAL_CALL_GROUND": {
+        "response": "{callsign}, {station}, Piste {runway} in Betrieb, QNH {qnh}, Rollen auf eigene Verantwortung.",
+        "next_state": "IDLE",
+        "requires_readback": false
+      },
+      "SELF_ANNOUNCE": {
+        "response": "{callsign}, {station}, verstanden.",
+        "next_state": "IDLE",
+        "requires_readback": false
+      },
+      "REPORT_POSITION_DOWNWIND": {
+        "response": "{callsign}, {station}, verstanden, Piste {runway}, kein gemeldeter Verkehr.",
+        "next_state": "IDLE",
+        "requires_readback": false
+      },
+      "REPORT_POSITION_BASE": {
+        "response": "{callsign}, {station}, verstanden.",
+        "next_state": "IDLE",
+        "requires_readback": false
+      },
+      "REPORT_POSITION_FINAL": {
+        "response": "{callsign}, {station}, Wind {wind}, Landung auf eigene Verantwortung.",
+        "next_state": "IDLE",
+        "requires_readback": false
+      },
+      "LEAVING_FREQUENCY": {
+        "response": "{callsign}, {station}, verstanden, auf Wiederhoeren.",
+        "next_state": "IDLE",
+        "requires_readback": false
+      },
+      "RADIO_CHECK": {
+        "response": "{callsign}, {station}, ich hoere Sie laut und deutlich.",
+        "next_state": "IDLE",
+        "requires_readback": false
+      },
+      "_INVALID": {
+        "response": "{callsign}, {station}, verstanden.",
+        "next_state": "IDLE",
+        "requires_readback": false
+      }
+    },
+    "RADIO": {
+      "_comment": "Funkstelle mit Flugleiter (Radio): beratend wie Info, {station} = '<Platz> Radio'. Keine Freigaben, kein Readback.",
+      "INITIAL_CALL_INBOUND": {
+        "response": "{callsign}, {station}, Piste {runway} in Betrieb, QNH {qnh}, melden Sie Gegenanflug.",
+        "next_state": "IDLE",
+        "requires_readback": false
+      },
+      "INITIAL_CALL_GROUND": {
+        "response": "{callsign}, {station}, Piste {runway} in Betrieb, QNH {qnh}, Rollen auf eigene Verantwortung.",
+        "next_state": "IDLE",
+        "requires_readback": false
+      },
+      "SELF_ANNOUNCE": {
+        "response": "{callsign}, {station}, verstanden.",
+        "next_state": "IDLE",
+        "requires_readback": false
+      },
+      "REPORT_POSITION_DOWNWIND": {
+        "response": "{callsign}, {station}, verstanden, kein gemeldeter Verkehr.",
+        "next_state": "IDLE",
+        "requires_readback": false
+      },
+      "REPORT_POSITION_BASE": {
+        "response": "{callsign}, {station}, verstanden.",
+        "next_state": "IDLE",
+        "requires_readback": false
+      },
+      "REPORT_POSITION_FINAL": {
+        "response": "{callsign}, {station}, Wind {wind}, Landung auf eigene Verantwortung.",
+        "next_state": "IDLE",
+        "requires_readback": false
+      },
+      "LEAVING_FREQUENCY": {
+        "response": "{callsign}, {station}, verstanden, auf Wiederhoeren.",
+        "next_state": "IDLE",
+        "requires_readback": false
+      },
+      "RADIO_CHECK": {
+        "response": "{callsign}, {station}, ich hoere Sie laut und deutlich.",
+        "next_state": "IDLE",
+        "requires_readback": false
+      },
+      "_INVALID": {
+        "response": "{callsign}, {station}, verstanden.",
+        "next_state": "IDLE",
+        "requires_readback": false
+      }
     }
   }
 }

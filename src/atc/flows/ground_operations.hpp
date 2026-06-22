@@ -69,6 +69,12 @@ void apply_state_reverts(const PilotMessage &msg);
 void apply_tower_only_initial_collapse(PilotMessage &msg,
                                        const XPlaneContext &ctx);
 
+// Advisory flow for uncontrolled fields with an AFIS/Info facility
+// (FrequencyType::INFO). Traffic information only — no clearances, no readback.
+// Must be dispatched BEFORE handle_unicom_flow(). NfL 2024 §34 b) / §35.
+bool handle_info_flow(const PilotMessage &msg, const XPlaneContext &ctx,
+                      ATCResponse &resp);
+
 bool handle_unicom_flow(const PilotMessage &msg, const XPlaneContext &ctx,
                         ATCResponse &resp);
 

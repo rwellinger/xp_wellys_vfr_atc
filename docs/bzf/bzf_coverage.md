@@ -222,7 +222,7 @@ VATSIM Germany PHR02-Modul, bzf-kurs.de, bzf-lehrgang.de, Wikipedia ICAO-Alphabe
 |---|---|---|---|---|---|
 | 16.1 | RMZ-Einflug-Meldung: „(LFZ-Muster) (Position) (Flugregeln) (Ziffern) FUSS, WERDE IN RMZ EINFLIEGEN / WERDE RMZ DURCHFLIEGEN (Strecke) [ZUR LANDUNG] [IN (Flugplatz)]" | ANLAGE 7.4 *a) | ✗ | — | **B** / M — VFR-relevant; eigenes Intent + Template |
 | 16.2 | RMZ-Verlassen-Meldung: „VERLASSE RMZ (Position) (Ziffern) FUSS" | ANLAGE 7.4 *b) | ✗ | — | **B** / M |
-| 16.3 | ATS-Dienststellen-Suffixe — deutsche Bezeichnungen: TURM, ROLLKONTROLLE, ANLASSKONTROLLE, ANFLUGKONTROLLE, RADAR, INFORMATION, RADIO (UNICOM mit Flugleiter), SEGELFLUG, RÜCKHOLER | §34 b); §35 | ◐ | Templates nutzen englisch „Tower"/„Ground"/„Approach" | **B** / N — Stilfrage. „Egelsbach Turm" vs „Egelsbach Tower" — NfL erlaubt beide; aktuelles Profil ist OK |
+| 16.3 | ATS-Dienststellen-Suffixe — deutsche Bezeichnungen: TURM, ROLLKONTROLLE, ANLASSKONTROLLE, ANFLUGKONTROLLE, RADAR, INFORMATION, RADIO (UNICOM mit Flugleiter), SEGELFLUG, RÜCKHOLER | §34 b); §35 | ◐ | INFORMATION/RADIO jetzt modelliert: apt.dat-Code-1054-Namenssuffix wird zu `FrequencyType::INFO`/`RADIO` klassifiziert, eigener beratender `handle_info_flow()` (keine Freigaben), Rufname „<Platz> Information"/„<Platz> Radio" via `{station}`. TURM/ROLLKONTROLLE/ANFLUGKONTROLLE weiterhin englisch (Stilfrage, NfL erlaubt beide) | **B** / N — Tower-Suffix offen; Info/Radio abgedeckt |
 
 ---
 

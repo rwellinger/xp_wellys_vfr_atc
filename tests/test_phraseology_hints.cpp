@@ -167,6 +167,25 @@ TEST_CASE("phraseology_hints: uncontrolled IDLE on CTAF -> self announce",
   REQUIRE_FALSE(contains(hints, "INITIAL_CALL_GROUND"));
 }
 
+TEST_CASE("phraseology_hints: uncontrolled INFO on the ground -> first call",
+          "[phraseology_hints]") {
+  LoadGuard g;
+  auto q = make_query(ATCState::IDLE, FlightPhase::PARKED, /*is_towered=*/false,
+                      FrequencyType::INFO);
+  auto hints = phraseology_hints::lookup(q);
+  REQUIRE(contains(hints, "INITIAL_CALL_GROUND"));
+}
+
+TEST_CASE("phraseology_hints: uncontrolled RADIO inbound -> inbound + positions",
+          "[phraseology_hints]") {
+  LoadGuard g;
+  auto q = make_query(ATCState::IDLE, FlightPhase::PATTERN, /*is_towered=*/false,
+                      FrequencyType::RADIO);
+  auto hints = phraseology_hints::lookup(q);
+  REQUIRE(contains(hints, "INITIAL_CALL_INBOUND"));
+  REQUIRE(contains(hints, "LEAVING_FREQUENCY"));
+}
+
 TEST_CASE("phraseology_hints: EN_ROUTE without relevant freq is empty",
           "[phraseology_hints]") {
   LoadGuard g;

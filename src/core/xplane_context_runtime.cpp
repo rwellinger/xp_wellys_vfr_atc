@@ -421,7 +421,13 @@ static void build_towered_cache() {
             // Old format (50-55): value is MHz*100, e.g. 12190 → 121900 kHz
             freq_khz = freq_int * 10;
           }
-          freqs[current_icao].all.push_back({freq_khz, fc.type});
+          // Remainder of the line is the frequency name. apt.dat encodes German
+          // AFIS/Info and Radio facilities under the Tower code; refine TOWER
+          // into INFO/RADIO by the name suffix (no-op for other types).
+          std::string name_rest;
+          std::getline(iss, name_rest);
+          FrequencyType type = classify_by_name(fc.type, name_rest);
+          freqs[current_icao].all.push_back({freq_khz, type});
         }
         break;
       }

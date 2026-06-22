@@ -173,6 +173,19 @@
     },
 
     {
+      "comment": "AFIS/Info- oder Radio-Stelle am Boden: Erstanruf an die Info-/Radio-Stelle, optionaler Radio-Check. Beratend, keine Freigaben.",
+      "state": "IDLE", "phase": "PARKED", "facility": "uncontrolled",
+      "frequency_type": ["INFO", "RADIO"],
+      "intents": ["INITIAL_CALL_GROUND", "RADIO_CHECK"]
+    },
+    {
+      "comment": "AFIS/Info- oder Radio-Stelle in der Luft: Einflug ansagen, Positionsmeldungen, Abmeldung.",
+      "state": "IDLE", "phase": ["PATTERN", "FINAL_APPROACH", "CRUISE", "CLIMB"],
+      "facility": "uncontrolled", "frequency_type": ["INFO", "RADIO"],
+      "intents": ["INITIAL_CALL_INBOUND", "REPORT_POSITION_DOWNWIND", "REPORT_POSITION_BASE", "REPORT_POSITION_FINAL", "LEAVING_FREQUENCY"]
+    },
+
+    {
       "comment": "Finaler Fallback: leere Liste. UI zeigt kontextabhaengige Tune-Hint.",
       "intents": []
     }

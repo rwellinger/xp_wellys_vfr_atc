@@ -118,6 +118,8 @@ role_for_frequency(const xplane_context::XPlaneContext &ctx) {
     return R::Ground;
   case FT::UNICOM:
   case FT::CTAF:
+  case FT::INFO:
+  case FT::RADIO:
     return R::Unicom;
   case FT::TOWER:
   case FT::UNKNOWN:

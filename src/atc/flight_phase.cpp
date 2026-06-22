@@ -460,6 +460,13 @@ void stop() {
 
 void reload() { load_from_file(); }
 
+void reset() {
+  current_phase_ = FlightPhase::PARKED;
+  candidate_phase_ = FlightPhase::PARKED;
+  candidate_timer_ = 0.0f;
+  was_airborne_ = false;
+}
+
 FlightPhase get() { return current_phase_; }
 
 void update(const xplane_context::XPlaneContext &ctx, float dt) {
@@ -579,6 +586,10 @@ static std::string freq_type_name(xplane_context::FrequencyType freq_type) {
     return "UNICOM";
   case FT::CTAF:
     return "CTAF";
+  case FT::INFO:
+    return "INFO";
+  case FT::RADIO:
+    return "RADIO";
   default:
     return {};
   }
@@ -599,6 +610,10 @@ freq_type_from_name(const std::string &name) {
     return FT::DELIVERY;
   if (name == "ATIS")
     return FT::ATIS;
+  if (name == "INFO")
+    return FT::INFO;
+  if (name == "RADIO")
+    return FT::RADIO;
   return FT::UNKNOWN;
 }
 

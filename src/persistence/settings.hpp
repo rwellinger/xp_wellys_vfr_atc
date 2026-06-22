@@ -219,6 +219,13 @@ void set_debug_text_input(bool v);
 void set_bzf_strict_mode(bool v);
 void set_start_mode(const std::string &v);
 
+// Reset the test-mutable settings (bzf_strict_mode, vfr intention, pilot
+// callsign) back to their defaults. Used by the Catch2 module-reset
+// listener so a test that flips a setting cannot leak it into the next
+// test under --order rand. See tests/module_reset_listener.cpp and
+// Issue #3.
+void reset_for_test();
+
 // Voice id (Piper voice_id, e.g. "en_US-lessac-medium") currently
 // assigned to a logical ATC role. Defaults to the manifest default if
 // the setting is missing or points at an unknown voice id.

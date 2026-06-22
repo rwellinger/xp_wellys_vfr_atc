@@ -22,7 +22,10 @@ add_executable(xp_wellys_devfr_atc_tests
     # already inside xp_atc_engine OBJECT, so the link picks the
     # engine copy — no duplicate symbols.)
     ${CATCH2_DIR}/catch_amalgamated.cpp
+    module_reset_listener.cpp
     test_smoke.cpp
+    test_frequency_classification.cpp
+    test_info_radio_flow.cpp
     test_intent_parser.cpp
     test_intent_parser_de.cpp
     test_intent_rules_runway_vacated_veto.cpp

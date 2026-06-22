@@ -233,11 +233,14 @@ test-unit: $(SUBMODULES_SENTINEL) $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTI
 	cmake --build build --target xp_wellys_devfr_atc_tests --parallel
 	@echo ""
 	@echo "=== Running unit tests ==="
-	@# --order decl: Catch2 >= 3.x defaults to random test order, which is
-	@# non-deterministic across runs (seed-dependent) and exposes latent
-	@# global-static state coupling between a few state-machine cases.
-	@# Pin declaration order so `make test` is reproducible in CI.
-	@./build/xp_wellys_devfr_atc_tests --order decl
+	@# --order rand with a FIXED seed: reproducible in CI AND keeps Catch2's
+	@# latent-bug detector on (random order surfaces shared-global-state
+	@# coupling between cases). Per-test isolation is enforced by the
+	@# module-reset listener (tests/module_reset_listener.cpp), which resets
+	@# the engine module globals before every case. See Issue #3. Override
+	@# the seed locally to hunt new leaks, e.g.:
+	@#   ./build/xp_wellys_devfr_atc_tests --order rand --rng-seed 7
+	@./build/xp_wellys_devfr_atc_tests --order rand --rng-seed 42
 
 test-scenarios: repl
 	@echo "=== Running scenario tests ==="

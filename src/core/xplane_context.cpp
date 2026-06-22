@@ -29,6 +29,9 @@ int priority_rank(FrequencyType t) {
     return 6;
   case FrequencyType::DELIVERY:
     return 5;
+  case FrequencyType::INFO:
+  case FrequencyType::RADIO:
+    return 4;
   case FrequencyType::ATIS:
     return 3;
   case FrequencyType::CTAF:
@@ -94,8 +97,36 @@ const char *frequency_type_name(FrequencyType ft) {
     return "CTAF";
   case FrequencyType::ATIS:
     return "ATIS";
+  case FrequencyType::INFO:
+    return "Info";
+  case FrequencyType::RADIO:
+    return "Radio";
   }
   return "Unknown";
+}
+
+FrequencyType classify_by_name(FrequencyType base, const std::string &name) {
+  if (base != FrequencyType::TOWER)
+    return base;
+
+  // Extract the last whitespace-delimited token of the apt.dat frequency name.
+  size_t end = name.find_last_not_of(" \t\r\n");
+  if (end == std::string::npos)
+    return FrequencyType::TOWER; // no name -> treat as Tower (legacy behaviour)
+  size_t start = name.find_last_of(" \t\r\n", end);
+  start = (start == std::string::npos) ? 0 : start + 1;
+  std::string last = name.substr(start, end - start + 1);
+
+  // Upper-case for case-insensitive comparison.
+  for (char &c : last)
+    if (c >= 'a' && c <= 'z')
+      c = static_cast<char>(c - 'a' + 'A');
+
+  if (last == "INFO" || last == "INFORMATION" || last == "IFO")
+    return FrequencyType::INFO;
+  if (last == "RADIO" || last == "RDO")
+    return FrequencyType::RADIO;
+  return FrequencyType::TOWER;
 }
 
 } // namespace xplane_context

@@ -431,6 +431,20 @@ void set_atc_profile(const std::string &v) {
 void set_debug_traffic(bool v) { cfg["debug_traffic"] = v; }
 void set_debug_text_input(bool v) { cfg["debug_text_input"] = v; }
 void set_bzf_strict_mode(bool v) { cfg["bzf_strict_mode"] = v; }
+
+// Restore the test-mutable keys to their compiled-in defaults. Declared
+// in the shared header for the Catch2 module-reset listener; the unit
+// tests link the headless stub (tools/atc_repl/settings_stub.cpp), so
+// this production definition exists only for symmetry / any future tool
+// that links the real settings.cpp. See Issue #3.
+void reset_for_test() {
+  const json d = default_config();
+  cfg["bzf_strict_mode"] = d["bzf_strict_mode"];
+  cfg["vfr_flight_type"] = d["vfr_flight_type"];
+  cfg["vfr_destination"] = d["vfr_destination"];
+  cfg["pilot_callsign_raw"] = d["pilot_callsign_raw"];
+  cfg["pilot_callsign"] = d["pilot_callsign"];
+}
 void set_traffic_features_enabled(bool v) {
   cfg["traffic_features_enabled"] = v;
 }

@@ -106,6 +106,13 @@ void stop();
 void update(const xplane_context::XPlaneContext &ctx, float dt);
 void reload();
 
+// Reset only the runtime phase state (current/candidate phase, hysteresis
+// timer, airborne latch) back to a fresh PARKED baseline, leaving the
+// loaded config (thresholds, preconditions, ...) intact. Used by the
+// Catch2 module-reset listener so an airborne test's leftover phase cannot
+// make a later phase-precondition guard early-return. See Issue #3.
+void reset();
+
 FlightPhase get();
 const char *phase_name(FlightPhase phase);
 bool is_airborne(FlightPhase phase);

@@ -129,6 +129,24 @@ static std::string airport_name(const XPlaneContext &ctx) {
   return "Airport";
 }
 
+// Spoken facility call-name for the {station} template variable. German
+// uncontrolled fields carry their facility suffix in the call: "<Platz>
+// Information" (AFIS) / "<Platz> Radio" (Funkstelle mit Flugleiter). Other
+// frequency types fall back to the bare airport name.
+static std::string facility_callname(const XPlaneContext &ctx) {
+  using FT = xplane_context::FrequencyType;
+  switch (ctx.frequency_type) {
+  case FT::INFO:
+    return airport_name(ctx) + " Information";
+  case FT::RADIO:
+    return airport_name(ctx) + " Radio";
+  case FT::TOWER:
+    return airport_name(ctx) + " Tower";
+  default:
+    return airport_name(ctx);
+  }
+}
+
 static std::string extract_position(const PilotMessage &msg,
                                     const XPlaneContext &ctx) {
   std::string rwy = get_runway(msg, ctx);
@@ -236,6 +254,7 @@ std::map<std::string, std::string> build_vars(const PilotMessage &msg,
   return {
       {"callsign", get_callsign(msg)},
       {"airport", airport_name(ctx)},
+      {"station", facility_callname(ctx)},
       {"runway", get_runway(msg, ctx)},
       {"wind", format_wind(ctx.wind_direction_deg, ctx.wind_speed_kt)},
       {"qnh", format_qnh(ctx.qnh_inhg)},
@@ -376,17 +395,46 @@ void apply_tower_only_initial_collapse(PilotMessage &msg,
                 "INITIAL_CALL_GROUND (apron first contact)");
 }
 
+// Advisory flow for uncontrolled fields with an AFIS/Info facility. apt.dat
+// encodes these under the Tower code; the parser reclassifies the name suffix
+// to FrequencyType::INFO (see classify_by_name). Info gives traffic
+// information only — no clearances, no readback. NfL 2024 §34 b) / §35.
+// Must run BEFORE handle_unicom_flow() so INFO does not fall through the
+// generic "!is_towered_airport" branch there.
+bool handle_info_flow(const PilotMessage &msg, const XPlaneContext &ctx,
+                      ATCResponse &resp) {
+  using FT = xplane_context::FrequencyType;
+  if (ctx.frequency_type != FT::INFO)
+    return false;
+  auto vars = build_vars(msg, ctx);
+  std::string intent_key = intent_parser::intent_template_key(msg.intent);
+  // Synthetic "INFO" state key resolves the uncontrolled/INFO template block;
+  // no atc_templates::lookup() signature change needed.
+  auto tmpl = atc_templates::lookup(false, "INFO", intent_key);
+  resp.text = atc_templates::fill(tmpl.response_template, vars);
+  resp.next_state = ATCState::IDLE;
+  internal::transition_to(ATCState::IDLE, "info_flow_idle");
+  return true;
+}
+
 bool handle_unicom_flow(const PilotMessage &msg, const XPlaneContext &ctx,
                         ATCResponse &resp) {
   using FT = xplane_context::FrequencyType;
-  bool unicom_flow = !ctx.is_towered_airport ||
-                     ctx.frequency_type == FT::UNICOM ||
-                     ctx.frequency_type == FT::CTAF;
+  bool unicom_flow = ctx.frequency_type == FT::UNICOM ||
+                     ctx.frequency_type == FT::CTAF ||
+                     ctx.frequency_type == FT::RADIO ||
+                     (!ctx.is_towered_airport &&
+                      ctx.frequency_type != FT::INFO);
   if (!unicom_flow)
     return false;
   auto vars = build_vars(msg, ctx);
   std::string intent_key = intent_parser::intent_template_key(msg.intent);
-  auto tmpl = atc_templates::lookup(false, "IDLE", intent_key);
+  // RADIO (Funkstelle mit Flugleiter) gets its own template block so it can
+  // address the pilot as "<Platz> Radio"; UNICOM/CTAF stay on the generic
+  // uncontrolled/IDLE block (byte-identical to before).
+  const char *state_key =
+      (ctx.frequency_type == FT::RADIO) ? "RADIO" : "IDLE";
+  auto tmpl = atc_templates::lookup(false, state_key, intent_key);
   resp.text = atc_templates::fill(tmpl.response_template, vars);
   resp.next_state = ATCState::IDLE;
   internal::transition_to(ATCState::IDLE, "unicom_flow_idle");

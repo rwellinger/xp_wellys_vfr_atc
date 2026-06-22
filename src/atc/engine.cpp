@@ -300,7 +300,9 @@ struct CcBase {
 static std::string expected_intents_csv(const xplane_context::XPlaneContext &ctx) {
   using FT = xplane_context::FrequencyType;
   bool is_towered = ctx.is_towered_airport && ctx.frequency_type != FT::UNICOM &&
-                    ctx.frequency_type != FT::CTAF;
+                    ctx.frequency_type != FT::CTAF &&
+                    ctx.frequency_type != FT::INFO &&
+                    ctx.frequency_type != FT::RADIO;
   std::string state_str =
       atc_state_machine::state_name(atc_state_machine::get_state());
   auto valid = atc_templates::valid_intents(is_towered, state_str,
@@ -584,7 +586,9 @@ void process_transcript(Input in, Done done) {
   using FT = xplane_context::FrequencyType;
   bool is_towered = ctx.is_towered_airport &&
                     ctx.frequency_type != FT::UNICOM &&
-                    ctx.frequency_type != FT::CTAF;
+                    ctx.frequency_type != FT::CTAF &&
+                    ctx.frequency_type != FT::INFO &&
+                    ctx.frequency_type != FT::RADIO;
 
   std::string state_str =
       atc_state_machine::state_name(atc_state_machine::get_state());

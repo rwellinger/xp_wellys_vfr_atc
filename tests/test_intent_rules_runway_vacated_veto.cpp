@@ -163,6 +163,12 @@ TEST_CASE("vacated-veto: REQUEST_TAXI nach Full-Stop am Boden resettet "
 
     auto ctx = ground_ctx();
     ctx.now_secs = 200.0; // well past any post-landing window
+    // Tuned to GROUND for a taxi request: with the default UNKNOWN freq the
+    // wrong-frequency hint guard intercepts before the reset hook, but only
+    // when flight_phase config happens to be loaded by a prior test --
+    // an order-dependent trap (Issue #3). GROUND is the realistic frequency
+    // for REQUEST_TAXI and makes the test order-independent.
+    ctx.frequency_type = xplane_context::FrequencyType::GROUND;
     // Drive a REQUEST_TAXI through process(). With at_airport_after_landing
     // false (no landing in history), apply_adjustments leaves the intent
     // intact, and the reset hook in process() fires.
@@ -208,6 +214,13 @@ TEST_CASE("vacated-veto: generisches INITIAL_CALL am Boden resettet "
 
     auto ctx = ground_ctx();
     ctx.now_secs = 200.0;
+    // TOWER freq: a generic INITIAL_CALL maps to the INITIAL_CALL_TOWER
+    // template key (intent_parser fallback), whose frequency precondition
+    // allows only TOWER. The default UNKNOWN freq otherwise triggers the
+    // wrong-frequency hint guard (order-dependent on flight_phase being
+    // loaded) and on GROUND the freq-precondition guard rejects -- both
+    // early-return before the reset hook. See Issue #3.
+    ctx.frequency_type = xplane_context::FrequencyType::TOWER;
     intent_parser::PilotMessage msg;
     msg.intent = PilotIntent::INITIAL_CALL;
     msg.callsign = "Hotel Bravo Delta Sierra Victor";
