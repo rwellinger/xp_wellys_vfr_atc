@@ -36,6 +36,7 @@ add_executable(xp_wellys_devfr_atc_tests
     test_runway_lock.cpp
     test_state_history.cpp
     test_state_revert_guard.cpp
+    test_begin_fresh_flight.cpp
     test_phraseology_hints.cpp
     test_airport_vrps.cpp
     test_traffic_geometry.cpp

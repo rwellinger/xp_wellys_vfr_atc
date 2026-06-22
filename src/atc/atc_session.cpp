@@ -366,6 +366,7 @@ void init() {
 void stop() {
   state_ = PTTState::IDLE;
   tts_pending_ = false;
+  atis_tts_failures_ = 0; // mirror init(): drop the cross-flight TTS-retry counter
 }
 
 void on_ptt_pressed() {

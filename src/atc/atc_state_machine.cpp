@@ -416,6 +416,25 @@ void reset() {
   logging::info("ATC state machine reset to IDLE");
 }
 
+void begin_fresh_flight(bool on_ground) {
+  // Strict no-op unless we are confidently between flights. Reading
+  // g_state.state_ directly is fine — we are inside the namespace. The
+  // guard MUST short-circuit before any mutation so the no-op path bumps
+  // no gen and writes nothing (in-flight revert-guard snapshots stay
+  // valid, and a spurious non-reposition message can never wipe a flight
+  // that is taxiing, departing, in the pattern, or on final).
+  const bool between_flights =
+      on_ground && (g_state.state_ == ATCState::IDLE ||
+                    g_state.state_ == ATCState::GROUND_CONTACT);
+  if (!between_flights) {
+    logging::info("begin_fresh_flight: guard blocked (on_ground=%d state=%s) "
+                  "- no reset",
+                  on_ground ? 1 : 0, state_name(g_state.state_));
+    return;
+  }
+  reset(); // reuses the full field sweep + single bump_gen() + log line
+}
+
 // ── Disregard ───────────────────────────────────────────────────────
 
 // "Disregard" radius: airborne pilots within this distance from their

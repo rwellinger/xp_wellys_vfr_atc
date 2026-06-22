@@ -73,6 +73,19 @@ void init();
 void stop();
 void reset();
 
+// Guarded between-flights reset. Called from XPluginReceiveMessage on
+// XPLM_MSG_AIRPORT_LOADED / XPLM_MSG_PLANE_LOADED (user repositioned or
+// reloaded the aircraft). Performs the FULL reset() ONLY when safely
+// between flights: on_ground == true AND state_ in { IDLE, GROUND_CONTACT }.
+// Otherwise a strict no-op: writes nothing and does NOT bump the
+// revert-guard generation counter, so a spurious (non-reposition) message
+// can never wipe a flight that is taxiing, departing, in the pattern, or
+// on final. on_ground is supplied by the caller from the latest
+// XPlaneContext snapshot; at message time it reflects the previous frame
+// and may read stale-airborne (false) when repositioning out of flight —
+// the guard intentionally treats that as "do not reset".
+void begin_fresh_flight(bool on_ground);
+
 // Pilot-driven "Disregard" — drops the current ATC dialog and lands on
 // a flow-appropriate state instead of blind IDLE: airborne pilots near
 // their last airport keep PATTERN_ENTRY; airborne pilots away from any
