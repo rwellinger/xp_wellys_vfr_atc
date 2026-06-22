@@ -852,6 +852,36 @@ ATCResponse process(const intent_parser::PilotMessage &msg_in,
   if (ground_ops::check_freq_precondition(msg, ctx, resp))
     return resp;
 
+  // Reset the session-lifecycle was_airborne flag when a new departure
+  // cycle starts on the ground. The intent list documents the intent
+  // (departure-anmeldung); the on_ground gate is the physical
+  // invariant ("a new departure cycle begins on the ground") and
+  // catches parser misclassifications mid-air. INITIAL_CALL_INBOUND is
+  // deliberately NOT in the list — inbound is the opposite of a
+  // departure cycle.
+  //
+  // Runs BEFORE the conformance guard's early return so a strict-mode
+  // INITIAL_CALL_GROUND re-request still resets the flag — a re-request
+  // is conceptually the start of a new ground departure cycle, and the
+  // invariant must hold independently of the guard's early return.
+  // msg.intent is final here (last mutated by the tower-only collapse
+  // above); ctx.on_ground is independent of resp, so no new dependency
+  // is introduced by hoisting this ahead of the template lookup.
+  //
+  // F.2 interaction: REQUEST_TAXI gets remapped to REQUEST_TAXI_PARKING
+  // by apply_adjustments() upstream when at_airport_after_landing is
+  // true; REQUEST_TAXI_PARKING is not in the reset list, so the flag
+  // stays armed during the post-landing taxi-back. The reset only
+  // fires when REQUEST_TAXI survives the remap — i.e. when the post-
+  // landing window has already closed and the pilot really is starting
+  // a new flight.
+  using PI = intent_parser::PilotIntent;
+  if (ctx.on_ground &&
+      (msg.intent == PI::REQUEST_TAXI ||
+       msg.intent == PI::INITIAL_CALL_GROUND ||
+       msg.intent == PI::INITIAL_CALL_TOWER || msg.intent == PI::INITIAL_CALL))
+    internal::set_was_airborne(false);
+
   // BZF first-call conformance (DE, INITIAL_CALL_GROUND only). strict=false
   // only logs missing recommended elements for debrief and proceeds to the
   // normal initial-contact reply; strict=true sends a targeted re-request
@@ -903,28 +933,6 @@ ATCResponse process(const intent_parser::PilotMessage &msg_in,
     g_state.readback_pending_ = true;
     return resp;
   }
-
-  // Reset the session-lifecycle was_airborne flag when a new departure
-  // cycle starts on the ground. The intent list documents the intent
-  // (departure-anmeldung); the on_ground gate is the physical
-  // invariant ("a new departure cycle begins on the ground") and
-  // catches parser misclassifications mid-air. INITIAL_CALL_INBOUND is
-  // deliberately NOT in the list — inbound is the opposite of a
-  // departure cycle.
-  //
-  // F.2 interaction: REQUEST_TAXI gets remapped to REQUEST_TAXI_PARKING
-  // by apply_adjustments() upstream when at_airport_after_landing is
-  // true; REQUEST_TAXI_PARKING is not in the reset list, so the flag
-  // stays armed during the post-landing taxi-back. The reset only
-  // fires when REQUEST_TAXI survives the remap — i.e. when the post-
-  // landing window has already closed and the pilot really is starting
-  // a new flight.
-  using PI = intent_parser::PilotIntent;
-  if (ctx.on_ground &&
-      (msg.intent == PI::REQUEST_TAXI ||
-       msg.intent == PI::INITIAL_CALL_GROUND ||
-       msg.intent == PI::INITIAL_CALL_TOWER || msg.intent == PI::INITIAL_CALL))
-    internal::set_was_airborne(false);
 
   apply_post_transition_hooks(msg, ctx, resp, clearance_components);
   return resp;

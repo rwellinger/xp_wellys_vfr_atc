@@ -33,6 +33,7 @@ add_executable(xp_wellys_devfr_atc_tests
     test_bzf_compliance.cpp
     test_readback_strict.cpp
     test_initial_call_conformance.cpp
+    test_was_airborne_reset.cpp
     test_readback_high_conf_gate.cpp
     test_runway_lock.cpp
     test_state_history.cpp
