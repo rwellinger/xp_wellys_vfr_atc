@@ -27,6 +27,12 @@ namespace ui::clipboard {
 // value. Never throws.
 std::string read_system_text();
 
+// Replaces the NSPasteboard contents with `text` (UTF-8). No-op on an
+// empty string or if the pasteboard is unavailable. Never throws. Used
+// by the Transcript tab's [Copy] button so the radio history can be
+// pasted into notes / verification tooling outside the sim.
+void write_system_text(const std::string &text);
+
 } // namespace ui::clipboard
 
 #endif // UI_CLIPBOARD_HPP

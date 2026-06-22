@@ -146,6 +146,29 @@ const std::string &assigned_runway();
 // can hijack the tower's salutation mid-session.
 const std::string &session_callsign();
 
+// ── Declared VFR flight intent (NfL 2024 1.4.7) ──────────────────────
+// The pilot states destination/intent ONCE on the taxi / initial-ground
+// call, NOT on every follow-up transmission. The tower must remember it
+// for the rest of the flight, so build_vars() reads this session state
+// before falling back to the pre-flight UI setting (settings::vfr_*).
+// Without it, a READY_FOR_DEPARTURE that omits the destination would fall
+// back to "pattern" and the tower would wrongly answer "Melden Sie
+// Gegenanflug". Set from speech in engine.cpp on a successful
+// extract_destination()/"Platzrunde" match. Per-flight session state:
+// cleared on init/stop/reset (hence begin_fresh_flight + the new-flight
+// button), never persisted across flights. Captured/restored by the
+// snapshot guard alongside the rest of g_state.
+void set_flight_intent_cross_country(const std::string &destination);
+void set_flight_intent_pattern();
+// True once the pilot has stated either intent this flight. While false,
+// build_vars() falls through to settings::vfr_flight_type().
+bool flight_intent_declared();
+// Meaningful only when flight_intent_declared(): true => cross-country.
+bool flight_intent_cross_country();
+// Spoken ICAO destination ("EDMA"); empty for a pattern flight or a
+// destination-less cross-country declaration.
+const std::string &flight_intent_destination();
+
 // Returns assigned_runway() if non-empty, else ctx.active_runway. Use this
 // for any "what runway are we operating to" question outside the spoken
 // ATC response itself (UI hints, ATIS, STT bias, phase detection).

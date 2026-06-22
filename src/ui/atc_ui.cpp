@@ -969,11 +969,69 @@ static void draw_models_tab() {
               tts_ms);
 }
 
+// Serialize the radio history into a plain-text block for the system
+// clipboard, mirroring the on-screen Transcript formatting (ASCII only).
+// Backs the [Copy] button so the pilot can paste the log into notes or
+// verification tooling outside the sim.
+static std::string serialize_transcript() {
+  const auto &entries = atc_session::transcript_entries();
+  std::string out;
+  char ts[24];
+  for (const auto &entry : entries) {
+    int mins = static_cast<int>(entry.sim_time) / 60;
+    int secs = static_cast<int>(entry.sim_time) % 60;
+    if (entry.kind == atc_session::TranscriptKind::System) {
+      std::snprintf(ts, sizeof(ts), "[%02d:%02d] -- ", mins, secs);
+      out += ts;
+      out += entry.text;
+      out += " --\n";
+      continue;
+    }
+    std::snprintf(ts, sizeof(ts), "[%02d:%02d", mins, secs);
+    out += ts;
+    if (!entry.frequency.empty()) {
+      out += ' ';
+      out += entry.frequency;
+    }
+    out += "] ";
+    if (entry.kind == atc_session::TranscriptKind::Pilot) {
+      out += "You: ";
+    } else {
+      const auto &cx = xplane_context::get();
+      std::string apt = !cx.nearest_airport_name.empty()
+                            ? cx.nearest_airport_name
+                            : cx.nearest_airport_id;
+      out += apt.empty() ? "ATC" : apt + " ATC";
+      out += ": ";
+    }
+    out += entry.text;
+    out += '\n';
+  }
+  return out;
+}
+
 static void draw_transcript_tab() {
   if (ImGui::Button(ui_strings::tr("btn.clear"))) {
     atc_session::clear_transcript();
     last_transcript_count_ = 0;
   }
+
+  // [Copy] dumps the whole radio history to the system clipboard. Brief
+  // "Kopiert!" label swap as visual confirmation (the X-Plane ImGui
+  // backend has no toast); the timer is sim-frame driven via the static
+  // counter below so it survives across draws without a clock call.
+  ImGui::SameLine();
+  static int copied_feedback_frames = 0;
+  const bool has_entries = !atc_session::transcript_entries().empty();
+  ImGui::BeginDisabled(!has_entries);
+  if (ImGui::Button(copied_feedback_frames > 0 ? ui_strings::tr("btn.copied")
+                                               : ui_strings::tr("btn.copy"))) {
+    ui::clipboard::write_system_text(serialize_transcript());
+    copied_feedback_frames = 90; // ~1.5 s at 60 fps
+  }
+  ImGui::EndDisabled();
+  if (copied_feedback_frames > 0)
+    --copied_feedback_frames;
 
   ImGui::Separator();
 
@@ -2161,10 +2219,11 @@ static void draw_airport_tab(const xplane_context::XPlaneContext &ctx) {
 //
 // Pre-flight intent the first radio call carries: VFR flight type
 // (Platzrunde / Ueberlandflug) plus the cross-country destination ICAO.
-// The destination can also be SPOKEN ("VFR nach Echo Delta Mike Alfa");
-// the engine persists that into settings, so the combo + field + preview
-// here mirror it without typing. The field is the silent fallback/override
-// when speech recognition does not resolve the destination.
+// The combo + field here are the pre-flight FALLBACK (settings::vfr_*),
+// used only until the pilot declares the intent on the radio. A SPOKEN
+// "VFR nach Echo Delta Mike Alfa" latches into the per-flight session
+// state (atc_state_machine flight intent), which build_vars and the
+// preview below then prefer — so a typed field is never required.
 static void draw_flightprep_tab(const xplane_context::XPlaneContext &ctx) {
   (void)ctx;
   ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.0f, 1.0f), "%s",
@@ -2198,8 +2257,9 @@ static void draw_flightprep_tab(const xplane_context::XPlaneContext &ctx) {
   ImGui::Spacing();
   ImGui::Separator();
 
-  // Sync the combo from settings every frame so a spoken "VFR nach <ICAO>"
-  // that flips the flight type is reflected here too.
+  // Combo reflects the pre-flight fallback field (settings::vfr_*). The
+  // live, radio-declared intent is shown in the preview below, not here —
+  // this control stays the user's manual default for silent flights.
   vfr_flight_type_selection =
       (settings::vfr_flight_type() == "cross_country") ? 1 : 0;
   const char *vfr_flight_type_labels[2] = {
@@ -2221,8 +2281,8 @@ static void draw_flightprep_tab(const xplane_context::XPlaneContext &ctx) {
       settings::set_vfr_destination(vfr_destination_buf);
       settings::save();
     }
-    // Refresh the field from settings when the user is not actively typing,
-    // so a spoken destination update shows up in the input too.
+    // Refresh the field from the persisted settings fallback when the user
+    // is not actively typing (keeps it populated on first open).
     if (!ImGui::IsItemActive()) {
       const std::string cur = settings::vfr_destination();
       if (cur != vfr_destination_buf) {
@@ -2239,12 +2299,24 @@ static void draw_flightprep_tab(const xplane_context::XPlaneContext &ctx) {
 
   // Readonly preview of the intention element the first radio call will carry,
   // rendered exactly as the pilot should speak it (ICAO expanded phonetically).
+  // Mirrors build_vars' precedence: a flight intent already declared on the
+  // radio this flight (latched in the state machine) wins over the pre-flight
+  // field above, so the preview matches what the tower will actually use.
+  bool preview_xc;
+  std::string preview_dest;
+  if (atc_state_machine::flight_intent_declared()) {
+    preview_xc = atc_state_machine::flight_intent_cross_country();
+    preview_dest = atc_state_machine::flight_intent_destination();
+  } else {
+    preview_xc = (vfr_flight_type_selection == 1);
+    preview_dest = settings::vfr_destination();
+  }
   std::string preview;
-  if (vfr_flight_type_selection == 1) {
-    const std::string dest = settings::vfr_destination();
-    preview = dest.empty()
+  if (preview_xc) {
+    preview = preview_dest.empty()
                   ? "VFR Ueberlandflug"
-                  : "VFR nach " + de_phraseology::expand_callsign_phonetic(dest);
+                  : "VFR nach " +
+                        de_phraseology::expand_callsign_phonetic(preview_dest);
   } else {
     preview = "VFR Platzrunde";
   }

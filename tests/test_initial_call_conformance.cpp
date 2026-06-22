@@ -373,6 +373,163 @@ TEST_CASE("vfr intention: cross-country without destination falls back",
                         "abflugbereit") == 0);
 }
 
+// ── Declared intent persists across follow-up transmissions ──────────
+//
+// NfL 2024 1.4.7: the pilot states destination/intent ONCE on the taxi /
+// initial-ground call, not on every transmission. The engine latches it
+// into the per-flight session state (atc_state_machine flight intent) so
+// build_vars() remembers it. Regression guard for the bug where a
+// destination-less READY_FOR_DEPARTURE fell back to settings ("pattern")
+// and the tower wrongly answered "Melden Sie Gegenanflug".
+
+TEST_CASE("vfr intention: declared cross-country survives a destination-less "
+          "follow-up transmission",
+          "[conformance][intention][persist]") {
+    load_de_profile(); // settings = pattern, intent undeclared (init reset)
+    auto ctx = ground_ctx();
+
+    // INITIAL_CALL_GROUND: pilot says "VFR nach EDMA" once. The engine
+    // latches this; emulate the latch directly here.
+    atc_state_machine::set_flight_intent_cross_country("EDMA");
+
+    // READY_FOR_DEPARTURE: the destination is OMITTED (NfL-conform). The
+    // per-utterance message carries no destination and settings is still
+    // "pattern" — only the session latch keeps the flight cross-country.
+    PilotMessage ready;
+    ready.intent = PilotIntent::READY_FOR_DEPARTURE_VFR;
+    ready.confidence = 0.85f;
+    ready.callsign = "Hotel Bravo Whiskey Romeo Oscar";
+    REQUIRE(ready.destination.empty()); // precondition of the scenario
+
+    auto vars = ground_ops::build_vars(ready, ctx);
+    REQUIRE(vars["intention"] == "VFR nach Echo Delta Mike Alfa");
+    REQUIRE(vars["vfr_course_phrase"] == ", Kurs nach Echo Delta Mike Alfa");
+    // The value came from the session latch, NOT the pre-flight field —
+    // which is still pattern. Without the fix this would be "VFR Platzrunde".
+    REQUIRE(settings::vfr_flight_type() == "pattern");
+}
+
+TEST_CASE("vfr intention: declared 'Platzrunde' wins over a cross-country "
+          "pre-flight setting",
+          "[conformance][intention][persist]") {
+    load_de_profile();
+    // Pre-flight field says cross-country to EDDS...
+    settings::set_vfr_flight_type("cross_country");
+    settings::set_vfr_destination("EDDS");
+    auto ctx = ground_ctx();
+
+    // ...but the pilot verbally declared a Platzrunde flight. The latch wins.
+    atc_state_machine::set_flight_intent_pattern();
+
+    PilotMessage ready;
+    ready.intent = PilotIntent::READY_FOR_DEPARTURE_VFR;
+    ready.confidence = 0.85f;
+    ready.callsign = "Hotel Bravo Whiskey Romeo Oscar";
+
+    auto vars = ground_ops::build_vars(ready, ctx);
+    REQUIRE(vars["intention"] == "VFR Platzrunde");
+    REQUIRE(vars["vfr_course_phrase"].empty());
+}
+
+TEST_CASE("vfr intention: a new flight clears the declared intent",
+          "[conformance][intention][persist]") {
+    load_de_profile(); // settings = pattern
+    auto ctx = ground_ctx();
+    atc_state_machine::set_flight_intent_cross_country("EDMA");
+    REQUIRE(atc_state_machine::flight_intent_declared());
+
+    // begin_fresh_flight (airport/plane reload or the "Neuer Flug" button)
+    // runs the full reset, so the next flight starts on the settings
+    // fallback again rather than inheriting the previous destination.
+    atc_state_machine::begin_fresh_flight(/*on_ground=*/true);
+    REQUIRE_FALSE(atc_state_machine::flight_intent_declared());
+
+    PilotMessage ready;
+    ready.intent = PilotIntent::READY_FOR_DEPARTURE_VFR;
+    ready.confidence = 0.85f;
+    ready.callsign = "Hotel Bravo Whiskey Romeo Oscar";
+    auto vars = ground_ops::build_vars(ready, ctx);
+    REQUIRE(vars["intention"] == "VFR Platzrunde"); // back to settings default
+}
+
+// ── Cross-country departure: intent promotion drives the tower response ──
+//
+// The bug in the live EDNY transcript: the pilot declared "VFR nach EDMA" on
+// first contact (NfL 1.4.7 — stated once), then called a bare "Piste 06
+// abflugbereit" with no course marker. That parses as the pattern
+// READY_FOR_DEPARTURE, and the departure response/template/departure_type_ key
+// only off msg.intent — so the tower answered the pattern departure ("melden
+// Sie im Gegenanflug"). process() now promotes the intent to the VFR variant
+// when a cross-country flight was declared this flight, making the whole chain
+// (template, next_state, departure_type_) cross-country. These drive
+// process() directly with hand-built messages (TOWER_CONTACT, on TOWER freq).
+
+namespace {
+xplane_context::XPlaneContext tower_departure_ctx() {
+    auto ctx = ground_ctx(); // is_towered, on_ground, EDNY
+    ctx.frequency_type = xplane_context::FrequencyType::TOWER;
+    ctx.active_runway = "06";
+    return ctx;
+}
+PilotMessage ready_for_departure(PilotIntent intent) {
+    PilotMessage m;
+    m.intent = intent;
+    m.confidence = (intent == PilotIntent::READY_FOR_DEPARTURE_VFR) ? 0.92f : 0.9f;
+    m.callsign = "Hotel Bravo Whiskey Romeo Oscar";
+    m.runway = "06";
+    return m;
+}
+} // namespace
+
+TEST_CASE("xc departure: bare 'abflugbereit' after a declared cross-country "
+          "flight gets the frequency-change clearance",
+          "[conformance][intention][persist][departure]") {
+    load_de_profile(); // settings = pattern (the trap)
+    auto ctx = tower_departure_ctx();
+
+    // First contact declared "VFR nach EDMA" — the engine latched it.
+    atc_state_machine::set_flight_intent_cross_country("EDMA");
+    atc_state_machine::set_state(atc_state_machine::ATCState::TOWER_CONTACT);
+
+    auto resp = atc_state_machine::process(
+        ready_for_departure(PilotIntent::READY_FOR_DEPARTURE), ctx, 100.0);
+
+    // Promoted -> cross-country clearance, NOT the pattern "Gegenanflug".
+    REQUIRE(resp.text.find("Frequenzwechsel") != std::string::npos);
+    REQUIRE(resp.text.find("Gegenanflug") == std::string::npos);
+    REQUIRE(atc_state_machine::state_name(atc_state_machine::get_state()) ==
+            std::string("XC/DEPARTURE_CLEARED"));
+}
+
+TEST_CASE("xc departure: a pattern flight still gets the pattern departure",
+          "[conformance][intention][persist][departure]") {
+    load_de_profile(); // no flight intent declared -> stays pattern
+    auto ctx = tower_departure_ctx();
+    atc_state_machine::set_state(atc_state_machine::ATCState::TOWER_CONTACT);
+
+    auto resp = atc_state_machine::process(
+        ready_for_departure(PilotIntent::READY_FOR_DEPARTURE), ctx, 100.0);
+
+    REQUIRE(resp.text.find("Gegenanflug") != std::string::npos);
+    REQUIRE(resp.text.find("Frequenzwechsel") == std::string::npos);
+    REQUIRE(atc_state_machine::state_name(atc_state_machine::get_state()) ==
+            std::string("Pattern/DEPARTURE_CLEARED"));
+}
+
+TEST_CASE("xc departure: an explicit READY_FOR_DEPARTURE_VFR is unchanged",
+          "[conformance][intention][persist][departure]") {
+    load_de_profile();
+    auto ctx = tower_departure_ctx();
+    atc_state_machine::set_state(atc_state_machine::ATCState::TOWER_CONTACT);
+
+    auto resp = atc_state_machine::process(
+        ready_for_departure(PilotIntent::READY_FOR_DEPARTURE_VFR), ctx, 100.0);
+
+    REQUIRE(resp.text.find("Frequenzwechsel") != std::string::npos);
+    REQUIRE(atc_state_machine::state_name(atc_state_machine::get_state()) ==
+            std::string("XC/DEPARTURE_CLEARED"));
+}
+
 // ── Tower-only first contact: INITIAL_CALL_TOWER -> INITIAL_CALL_GROUND ──
 //
 // At a tower-only field the corrected GROUND hint renders {taxi_controller}

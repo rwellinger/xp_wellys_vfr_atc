@@ -241,15 +241,27 @@ std::map<std::string, std::string> build_vars(const PilotMessage &msg,
   // VFR departure call: a leading-comma fragment only when a cross-country
   // destination is set, empty otherwise — so the empty case reads as the
   // speakable "... abflugbereit" with NO "nach Plan" placeholder.
-  // Spoken ICAO destination (msg.destination, e.g. "EDMA") takes precedence
-  // over the pre-flight field; either presence implies a cross-country flight.
+  // Three-tier precedence (NfL 2024 1.4.7 — the destination is stated once
+  // on the taxi/initial call, then the tower remembers it):
+  //   1. msg.destination  — extracted from THIS utterance (most specific)
+  //   2. session intent   — latched by an earlier transmission this flight,
+  //                          so a destination-less READY_FOR_DEPARTURE keeps
+  //                          the cross-country intention (the bug this fixes)
+  //   3. settings::vfr_*   — the pre-flight Flugvorbereitung field (fallback)
   // The ICAO is expanded phonetically so TTS speaks it letter-by-letter
   // ("EDMA" -> "Echo Delta Mike Alfa") instead of as a word.
-  const std::string vfr_dest =
-      !msg.destination.empty() ? msg.destination : settings::vfr_destination();
-  const bool cross_country =
-      !msg.destination.empty() ||
-      (settings::vfr_flight_type() == "cross_country");
+  std::string vfr_dest;
+  bool cross_country;
+  if (!msg.destination.empty()) {
+    vfr_dest = msg.destination;
+    cross_country = true;
+  } else if (atc_state_machine::flight_intent_declared()) {
+    cross_country = atc_state_machine::flight_intent_cross_country();
+    vfr_dest = atc_state_machine::flight_intent_destination();
+  } else {
+    cross_country = (settings::vfr_flight_type() == "cross_country");
+    vfr_dest = settings::vfr_destination();
+  }
   const std::string dest_spoken =
       vfr_dest.empty() ? "" : de_phraseology::expand_callsign_phonetic(vfr_dest);
   std::string intention;

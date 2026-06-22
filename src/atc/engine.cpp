@@ -436,29 +436,32 @@ void process_transcript(Input in, Done done) {
                    parsed.callsign.empty() ? "(none)"
                                            : parsed.callsign.c_str());
 
-  // Spoken cross-country destination ("VFR nach <ICAO>"): persist (in-memory)
-  // so the hint panel and Flugvorbereitung preview reflect the declared
-  // flight without typing. The extractor only fires on a NATO-spelled ICAO
-  // after a "nach"/"richtung" anchor, so this is safe to apply regardless of
-  // the (possibly pre-LM UNKNOWN) intent. No disk save here — the engine is
-  // SDK-free; the UI field flushes settings on edit.
+  // Declared VFR flight intent (NfL 2024 1.4.7): the pilot names the
+  // destination/intent ONCE on the taxi/initial-ground call, not on every
+  // follow-up transmission. Latch it into the per-flight session state so
+  // build_vars() remembers it for the rest of the flight instead of
+  // falling back to "pattern" on a destination-less READY_FOR_DEPARTURE
+  // (which would wrongly answer "Melden Sie Gegenanflug"). The extractor
+  // only fires on a NATO-spelled ICAO after a "nach"/"richtung" anchor,
+  // so this is safe to apply regardless of the (possibly pre-LM UNKNOWN)
+  // intent. Session state, not settings: cleared on init/stop/reset, never
+  // persisted across flights. The snapshot guard captures/restores it with
+  // the rest of g_state, so a TTS failure rolls the latch back too.
   if (!parsed.destination.empty()) {
-    settings::set_vfr_flight_type("cross_country");
-    settings::set_vfr_destination(parsed.destination);
+    atc_state_machine::set_flight_intent_cross_country(parsed.destination);
     if (settings::debug_logging())
-      logging::debug("Cross-country destination set from speech: %s",
+      logging::debug("Cross-country flight intent latched from speech: %s",
                      parsed.destination.c_str());
   } else if (to_lower_copy(in.transcript).find("platzrunde") !=
              std::string::npos) {
-    // Spoken "Platzrunde": flip the declared flight type back to pattern. A
-    // destination extracted this utterance is more specific and wins (handled
-    // above), so only apply when none was found. Lets the pilot verbally
-    // switch a previously-declared cross-country flight back to a pattern
-    // flight without touching the Flugvorbereitung tab.
-    settings::set_vfr_flight_type("pattern");
-    settings::set_vfr_destination("");
+    // Spoken "Platzrunde": latch a pattern flight. A destination extracted
+    // this utterance is more specific and wins (handled above), so only
+    // apply when none was found. Lets the pilot verbally switch a
+    // previously-declared cross-country flight back to a pattern flight
+    // without touching the Flugvorbereitung tab.
+    atc_state_machine::set_flight_intent_pattern();
     if (settings::debug_logging())
-      logging::debug("Pattern flight type set from speech: 'Platzrunde'");
+      logging::debug("Pattern flight intent latched from speech: 'Platzrunde'");
   }
 
   // Traffic dialog short-circuit. When the controller is awaiting a

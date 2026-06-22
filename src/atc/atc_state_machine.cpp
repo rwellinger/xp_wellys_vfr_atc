@@ -148,6 +148,18 @@ struct AtcMachineState {
 
   internal::DepartureType departure_type_ = internal::DepartureType::PATTERN;
 
+  // Declared VFR flight intent (NfL 2024 1.4.7) — see header. The pilot
+  // names destination/intent once on the taxi/initial-ground call;
+  // build_vars() reads this for the rest of the flight instead of
+  // re-deriving it from every utterance. flight_intent_declared_ stays
+  // false until stated on the radio, so the build_vars fallback to the
+  // pre-flight settings::vfr_* field is untouched for silent flights.
+  // Distinct from departure_type_, which discriminates the POST-takeoff
+  // Pattern/XC flow after DEPARTURE_CLEARED. Cleared in init/stop/reset.
+  bool flight_intent_declared_ = false;
+  bool flight_intent_cross_country_ = false;
+  std::string flight_intent_destination_;
+
   // Bounded chronological log of state transitions. Front = oldest,
   // back = most recent past state. Filled by transition_to(); read
   // by downstream consumers (LM-classify prompt, hint filter, intent
@@ -366,6 +378,9 @@ void init() {
   g_state.assigned_runway_.clear();
   g_state.session_callsign_.clear();
   g_state.departure_type_ = internal::DepartureType::PATTERN;
+  g_state.flight_intent_declared_ = false;
+  g_state.flight_intent_cross_country_ = false;
+  g_state.flight_intent_destination_.clear();
   g_state.history_.clear();
   g_state.last_now_secs_ = 0.0;
   g_state.last_clearance_text_.clear();
@@ -391,6 +406,9 @@ void stop() {
   g_state.assigned_runway_.clear();
   g_state.session_callsign_.clear();
   g_state.departure_type_ = internal::DepartureType::PATTERN;
+  g_state.flight_intent_declared_ = false;
+  g_state.flight_intent_cross_country_ = false;
+  g_state.flight_intent_destination_.clear();
   g_state.history_.clear();
   g_state.last_now_secs_ = 0.0;
   g_state.last_clearance_text_.clear();
@@ -407,6 +425,9 @@ void reset() {
   g_state.assigned_runway_.clear();
   g_state.session_callsign_.clear();
   g_state.departure_type_ = internal::DepartureType::PATTERN;
+  g_state.flight_intent_declared_ = false;
+  g_state.flight_intent_cross_country_ = false;
+  g_state.flight_intent_destination_.clear();
   crosscountry_flow::reset();
   g_state.history_.clear();
   g_state.last_now_secs_ = 0.0;
@@ -513,6 +534,32 @@ void set_state(ATCState state) {
 const std::string &assigned_runway() { return g_state.assigned_runway_; }
 
 const std::string &session_callsign() { return g_state.session_callsign_; }
+
+void set_flight_intent_cross_country(const std::string &destination) {
+  assert_flight_loop_thread();
+  bump_gen();
+  g_state.flight_intent_declared_ = true;
+  g_state.flight_intent_cross_country_ = true;
+  g_state.flight_intent_destination_ = destination;
+}
+
+void set_flight_intent_pattern() {
+  assert_flight_loop_thread();
+  bump_gen();
+  g_state.flight_intent_declared_ = true;
+  g_state.flight_intent_cross_country_ = false;
+  g_state.flight_intent_destination_.clear();
+}
+
+bool flight_intent_declared() { return g_state.flight_intent_declared_; }
+
+bool flight_intent_cross_country() {
+  return g_state.flight_intent_cross_country_;
+}
+
+const std::string &flight_intent_destination() {
+  return g_state.flight_intent_destination_;
+}
 
 std::string effective_runway(const xplane_context::XPlaneContext &ctx) {
   return g_state.assigned_runway_.empty() ? ctx.active_runway
@@ -794,6 +841,22 @@ ATCResponse process(const intent_parser::PilotMessage &msg_in,
   // downstream guard, the conformance check and the template lookup then see
   // the effective intent uniformly.
   intent_parser::PilotMessage msg = msg_in;
+
+  // Cross-country departure promotion (NfL 2024 1.4.7 — destination stated
+  // once). A pilot who declared a cross-country flight on first contact and
+  // now calls a bare "abflugbereit" (no course marker repeated) parses as the
+  // pattern READY_FOR_DEPARTURE. Without this the tower issues the pattern
+  // departure ("melden Sie im Gegenanflug") and the post-takeoff flow expects
+  // a pattern. Rewrite to the VFR variant so the latched session intent drives
+  // the clearance template, next_state AND departure_type_ uniformly. A pattern
+  // flight (declared or default) is left untouched. Phase/frequency guards are
+  // identical for both intents, so the rewrite triggers no different guard.
+  if (msg.intent == intent_parser::PilotIntent::READY_FOR_DEPARTURE &&
+      g_state.flight_intent_declared_ && g_state.flight_intent_cross_country_) {
+    msg.intent = intent_parser::PilotIntent::READY_FOR_DEPARTURE_VFR;
+    logging::info("Cross-country flight intent: promoted READY_FOR_DEPARTURE "
+                  "-> READY_FOR_DEPARTURE_VFR");
+  }
 
   // Airport-change reset is also done per-frame in check_airport_change();
   // this in-process call is a safety net.

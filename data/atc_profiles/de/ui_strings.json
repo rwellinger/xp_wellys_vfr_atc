@@ -18,6 +18,8 @@
   "btn.atc_panel": "ATC-Fenster",
   "btn.unlock": "Loesen",
   "btn.clear": "Loeschen",
+  "btn.copy": "Kopieren",
+  "btn.copied": "Kopiert!",
   "btn.cancel": "Abbrechen",
   "btn.download": "Herunterladen",
   "btn.download_all": "Alle fehlenden herunterladen",

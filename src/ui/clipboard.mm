@@ -26,4 +26,19 @@ std::string read_system_text() {
   }
 }
 
+void write_system_text(const std::string &text) {
+  if (text.empty())
+    return;
+  @autoreleasepool {
+    NSPasteboard *pb = [NSPasteboard generalPasteboard];
+    if (pb == nil)
+      return;
+    NSString *s = [NSString stringWithUTF8String:text.c_str()];
+    if (s == nil)
+      return;
+    [pb clearContents];
+    [pb setString:s forType:NSPasteboardTypeString];
+  }
+}
+
 } // namespace ui::clipboard
