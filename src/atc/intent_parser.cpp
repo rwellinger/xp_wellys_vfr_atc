@@ -555,6 +555,10 @@ const char *intent_name(PilotIntent intent) {
     return "TRAFFIC_LOOKING";
   case PilotIntent::REQUEST_REPEAT:
     return "REQUEST_REPEAT";
+  case PilotIntent::RMZ_ENTER:
+    return "RMZ_ENTER";
+  case PilotIntent::RMZ_LEAVE:
+    return "RMZ_LEAVE";
   }
   return "UNKNOWN";
 }
@@ -602,6 +606,8 @@ PilotIntent intent_from_key(const std::string &key) {
       {"TRAFFIC_NEGATIVE_CONTACT", PilotIntent::TRAFFIC_NEGATIVE_CONTACT},
       {"TRAFFIC_LOOKING", PilotIntent::TRAFFIC_LOOKING},
       {"REQUEST_REPEAT", PilotIntent::REQUEST_REPEAT},
+      {"RMZ_ENTER", PilotIntent::RMZ_ENTER},
+      {"RMZ_LEAVE", PilotIntent::RMZ_LEAVE},
   };
   auto it = kMap.find(key);
   return it != kMap.end() ? it->second : PilotIntent::UNKNOWN;

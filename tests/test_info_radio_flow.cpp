@@ -16,6 +16,7 @@
 #include "atc/atc_templates.hpp"
 #include "atc/flows/ground_operations.hpp"
 #include "atc/intent_parser.hpp"
+#include "atc/intent_rules.hpp"
 #include "core/xplane_context.hpp"
 #include "persistence/settings.hpp"
 
@@ -58,6 +59,12 @@ bool has(const std::string &haystack, const std::string &needle) {
 PilotMessage inbound_msg() {
     PilotMessage msg;
     msg.intent = PilotIntent::INITIAL_CALL_INBOUND;
+    return msg;
+}
+
+PilotMessage msg_with(PilotIntent intent) {
+    PilotMessage msg;
+    msg.intent = intent;
     return msg;
 }
 
@@ -123,4 +130,92 @@ TEST_CASE("info-flow: UNICOM call is unchanged (still 'Verkehr <Platz>')",
     REQUIRE(has(resp.text, "Verkehr Schwaebisch Hall"));
     REQUIRE_FALSE(has(resp.text, "Radio"));
     REQUIRE_FALSE(has(resp.text, "Information"));
+}
+
+// ── RMZ (Funkkommunikationspflichtgebiet) — NfL 2024 ANLAGE 7.4 a)/b) ────────
+// Testroute EDNY -> EDTY: EDTY hat RMZ + AFIS/Info. INFO ist advisorisch
+// (Para 35) -> keine Freigabe, kein Readback. RMZ_ENTER bleibt IDLE,
+// RMZ_LEAVE (Transit) -> EN_ROUTE.
+
+TEST_CASE("rmz: RMZ-Einflug-Utterance -> RMZ_ENTER (NfL 7.4 a)",
+          "[rmz][info][de][flow]") {
+    DeProfileGuard g;
+    intent_rules::reload(); // ensure the DE rule table (RMZ rules) is loaded
+    atc_state_machine::init();
+
+    auto ctx = info_ctx(FT::INFO);
+    auto m = intent_parser::parse(
+        "Schwaebisch Hall Information, DA20 Delta Echo Romeo Kilo Lima, "
+        "noerdlich Crailsheim, VFR, zwei tausend Fuss, werde in RMZ "
+        "einfliegen zur Landung in Schwaebisch Hall.",
+        ctx);
+    REQUIRE(m.intent == PilotIntent::RMZ_ENTER);
+    REQUIRE(m.confidence >= 0.85f);
+}
+
+TEST_CASE("rmz: RMZ-Verlassen-Utterance -> RMZ_LEAVE (NfL 7.4 b)",
+          "[rmz][info][de][flow]") {
+    DeProfileGuard g;
+    intent_rules::reload(); // ensure the DE rule table (RMZ rules) is loaded
+    atc_state_machine::init();
+
+    auto ctx = info_ctx(FT::INFO);
+    auto m = intent_parser::parse(
+        "Verlasse RMZ, noerdlich Crailsheim, zwei tausend Fuss, "
+        "Echo Romeo Kilo Lima.",
+        ctx);
+    REQUIRE(m.intent == PilotIntent::RMZ_LEAVE);
+    REQUIRE(m.confidence >= 0.85f);
+}
+
+TEST_CASE("rmz: RMZ_ENTER on INFO -> advisory, no clearance, stays IDLE",
+          "[rmz][info][de][flow]") {
+    DeProfileGuard g;
+    atc_state_machine::init();
+    atc_templates::reload();
+
+    auto ctx = info_ctx(FT::INFO);
+    ATCResponse resp;
+    REQUIRE(ground_ops::handle_info_flow(msg_with(PilotIntent::RMZ_ENTER), ctx,
+                                         resp));
+
+    REQUIRE(has(resp.text, "Schwaebisch Hall Information"));
+    // INFO/AFIS is advisory only: no landing clearance, no readback.
+    REQUIRE_FALSE(has(resp.text, "frei zur Landung"));
+    REQUIRE(resp.next_state == ATCState::IDLE);
+    REQUIRE_FALSE(resp.requires_readback);
+}
+
+TEST_CASE("rmz: RMZ_LEAVE on INFO -> acknowledged, transitions to EN_ROUTE",
+          "[rmz][info][de][flow]") {
+    DeProfileGuard g;
+    atc_state_machine::init();
+    atc_templates::reload();
+
+    auto ctx = info_ctx(FT::INFO);
+    ATCResponse resp;
+    REQUIRE(ground_ops::handle_info_flow(msg_with(PilotIntent::RMZ_LEAVE), ctx,
+                                         resp));
+
+    REQUIRE(has(resp.text, "Schwaebisch Hall Information"));
+    REQUIRE(resp.next_state == ATCState::EN_ROUTE);
+    REQUIRE_FALSE(resp.requires_readback);
+}
+
+TEST_CASE("rmz: AFIS/INFO never issues a landing clearance (NfL Para 35)",
+          "[rmz][info][de][flow]") {
+    DeProfileGuard g;
+    atc_state_machine::init();
+    atc_templates::reload();
+
+    auto ctx = info_ctx(FT::INFO);
+    ATCResponse resp;
+    // REQUEST_LANDING has no INFO template -> falls to _INVALID, never a
+    // clearance. Pilot lands on own responsibility, which is NfL-correct.
+    REQUIRE(ground_ops::handle_info_flow(msg_with(PilotIntent::REQUEST_LANDING),
+                                         ctx, resp));
+    REQUIRE_FALSE(has(resp.text, "frei zur Landung"));
+    REQUIRE_FALSE(has(resp.text, "cleared to land"));
+    REQUIRE(resp.next_state != ATCState::LANDING_CLEARED);
+    REQUIRE_FALSE(resp.requires_readback);
 }

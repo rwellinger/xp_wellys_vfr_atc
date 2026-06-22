@@ -47,6 +47,9 @@
     { "intent": "REQUEST_REPEAT", "confidence": 0.95, "any": ["wiederholen sie", "sagen sie nochmals", "sagen sie noch einmal", "say again", "noch einmal bitte", "noch mal bitte"] },
     { "intent": "GO_AROUND",   "confidence": 0.95, "any": ["durchstarten", "durchstart", "fehlanflug"] },
 
+    { "_note": "NfL ANLAGE 7.4 a) RMZ-Einflug/-Durchflug. 'rmz'-Anker macht es kollisionsfrei zu INITIAL_CALL_INBOUND (verlangt has_facility turm).", "intent": "RMZ_ENTER", "confidence": 0.9, "any": ["werde in rmz einfliegen", "werde rmz durchfliegen", "in rmz einfliegen", "rmz einfliegen", "rmz durchfliegen"] },
+    { "_note": "NfL ANLAGE 7.4 b) RMZ-Verlassen. Kein 'frequenz'/'wiederhoeren' -> kollisionsfrei zu LEAVING_FREQUENCY.", "intent": "RMZ_LEAVE", "confidence": 0.9, "any": ["verlasse rmz", "rmz verlassen"] },
+
     {
       "_note": "Pilot-initiated frequency change announcement.",
       "intent": "LEAVING_FREQUENCY",

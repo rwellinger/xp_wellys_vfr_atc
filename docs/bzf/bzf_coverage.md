@@ -220,8 +220,8 @@ VATSIM Germany PHR02-Modul, bzf-kurs.de, bzf-lehrgang.de, Wikipedia ICAO-Alphabe
 
 | # | Pflichtelement | NfL-Wortlaut (Anker) | Im DE-Profil? | Wo (file:line) | Bucket / Prio |
 |---|---|---|---|---|---|
-| 16.1 | RMZ-Einflug-Meldung: „(LFZ-Muster) (Position) (Flugregeln) (Ziffern) FUSS, WERDE IN RMZ EINFLIEGEN / WERDE RMZ DURCHFLIEGEN (Strecke) [ZUR LANDUNG] [IN (Flugplatz)]" | ANLAGE 7.4 *a) | ✗ | — | **B** / M — VFR-relevant; eigenes Intent + Template |
-| 16.2 | RMZ-Verlassen-Meldung: „VERLASSE RMZ (Position) (Ziffern) FUSS" | ANLAGE 7.4 *b) | ✗ | — | **B** / M |
+| 16.1 | RMZ-Einflug-Meldung: „(LFZ-Muster) (Position) (Flugregeln) (Ziffern) FUSS, WERDE IN RMZ EINFLIEGEN / WERDE RMZ DURCHFLIEGEN (Strecke) [ZUR LANDUNG] [IN (Flugplatz)]" | ANLAGE 7.4 *a) | ◐ | `RMZ_ENTER`: `intent_rules.json` + `atc_templates.json` (uncontrolled/INFO) + `handle_info_flow()` (advisory, kein Clearance, next_state IDLE). ATC-Antwort NfL-silent → Info-Stil extrapoliert | **B** / M — VFR-relevant; nur INFO/AFIS modelliert |
+| 16.2 | RMZ-Verlassen-Meldung: „VERLASSE RMZ (Position) (Ziffern) FUSS" | ANLAGE 7.4 *b) | ◐ | `RMZ_LEAVE`: `intent_rules.json` + `atc_templates.json` (uncontrolled/INFO, next_state EN_ROUTE) + `handle_info_flow()`. Transit-Pilot → EN_ROUTE | **B** / M |
 | 16.3 | ATS-Dienststellen-Suffixe — deutsche Bezeichnungen: TURM, ROLLKONTROLLE, ANLASSKONTROLLE, ANFLUGKONTROLLE, RADAR, INFORMATION, RADIO (UNICOM mit Flugleiter), SEGELFLUG, RÜCKHOLER | §34 b); §35 | ◐ | INFORMATION/RADIO jetzt modelliert: apt.dat-Code-1054-Namenssuffix wird zu `FrequencyType::INFO`/`RADIO` klassifiziert, eigener beratender `handle_info_flow()` (keine Freigaben), Rufname „<Platz> Information"/„<Platz> Radio" via `{station}`. TURM/ROLLKONTROLLE/ANFLUGKONTROLLE weiterhin englisch (Stilfrage, NfL erlaubt beide) | **B** / N — Tower-Suffix offen; Info/Radio abgedeckt |
 
 ---
@@ -299,7 +299,7 @@ Simulation-Mode. Phase-1-Korrekturen sind committed; Tests grün (235 Catch2 / 4
 | 7.2 Pisten-Verlassen mit Richtung | Neues Verhalten („ERSTE/ZWEITE/PASSENDE LINKS/RECHTS"); braucht neue Variable + Engine-Logik → eher Bucket A. |
 | 12.7–12.10 SQUAWK-Tokens | Neue Intents (REQUEST_SQUAWK/SQUAWK_ASSIGNMENT) + Readback-Validierung → eigener Mini-PR |
 | 14.3 QNH „Hektopascal"-Suffix | Strittig (NfL listet ihn nicht, aber verbreitet); beim Community-Review klären |
-| 16.1/16.2 RMZ-Phrasen | Neue Intents + Templates → eigener Mini-PR (Spezial-Luftraum) |
+| 16.1/16.2 RMZ-Phrasen | ✅ Phase 2C umgesetzt — `RMZ_ENTER`/`RMZ_LEAVE` Intents + INFO-Templates + `handle_info_flow`; advisory (NfL §7.4/§35), nur INFO/AFIS-Plätze |
 
 ### Bucket C — N-Callsign-Pipeline-Verify ✅ abgeschlossen 2026-06-05
 

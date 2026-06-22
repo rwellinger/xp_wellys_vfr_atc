@@ -58,7 +58,7 @@
         "requires_readback": true
       },
       "READY_FOR_DEPARTURE_VFR": {
-        "response": "{callsign}, {airport} Tower, Piste {runway}, Start frei, Wind {wind}, Kurs nach Plan freigegeben, Frequenzwechsel nach Start genehmigt.",
+        "response": "{callsign}, {airport} Tower, Piste {runway}, Start frei, Wind {wind}, Frequenzwechsel nach Start genehmigt.",
         "next_state": "XC/DEPARTURE_CLEARED",
         "requires_readback": true
       },
@@ -139,7 +139,7 @@
         "requires_readback": true
       },
       "READY_FOR_DEPARTURE_VFR": {
-        "response": "{callsign}, Piste {runway}, Start frei, Wind {wind}, Kurs nach Plan freigegeben, Frequenzwechsel nach Start genehmigt.",
+        "response": "{callsign}, Piste {runway}, Start frei, Wind {wind}, Frequenzwechsel nach Start genehmigt.",
         "next_state": "XC/DEPARTURE_CLEARED",
         "requires_readback": true
       },
@@ -486,6 +486,17 @@
       "REPORT_POSITION_FINAL": {
         "response": "{callsign}, {station}, Wind {wind}, Landung auf eigene Verantwortung.",
         "next_state": "IDLE",
+        "requires_readback": false
+      },
+      "_comment_rmz": "RMZ-Phrasen NfL 2024 ANLAGE 7.4 a)/b). INFO/AFIS ist advisorisch (Para 35), keine Freigabe, kein Readback. ATC-Antwortwortlaut von NfL nicht vorgegeben -> extrapoliert im Info-Stil. RMZ_ENTER bleibt IDLE (Folgemeldungen Gegenanflug/Base/Final advisorisch im INFO-Block); RMZ_LEAVE -> EN_ROUTE (Transit-Pilot setzt Ueberlandflug fort).",
+      "RMZ_ENTER": {
+        "response": "{callsign}, {station}, Piste {runway} in Betrieb, QNH {qnh}, kein gemeldeter Verkehr, melden Sie Gegenanflug.",
+        "next_state": "IDLE",
+        "requires_readback": false
+      },
+      "RMZ_LEAVE": {
+        "response": "{callsign}, {station}, verstanden, auf Wiederhoeren.",
+        "next_state": "EN_ROUTE",
         "requires_readback": false
       },
       "LEAVING_FREQUENCY": {

@@ -435,8 +435,11 @@ bool handle_info_flow(const PilotMessage &msg, const XPlaneContext &ctx,
   // no atc_templates::lookup() signature change needed.
   auto tmpl = atc_templates::lookup(false, "INFO", intent_key);
   resp.text = atc_templates::fill(tmpl.response_template, vars);
-  resp.next_state = ATCState::IDLE;
-  internal::transition_to(ATCState::IDLE, "info_flow_idle");
+  // Honor the template's next_state so advisory transit phrases can move the
+  // dialog (RMZ_LEAVE -> EN_ROUTE). Existing INFO templates all carry "IDLE",
+  // so this is byte-identical for every pre-RMZ intent. Empty/unknown -> IDLE.
+  resp.next_state = atc_state_machine::state_from_name(tmpl.next_state);
+  internal::transition_to(resp.next_state, "info_flow");
   return true;
 }
 
