@@ -27,6 +27,7 @@ add_executable(xp_wellys_devfr_atc_tests
     test_intent_parser_de.cpp
     test_intent_rules_runway_vacated_veto.cpp
     test_post_landing_idle.cpp
+    test_prompt_whitelist_drift.cpp
     test_atis_generator_de.cpp
     test_de_phraseology.cpp
     test_bzf_compliance.cpp
