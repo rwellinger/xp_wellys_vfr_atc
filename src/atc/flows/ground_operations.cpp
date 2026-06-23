@@ -517,6 +517,16 @@ void apply_state_frequency_validity(const XPlaneContext &ctx) {
 }
 
 void apply_frequency_auto_corrections(const XPlaneContext &ctx) {
+  using FT = xplane_context::FrequencyType;
+  // Tower-only fields have no Ground frequency: the pilot is on TOWER from the
+  // first contact, so "on TOWER while in GROUND_CONTACT" is the normal state,
+  // not a tuned-ahead signal. Frequency-based advancement must stay inert here;
+  // the GROUND_CONTACT -> ... -> TAXI_CLEARED -> TOWER_CONTACT path is driven by
+  // REQUEST_TAXI + tower_only_auto_advance instead (NfL 1.4.7 a): ERBITTE ROLLEN
+  // is mandatory before the taxi clearance). Mirrors the carve-out in
+  // apply_state_frequency_validity().
+  if (ctx.tower_only && ctx.frequency_type == FT::TOWER)
+    return;
   ATCState cur = internal::get_state_ref();
   std::string current_state = state_name(cur);
   auto *fc = flight_phase::get_frequency_auto_corrections(current_state);

@@ -20,6 +20,7 @@
 
 #include "atc/atc_templates.hpp"
 #include "atc/atc_state_machine.hpp"
+#include "atc/flight_phase.hpp"
 #include "atc/flows/ground_operations.hpp"
 #include "atc/intent_parser.hpp"
 #include "core/xplane_context.hpp"
@@ -129,4 +130,50 @@ TEST_CASE("post-landing-idle: non-IDLE state is unaffected by the post_landing "
     auto fresh = atc_templates::valid_intents(true, "GROUND_CONTACT", false);
     auto landed = atc_templates::valid_intents(true, "GROUND_CONTACT", true);
     REQUIRE(fresh == landed);
+}
+
+// ── 3. Tower-only: freq auto-correction must NOT skip the taxi step ──
+//
+// Issue #10: at a tower-only field there is no Ground frequency, so the pilot
+// is on TOWER from first contact. The GROUND_CONTACT -> TOWER_CONTACT
+// "pilot tuned Tower" auto-correction (flight_rules.json) must stay inert here,
+// otherwise the ATIS readback after the collapsed first contact jumps straight
+// to TOWER_CONTACT and skips REQUEST_TAXI / TAXI_CLEARED (NfL 1.4.7 a):
+// ERBITTE ROLLEN is mandatory before the taxi clearance).
+
+TEST_CASE("tower-only: freq auto-correction does NOT advance GROUND_CONTACT to "
+          "TOWER_CONTACT (issue #10)",
+          "[idle][de][tower_only][freq_auto_correction]") {
+    using FT = xplane_context::FrequencyType;
+    DeProfileGuard g;
+    atc_state_machine::init();
+    flight_phase::reload();
+    atc_state_machine::set_state(ATCState::GROUND_CONTACT);
+
+    auto ctx = tower_only_ground_ctx();
+    ctx.frequency_type = FT::TOWER; // tower-only: the only controller freq
+
+    ground_ops::apply_frequency_auto_corrections(ctx);
+
+    REQUIRE(atc_state_machine::get_state() == ATCState::GROUND_CONTACT);
+}
+
+TEST_CASE("normal towered field: freq auto-correction still advances "
+          "GROUND_CONTACT to TOWER_CONTACT (non-regression)",
+          "[idle][de][tower_only][freq_auto_correction]") {
+    using FT = xplane_context::FrequencyType;
+    DeProfileGuard g;
+    atc_state_machine::init();
+    flight_phase::reload();
+    atc_state_machine::set_state(ATCState::GROUND_CONTACT);
+
+    xplane_context::XPlaneContext ctx;
+    ctx.on_ground = true;
+    ctx.is_towered_airport = true;
+    ctx.tower_only = false; // separate Ground + Tower controllers
+    ctx.frequency_type = FT::TOWER;
+
+    ground_ops::apply_frequency_auto_corrections(ctx);
+
+    REQUIRE(atc_state_machine::get_state() == ATCState::TOWER_CONTACT);
 }
