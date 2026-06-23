@@ -19,7 +19,7 @@ namespace {
 xplane_context::XPlaneContext make_ctx_on_ground() {
   xplane_context::XPlaneContext ctx{};
   ctx.on_ground = true;
-  ctx.is_towered_airport = true;
+  ctx.facility_type = xplane_context::FacilityType::TOWERED;
   ctx.nearest_airport_id = "LSZG";
   return ctx;
 }

@@ -135,12 +135,12 @@ static void populate_ctx_from_cache(const std::string &icao,
   auto freq_it = freq_cache_.find(icao);
   if (freq_it != freq_cache_.end()) {
     ctx.airport_freqs = freq_it->second;
-    ctx.is_towered_airport = ctx.airport_freqs.has(FrequencyType::TOWER);
-    ctx.tower_only = ctx.is_towered_airport && !ctx.airport_freqs.has_ground();
+    ctx.facility_type = classify_facility(ctx.airport_freqs);
+    ctx.tower_only = ctx.is_towered() && !ctx.airport_freqs.has_ground();
     ctx.atis_freq_mhz = ctx.airport_freqs.first_mhz(FrequencyType::ATIS);
   } else {
     ctx.airport_freqs = {};
-    ctx.is_towered_airport = false;
+    ctx.facility_type = FacilityType::UNKNOWN;
     ctx.tower_only = false;
     ctx.atis_freq_mhz = 0.0f;
   }
@@ -812,18 +812,18 @@ void update() {
       ctx.nearest_airport_name =
           (name_it != name_cache_.end()) ? name_it->second : "";
 
-      // Lookup in frequency + runway cache (default towered until cache ready)
+      // Lookup in frequency + runway cache. facility_type stays UNKNOWN until
+      // the cache is ready (empty hints panel rather than a wrong guess).
       if (towered_cache_ready_) {
         auto freq_it = freq_cache_.find(ctx.nearest_airport_id);
         if (freq_it != freq_cache_.end()) {
           ctx.airport_freqs = freq_it->second;
-          ctx.is_towered_airport = ctx.airport_freqs.has(FrequencyType::TOWER);
-          ctx.tower_only =
-              ctx.is_towered_airport && !ctx.airport_freqs.has_ground();
+          ctx.facility_type = classify_facility(ctx.airport_freqs);
+          ctx.tower_only = ctx.is_towered() && !ctx.airport_freqs.has_ground();
           ctx.atis_freq_mhz = ctx.airport_freqs.first_mhz(FrequencyType::ATIS);
         } else {
           ctx.airport_freqs = {};
-          ctx.is_towered_airport = false;
+          ctx.facility_type = FacilityType::UNKNOWN;
           ctx.tower_only = false;
           ctx.atis_freq_mhz = 0.0f;
         }
@@ -838,12 +838,12 @@ void update() {
           ctx.active_runway.clear();
         }
       } else {
-        ctx.is_towered_airport = true;
+        ctx.facility_type = FacilityType::UNKNOWN;
       }
     } else {
       ctx.nearest_airport_id = "";
       ctx.geometric_nearest_id = "";
-      ctx.is_towered_airport = false;
+      ctx.facility_type = FacilityType::UNKNOWN;
       ctx.tower_only = false;
       ctx.airport_freqs = {};
       ctx.airport_lat = 0.0;
@@ -873,11 +873,12 @@ void update() {
         std::snprintf(
             dbg, sizeof(dbg),
             "[xp_wellys_devfr_atc][DEBUG] COM%d: %.3f MHz -> %s | Airport: %s "
-            "(%zu freqs, ATIS=%.3f, tower_only=%d)\n",
+            "(%zu freqs, ATIS=%.3f, facility=%s, tower_only=%d)\n",
             ctx.active_com, active_freq,
             frequency_type_name(ctx.frequency_type),
             ctx.nearest_airport_id.c_str(), ctx.airport_freqs.all.size(),
-            ctx.atis_freq_mhz, ctx.tower_only ? 1 : 0);
+            ctx.atis_freq_mhz, facility_type_name(ctx.facility_type),
+            ctx.tower_only ? 1 : 0);
         XPLMDebugString(dbg);
       }
     }

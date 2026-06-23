@@ -99,7 +99,7 @@ static xplane_context::XPlaneContext default_ctx() {
   xplane_context::XPlaneContext ctx;
   ctx.nearest_airport_id = "LSZH";
   ctx.nearest_airport_name = "Zurich";
-  ctx.is_towered_airport = true;
+  ctx.facility_type = xplane_context::FacilityType::TOWERED;
   ctx.on_ground = true;
   ctx.com1_freq_mhz = 121.800f;
   ctx.active_com = 1;

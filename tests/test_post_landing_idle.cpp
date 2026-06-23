@@ -47,7 +47,7 @@ struct DeProfileGuard {
 xplane_context::XPlaneContext tower_only_ground_ctx() {
     xplane_context::XPlaneContext ctx;
     ctx.on_ground = true;
-    ctx.is_towered_airport = true;
+    ctx.facility_type = xplane_context::FacilityType::TOWERED;
     ctx.tower_only = true;
     return ctx;
 }
@@ -169,7 +169,7 @@ TEST_CASE("normal towered field: freq auto-correction still advances "
 
     xplane_context::XPlaneContext ctx;
     ctx.on_ground = true;
-    ctx.is_towered_airport = true;
+    ctx.facility_type = xplane_context::FacilityType::TOWERED;
     ctx.tower_only = false; // separate Ground + Tower controllers
     ctx.frequency_type = FT::TOWER;
 

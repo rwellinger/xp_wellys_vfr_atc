@@ -47,7 +47,7 @@ void load_de_profile() {
 // check.
 xplane_context::XPlaneContext ground_ctx() {
     xplane_context::XPlaneContext ctx{};
-    ctx.is_towered_airport = true;
+    ctx.facility_type = xplane_context::FacilityType::TOWERED;
     ctx.on_ground = true;
     ctx.frequency_type = xplane_context::FrequencyType::GROUND;
     ctx.nearest_airport_id = "EDNY";

@@ -25,6 +25,7 @@ add_executable(xp_wellys_devfr_atc_tests
     module_reset_listener.cpp
     test_smoke.cpp
     test_frequency_classification.cpp
+    test_facility_classification.cpp
     test_info_radio_flow.cpp
     test_intent_parser.cpp
     test_intent_parser_de.cpp

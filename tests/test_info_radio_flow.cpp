@@ -44,7 +44,7 @@ struct DeProfileGuard {
 xplane_context::XPlaneContext info_ctx(FT freq) {
     xplane_context::XPlaneContext ctx;
     ctx.on_ground = false;
-    ctx.is_towered_airport = false; // no real Tower (1054 was named Info/Radio)
+    ctx.facility_type = xplane_context::FacilityType::AFIS; // INFO/RADIO facility (1054 named Info/Radio)
     ctx.frequency_type = freq;
     ctx.nearest_airport_id = "EDTY";
     ctx.nearest_airport_name = "Schwaebisch Hall";

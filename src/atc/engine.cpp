@@ -299,7 +299,7 @@ struct CcBase {
 // offline "what was plausibly expected here" judgement. Read-only.
 static std::string expected_intents_csv(const xplane_context::XPlaneContext &ctx) {
   using FT = xplane_context::FrequencyType;
-  bool is_towered = ctx.is_towered_airport && ctx.frequency_type != FT::UNICOM &&
+  bool is_towered = ctx.is_towered() && ctx.frequency_type != FT::UNICOM &&
                     ctx.frequency_type != FT::CTAF &&
                     ctx.frequency_type != FT::INFO &&
                     ctx.frequency_type != FT::RADIO;
@@ -612,7 +612,7 @@ void process_transcript(Input in, Done done) {
   // reacts realistically (frequency guards, phase guards, _INVALID
   // templates).
   using FT = xplane_context::FrequencyType;
-  bool is_towered = ctx.is_towered_airport &&
+  bool is_towered = ctx.is_towered() &&
                     ctx.frequency_type != FT::UNICOM &&
                     ctx.frequency_type != FT::CTAF &&
                     ctx.frequency_type != FT::INFO &&

@@ -105,6 +105,30 @@ const char *frequency_type_name(FrequencyType ft) {
   return "Unknown";
 }
 
+const char *facility_type_name(FacilityType ft) {
+  switch (ft) {
+  case FacilityType::UNKNOWN:
+    return "Unknown";
+  case FacilityType::UNCONTROLLED:
+    return "Uncontrolled";
+  case FacilityType::TOWERED:
+    return "Towered";
+  case FacilityType::AFIS:
+    return "AFIS";
+  }
+  return "Unknown";
+}
+
+FacilityType classify_facility(const AirportFrequencies &freqs) {
+  if (freqs.has(FrequencyType::TOWER))
+    return FacilityType::TOWERED;
+  if (freqs.has(FrequencyType::INFO) || freqs.has(FrequencyType::RADIO))
+    return FacilityType::AFIS;
+  if (freqs.has(FrequencyType::UNICOM) || freqs.has(FrequencyType::CTAF))
+    return FacilityType::UNCONTROLLED;
+  return FacilityType::UNKNOWN;
+}
+
 FrequencyType classify_by_name(FrequencyType base, const std::string &name) {
   if (base != FrequencyType::TOWER)
     return base;

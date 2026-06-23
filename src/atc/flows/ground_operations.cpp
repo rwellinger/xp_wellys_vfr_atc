@@ -423,7 +423,7 @@ void apply_tower_only_initial_collapse(PilotMessage &msg,
 // to FrequencyType::INFO (see classify_by_name). Info gives traffic
 // information only — no clearances, no readback. NfL 2024 §34 b) / §35.
 // Must run BEFORE handle_unicom_flow() so INFO does not fall through the
-// generic "!is_towered_airport" branch there.
+// generic "!is_towered()" branch there.
 bool handle_info_flow(const PilotMessage &msg, const XPlaneContext &ctx,
                       ATCResponse &resp) {
   using FT = xplane_context::FrequencyType;
@@ -449,8 +449,7 @@ bool handle_unicom_flow(const PilotMessage &msg, const XPlaneContext &ctx,
   bool unicom_flow = ctx.frequency_type == FT::UNICOM ||
                      ctx.frequency_type == FT::CTAF ||
                      ctx.frequency_type == FT::RADIO ||
-                     (!ctx.is_towered_airport &&
-                      ctx.frequency_type != FT::INFO);
+                     (!ctx.is_towered() && ctx.frequency_type != FT::INFO);
   if (!unicom_flow)
     return false;
   auto vars = build_vars(msg, ctx);
@@ -470,7 +469,7 @@ bool handle_unicom_flow(const PilotMessage &msg, const XPlaneContext &ctx,
 bool handle_frequency_hint(const PilotMessage &msg, const XPlaneContext &ctx,
                            ATCResponse &resp) {
   using FT = xplane_context::FrequencyType;
-  if (ctx.frequency_type != FT::UNKNOWN || !ctx.is_towered_airport)
+  if (ctx.frequency_type != FT::UNKNOWN || !ctx.is_towered())
     return false;
   if (msg.intent == intent_parser::PilotIntent::READBACK)
     return false;

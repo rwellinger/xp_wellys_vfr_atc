@@ -69,7 +69,8 @@
 //   "intent_is_ground_only": true            → matched intent is one of the
 //                                              ground-only set (hardcoded)
 //   "on_ground": true|false                  → ctx.on_ground equality
-//   "is_towered": true|false                 → ctx.is_towered_airport equality
+//   "is_towered": true|false                 → ctx.is_towered() equality
+//                                              (true iff facility_type==TOWERED)
 //   "vrp_name_set": true                     → vrp_name non-empty
 //   "text_contains": "..."                   → preprocessed text substring
 //

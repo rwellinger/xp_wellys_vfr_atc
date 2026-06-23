@@ -14,6 +14,7 @@
 
 using atc_state_machine::ATCState;
 using flight_phase::FlightPhase;
+using xplane_context::FacilityType;
 using xplane_context::FrequencyType;
 
 namespace {
@@ -31,13 +32,13 @@ bool contains(const std::vector<std::string> &v, const std::string &needle) {
 }
 
 phraseology_hints::HintQuery make_query(ATCState state, FlightPhase phase,
-                                        bool is_towered, FrequencyType freq,
+                                        FacilityType facility, FrequencyType freq,
                                         bool tower_only = false,
                                         bool post_landing = false) {
   phraseology_hints::HintQuery q{};
   q.state = state;
   q.phase = phase;
-  q.is_towered = is_towered;
+  q.facility = facility;
   q.frequency_type = freq;
   q.tower_only = tower_only;
   q.post_landing = post_landing;
@@ -49,7 +50,7 @@ phraseology_hints::HintQuery make_query(ATCState state, FlightPhase phase,
 TEST_CASE("phraseology_hints: cold start IDLE+PARKED on Ground",
           "[phraseology_hints]") {
   LoadGuard g;
-  auto q = make_query(ATCState::IDLE, FlightPhase::PARKED, /*is_towered=*/true,
+  auto q = make_query(ATCState::IDLE, FlightPhase::PARKED, /*facility=*/FacilityType::TOWERED,
                       FrequencyType::GROUND);
   auto hints = phraseology_hints::lookup(q);
   REQUIRE(contains(hints, "INITIAL_CALL_GROUND"));
@@ -61,7 +62,7 @@ TEST_CASE("phraseology_hints: cold start IDLE+PARKED on Ground",
 TEST_CASE("phraseology_hints: tower-only IDLE+PARKED on Tower",
           "[phraseology_hints]") {
   LoadGuard g;
-  auto q = make_query(ATCState::IDLE, FlightPhase::PARKED, /*is_towered=*/true,
+  auto q = make_query(ATCState::IDLE, FlightPhase::PARKED, /*facility=*/FacilityType::TOWERED,
                       FrequencyType::TOWER, /*tower_only=*/true);
   auto hints = phraseology_hints::lookup(q);
   REQUIRE(contains(hints, "INITIAL_CALL_GROUND"));
@@ -71,7 +72,7 @@ TEST_CASE("phraseology_hints: tower-only IDLE+PARKED on Tower",
 TEST_CASE("phraseology_hints: 2-tier IDLE+PARKED on Tower yields no hints",
           "[phraseology_hints]") {
   LoadGuard g;
-  auto q = make_query(ATCState::IDLE, FlightPhase::PARKED, /*is_towered=*/true,
+  auto q = make_query(ATCState::IDLE, FlightPhase::PARKED, /*facility=*/FacilityType::TOWERED,
                       FrequencyType::TOWER, /*tower_only=*/false);
   auto hints = phraseology_hints::lookup(q);
   REQUIRE(hints.empty());
@@ -80,7 +81,7 @@ TEST_CASE("phraseology_hints: 2-tier IDLE+PARKED on Tower yields no hints",
 TEST_CASE("phraseology_hints: post-landing on Ground -> taxi to parking",
           "[phraseology_hints]") {
   LoadGuard g;
-  auto q = make_query(ATCState::IDLE, FlightPhase::TAXI, /*is_towered=*/true,
+  auto q = make_query(ATCState::IDLE, FlightPhase::TAXI, /*facility=*/FacilityType::TOWERED,
                       FrequencyType::GROUND, /*tower_only=*/false,
                       /*post_landing=*/true);
   auto hints = phraseology_hints::lookup(q);
@@ -93,7 +94,7 @@ TEST_CASE("phraseology_hints: GROUND_CONTACT awaiting taxi clearance",
           "[phraseology_hints]") {
   LoadGuard g;
   auto q = make_query(ATCState::GROUND_CONTACT, FlightPhase::PARKED,
-                      /*is_towered=*/true, FrequencyType::GROUND);
+                      /*facility=*/FacilityType::TOWERED, FrequencyType::GROUND);
   auto hints = phraseology_hints::lookup(q);
   REQUIRE(contains(hints, "REQUEST_TAXI"));
 }
@@ -102,7 +103,7 @@ TEST_CASE("phraseology_hints: TOWER_CONTACT at the holding point",
           "[phraseology_hints]") {
   LoadGuard g;
   auto q = make_query(ATCState::TOWER_CONTACT, FlightPhase::TAXI,
-                      /*is_towered=*/true, FrequencyType::TOWER);
+                      /*facility=*/FacilityType::TOWERED, FrequencyType::TOWER);
   auto hints = phraseology_hints::lookup(q);
   REQUIRE(contains(hints, "READY_FOR_DEPARTURE"));
   REQUIRE(contains(hints, "READY_FOR_DEPARTURE_VFR"));
@@ -112,7 +113,7 @@ TEST_CASE("phraseology_hints: PATTERN_ENTRY in the pattern",
           "[phraseology_hints]") {
   LoadGuard g;
   auto q = make_query(ATCState::PATTERN_ENTRY, FlightPhase::PATTERN,
-                      /*is_towered=*/true, FrequencyType::TOWER);
+                      /*facility=*/FacilityType::TOWERED, FrequencyType::TOWER);
   auto hints = phraseology_hints::lookup(q);
   REQUIRE(contains(hints, "REPORT_POSITION_DOWNWIND"));
   REQUIRE(contains(hints, "REQUEST_LANDING"));
@@ -126,7 +127,7 @@ TEST_CASE("phraseology_hints: tower-only post-landing offers RUNWAY_VACATED + RE
   // taxiing clear on the Tower freq (no Ground exists). The same
   // controller handles taxi-in, so REQUEST_TAXI_PARKING must stay
   // available alongside RUNWAY_VACATED.
-  auto q = make_query(ATCState::IDLE, FlightPhase::TAXI, /*is_towered=*/true,
+  auto q = make_query(ATCState::IDLE, FlightPhase::TAXI, /*facility=*/FacilityType::TOWERED,
                       FrequencyType::TOWER, /*tower_only=*/true,
                       /*post_landing=*/true);
   auto hints = phraseology_hints::lookup(q);
@@ -140,7 +141,7 @@ TEST_CASE("phraseology_hints: 2-tier post-landing on Tower only offers RUNWAY_VA
   // LSZG-style: 2-tier field, pilot still on Tower freq after touchdown.
   // Pilot must vacate, then retune to Ground for taxi-in — taxi
   // hints belong to the Ground rule, not here.
-  auto q = make_query(ATCState::IDLE, FlightPhase::TAXI, /*is_towered=*/true,
+  auto q = make_query(ATCState::IDLE, FlightPhase::TAXI, /*facility=*/FacilityType::TOWERED,
                       FrequencyType::TOWER, /*tower_only=*/false,
                       /*post_landing=*/true);
   auto hints = phraseology_hints::lookup(q);
@@ -152,7 +153,7 @@ TEST_CASE("phraseology_hints: LANDING_CLEARED rolling out -> RUNWAY_VACATED",
           "[phraseology_hints]") {
   LoadGuard g;
   auto q = make_query(ATCState::LANDING_CLEARED, FlightPhase::LANDING_ROLL,
-                      /*is_towered=*/true, FrequencyType::TOWER);
+                      /*facility=*/FacilityType::TOWERED, FrequencyType::TOWER);
   auto hints = phraseology_hints::lookup(q);
   REQUIRE(contains(hints, "RUNWAY_VACATED"));
 }
@@ -160,26 +161,28 @@ TEST_CASE("phraseology_hints: LANDING_CLEARED rolling out -> RUNWAY_VACATED",
 TEST_CASE("phraseology_hints: uncontrolled IDLE on CTAF -> self announce",
           "[phraseology_hints]") {
   LoadGuard g;
-  auto q = make_query(ATCState::IDLE, FlightPhase::PARKED, /*is_towered=*/false,
+  auto q = make_query(ATCState::IDLE, FlightPhase::PARKED, /*facility=*/FacilityType::UNCONTROLLED,
                       FrequencyType::CTAF);
   auto hints = phraseology_hints::lookup(q);
   REQUIRE(contains(hints, "SELF_ANNOUNCE"));
   REQUIRE_FALSE(contains(hints, "INITIAL_CALL_GROUND"));
 }
 
-TEST_CASE("phraseology_hints: uncontrolled INFO on the ground -> first call",
+TEST_CASE("phraseology_hints: AFIS/Info on the ground -> first call (not self-announce)",
           "[phraseology_hints]") {
   LoadGuard g;
-  auto q = make_query(ATCState::IDLE, FlightPhase::PARKED, /*is_towered=*/false,
+  auto q = make_query(ATCState::IDLE, FlightPhase::PARKED, /*facility=*/FacilityType::AFIS,
                       FrequencyType::INFO);
   auto hints = phraseology_hints::lookup(q);
   REQUIRE(contains(hints, "INITIAL_CALL_GROUND"));
+  // AFIS must NOT offer the uncontrolled self-announce — distinct from CTAF.
+  REQUIRE_FALSE(contains(hints, "SELF_ANNOUNCE"));
 }
 
-TEST_CASE("phraseology_hints: uncontrolled RADIO inbound -> inbound + positions",
+TEST_CASE("phraseology_hints: AFIS/Radio inbound -> inbound + positions",
           "[phraseology_hints]") {
   LoadGuard g;
-  auto q = make_query(ATCState::IDLE, FlightPhase::PATTERN, /*is_towered=*/false,
+  auto q = make_query(ATCState::IDLE, FlightPhase::PATTERN, /*facility=*/FacilityType::AFIS,
                       FrequencyType::RADIO);
   auto hints = phraseology_hints::lookup(q);
   REQUIRE(contains(hints, "INITIAL_CALL_INBOUND"));
@@ -190,16 +193,26 @@ TEST_CASE("phraseology_hints: EN_ROUTE without relevant freq is empty",
           "[phraseology_hints]") {
   LoadGuard g;
   auto q = make_query(ATCState::EN_ROUTE, FlightPhase::CRUISE,
-                      /*is_towered=*/true, FrequencyType::UNKNOWN);
+                      /*facility=*/FacilityType::TOWERED, FrequencyType::UNKNOWN);
   auto hints = phraseology_hints::lookup(q);
   REQUIRE(hints.empty());
+}
+
+TEST_CASE("phraseology_hints: UNKNOWN facility yields empty panel (safe default)",
+          "[phraseology_hints]") {
+  LoadGuard g;
+  // Cache-not-ready / no airport resolved: facility=UNKNOWN must match no rule
+  // so the panel is empty (visible + debuggable) rather than silently wrong.
+  auto q = make_query(ATCState::IDLE, FlightPhase::PARKED,
+                      /*facility=*/FacilityType::UNKNOWN, FrequencyType::GROUND);
+  REQUIRE(phraseology_hints::lookup(q).empty());
 }
 
 TEST_CASE("phraseology_hints: lookup before init returns empty",
           "[phraseology_hints]") {
   // Explicitly stop in case a previous test left rules loaded.
   phraseology_hints::stop();
-  auto q = make_query(ATCState::IDLE, FlightPhase::PARKED, /*is_towered=*/true,
+  auto q = make_query(ATCState::IDLE, FlightPhase::PARKED, /*facility=*/FacilityType::TOWERED,
                       FrequencyType::GROUND);
   REQUIRE(phraseology_hints::lookup(q).empty());
 }

@@ -53,7 +53,7 @@ static xplane_context::XPlaneContext airborne_ctx()
 {
     xplane_context::XPlaneContext ctx;
     ctx.on_ground = false;
-    ctx.is_towered_airport = true;
+    ctx.facility_type = xplane_context::FacilityType::TOWERED;
     return ctx;
 }
 

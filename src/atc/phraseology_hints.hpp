@@ -33,7 +33,7 @@ namespace phraseology_hints {
 struct HintQuery {
   atc_state_machine::ATCState state = atc_state_machine::ATCState::IDLE;
   flight_phase::FlightPhase phase = flight_phase::FlightPhase::PARKED;
-  bool is_towered = false;
+  xplane_context::FacilityType facility = xplane_context::FacilityType::UNKNOWN;
   xplane_context::FrequencyType frequency_type =
       xplane_context::FrequencyType::UNKNOWN;
   bool tower_only = false;

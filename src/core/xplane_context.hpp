@@ -58,6 +58,21 @@ enum class FrequencyType {
 
 const char *frequency_type_name(FrequencyType ft);
 
+// Operational class of an airport's radio service. Replaces the former bool
+// is_towered_airport so AFIS/Info facilities (FrequencyType::INFO / RADIO) are a
+// first-class category, distinct from genuinely uncontrolled (UNICOM/CTAF)
+// fields. UNKNOWN is the safe default: when no airport is resolved / the
+// frequency cache is not ready yet it yields empty hints rather than silently
+// wrong ones. Order matters only for the explicit values.
+enum class FacilityType {
+  UNKNOWN = 0,      // not classified yet (no airport / cache not ready)
+  UNCONTROLLED = 1, // UNICOM/CTAF self-announce field
+  TOWERED = 2,      // controlled field with Tower (clearances, readback)
+  AFIS = 3,         // Info/Radio facility: traffic info + reports, no clearances
+};
+
+const char *facility_type_name(FacilityType ft);
+
 // Refine a frequency type using its apt.dat name. apt.dat encodes German
 // AFIS/Info and Radio facilities under the Tower row code (1054); the only
 // discriminator is the frequency name. Only TOWER is refined: a name ending in
@@ -85,6 +100,11 @@ struct AirportFrequencies {
   bool has_ground() const;
 };
 
+// Derive the operational FacilityType from an airport's frequency table.
+// Single source of truth for the classification (TOWER -> TOWERED, INFO/RADIO ->
+// AFIS, UNICOM/CTAF -> UNCONTROLLED, none -> UNKNOWN). SDK-free / unit-testable.
+FacilityType classify_facility(const AirportFrequencies &freqs);
+
 struct XPlaneContext {
   double latitude = 0.0;
   double longitude = 0.0;
@@ -104,7 +124,7 @@ struct XPlaneContext {
   std::string nearest_airport_id;   // active airport (may be frequency-tuned)
   std::string geometric_nearest_id; // raw geographic nearest from XPLM
   std::string nearest_airport_name; // from apt.dat, e.g. "Grenchen"
-  bool is_towered_airport = false;
+  FacilityType facility_type = FacilityType::UNKNOWN;
   FrequencyType frequency_type = FrequencyType::UNKNOWN;
   bool avionics_on = false;
   bool com_radio_powered = false;
@@ -133,6 +153,13 @@ struct XPlaneContext {
   // intent rules with a require_just_landed flag) read this instead of
   // taking the timestamp as a separate parameter.
   double now_secs = 0.0;
+
+  // Derived binary view kept for the (unchanged) state machine / template / flow
+  // logic that only cares about "controlled vs not". AFIS and UNCONTROLLED both
+  // return false here, exactly as the former bool is_towered_airport did.
+  bool is_towered() const noexcept {
+    return facility_type == FacilityType::TOWERED;
+  }
 };
 
 void init();

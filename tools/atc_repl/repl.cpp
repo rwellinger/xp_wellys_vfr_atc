@@ -76,7 +76,26 @@ bool parse_freq_type(const std::string &s, FrequencyType &out) {
       {"UNICOM", FrequencyType::UNICOM},
       {"CTAF", FrequencyType::CTAF},
       {"ATIS", FrequencyType::ATIS},
+      {"INFO", FrequencyType::INFO},
+      {"RADIO", FrequencyType::RADIO},
   };
+  std::string up = s;
+  std::transform(up.begin(), up.end(), up.begin(),
+                 [](unsigned char c) { return std::toupper(c); });
+  auto it = kMap.find(up);
+  if (it == kMap.end()) return false;
+  out = it->second;
+  return true;
+}
+
+bool parse_facility(const std::string &s, xplane_context::FacilityType &out) {
+  static const std::unordered_map<std::string, xplane_context::FacilityType>
+      kMap{
+          {"UNKNOWN", xplane_context::FacilityType::UNKNOWN},
+          {"UNCONTROLLED", xplane_context::FacilityType::UNCONTROLLED},
+          {"TOWERED", xplane_context::FacilityType::TOWERED},
+          {"AFIS", xplane_context::FacilityType::AFIS},
+      };
   std::string up = s;
   std::transform(up.begin(), up.end(), up.begin(),
                  [](unsigned char c) { return std::toupper(c); });
@@ -106,7 +125,7 @@ void print_state(const std::string &callsign) {
               ctx.nearest_airport_name.empty() ? "" : " (",
               ctx.nearest_airport_name.c_str(),
               ctx.nearest_airport_name.empty() ? "" : ")",
-              ctx.is_towered_airport ? "towered" : "uncontrolled");
+              xplane_context::facility_type_name(ctx.facility_type));
   std::printf("Runway:       %s   COM: %.3f (%s)\n", ctx.active_runway.c_str(),
               ctx.com1_freq_mhz,
               xplane_context::frequency_type_name(ctx.frequency_type));
@@ -157,9 +176,17 @@ void cmd_set(std::string &callsign, const std::string &rest) {
     } else if (field == "airport_name") {
       ctx.nearest_airport_name = value;
     } else if (field == "towered") {
+      // Back-compat shorthand: true -> TOWERED, false -> UNCONTROLLED.
       bool b;
       if (!parse_bool(value, b)) throw std::runtime_error("expected bool");
-      ctx.is_towered_airport = b;
+      ctx.facility_type = b ? xplane_context::FacilityType::TOWERED
+                            : xplane_context::FacilityType::UNCONTROLLED;
+    } else if (field == "facility") {
+      xplane_context::FacilityType ft;
+      if (!parse_facility(value, ft))
+        throw std::runtime_error("unknown facility "
+                                 "(unknown|uncontrolled|towered|afis)");
+      ctx.facility_type = ft;
     } else if (field == "tower_only") {
       bool b;
       if (!parse_bool(value, b)) throw std::runtime_error("expected bool");
@@ -259,11 +286,12 @@ void cmd_help() {
       "  region DE                Phraseology profile (German-VFR-only)\n"
       "  airport <ICAO>           e.g. LSZH\n"
       "  airport_name <text>\n"
-      "  towered true|false\n"
+      "  towered true|false        (shorthand: facility TOWERED|UNCONTROLLED)\n"
+      "  facility <TYPE>          UNKNOWN|UNCONTROLLED|TOWERED|AFIS\n"
       "  tower_only true|false     (airport has Tower but no Ground)\n"
       "  on_ground true|false\n"
       "  com <MHz>                e.g. 118.100\n"
-      "  freq_type <TYPE>         GROUND|TOWER|UNICOM|CTAF|ATIS|DELIVERY\n"
+      "  freq_type <TYPE>         GROUND|TOWER|UNICOM|CTAF|ATIS|DELIVERY|INFO|RADIO\n"
       "  runway <id>              e.g. 28, 10L\n"
       "  altitude_ft <ft>\n"
       "  agl_ft <ft>\n"

@@ -44,7 +44,7 @@ namespace {
 xplane_context::XPlaneContext airborne_ctx() {
     xplane_context::XPlaneContext ctx;
     ctx.on_ground = false;
-    ctx.is_towered_airport = true;
+    ctx.facility_type = xplane_context::FacilityType::TOWERED;
     return ctx;
 }
 
@@ -153,7 +153,7 @@ TEST_CASE("revert_guard: stale branch leaves history intact for REQUEST_REPEAT",
     auto ctx = airborne_ctx();
     ctx.on_ground = true;
     ctx.nearest_airport_id = "EDNY";
-    ctx.is_towered_airport = true;
+    ctx.facility_type = xplane_context::FacilityType::TOWERED;
 
     auto pre_snap = capture_snapshot();
     auto resp = atc_state_machine::process(msg, ctx, 100.0);

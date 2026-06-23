@@ -483,7 +483,7 @@ static bool adjustment_applies(const Adjustment &a,
     return false;
   if (a.on_ground && ctx.on_ground != *a.on_ground)
     return false;
-  if (a.is_towered && ctx.is_towered_airport != *a.is_towered)
+  if (a.is_towered && ctx.is_towered() != *a.is_towered)
     return false;
   if (a.vrp_name_set && msg.vrp_name.empty() == *a.vrp_name_set)
     return false;

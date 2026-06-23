@@ -115,7 +115,24 @@ std::vector<std::string> lookup(const HintQuery &q) {
   for (char &c : freq_str)
     if (c >= 'a' && c <= 'z')
       c = static_cast<char>(c - 'a' + 'A');
-  const std::string facility_str = q.is_towered ? "towered" : "uncontrolled";
+  // UNKNOWN maps to a token no rule carries, so an unclassified field falls
+  // through to the empty fallback rule -> empty hints panel (visible/debuggable)
+  // rather than a silently wrong guess.
+  std::string facility_str;
+  switch (q.facility) {
+  case xplane_context::FacilityType::TOWERED:
+    facility_str = "towered";
+    break;
+  case xplane_context::FacilityType::AFIS:
+    facility_str = "afis";
+    break;
+  case xplane_context::FacilityType::UNCONTROLLED:
+    facility_str = "uncontrolled";
+    break;
+  case xplane_context::FacilityType::UNKNOWN:
+    facility_str = "unknown";
+    break;
+  }
 
   for (const auto &rule : rules_) {
     if (!rule.is_object())

@@ -51,6 +51,7 @@
   "status.airport_format": "Flugplatz: %s %s",
   "status.towered": "(Tower)",
   "status.uncontrolled": "(unkontrolliert)",
+  "status.afis": "(AFIS/Info)",
   "status.tower_only": "(nur Tower)",
   "status.active_via_freq": "aktiv via eingestellter Frequenz",
   "status.locked_by_picker": "FIXIERT via Auswahl",

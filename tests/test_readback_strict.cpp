@@ -30,7 +30,7 @@ namespace {
 // true and last_clearance_components() carries {Callsign, Runway}.
 xplane_context::XPlaneContext primed_ctx() {
     xplane_context::XPlaneContext ctx{};
-    ctx.is_towered_airport = true;
+    ctx.facility_type = xplane_context::FacilityType::TOWERED;
     ctx.on_ground = true;
     ctx.frequency_type = xplane_context::FrequencyType::TOWER;
     ctx.active_runway = "06";

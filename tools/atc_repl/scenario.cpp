@@ -52,7 +52,8 @@ static FT freq_type_from_string(const std::string &s) {
       {"UNKNOWN", FT::UNKNOWN}, {"DELIVERY", FT::DELIVERY},
       {"GROUND", FT::GROUND},   {"TOWER", FT::TOWER},
       {"UNICOM", FT::UNICOM},   {"CTAF", FT::CTAF},
-      {"ATIS", FT::ATIS},
+      {"ATIS", FT::ATIS},       {"INFO", FT::INFO},
+      {"RADIO", FT::RADIO},
   };
   std::string upper = s;
   std::transform(upper.begin(), upper.end(), upper.begin(),
@@ -60,6 +61,24 @@ static FT freq_type_from_string(const std::string &s) {
   auto it = kMap.find(upper);
   if (it == kMap.end()) {
     throw std::runtime_error("unknown freq_type: " + s);
+  }
+  return it->second;
+}
+
+static xplane_context::FacilityType facility_from_string(const std::string &s) {
+  static const std::unordered_map<std::string, xplane_context::FacilityType>
+      kMap{
+          {"UNKNOWN", xplane_context::FacilityType::UNKNOWN},
+          {"UNCONTROLLED", xplane_context::FacilityType::UNCONTROLLED},
+          {"TOWERED", xplane_context::FacilityType::TOWERED},
+          {"AFIS", xplane_context::FacilityType::AFIS},
+      };
+  std::string upper = s;
+  std::transform(upper.begin(), upper.end(), upper.begin(),
+                 [](unsigned char c) { return std::toupper(c); });
+  auto it = kMap.find(upper);
+  if (it == kMap.end()) {
+    throw std::runtime_error("unknown facility: " + s);
   }
   return it->second;
 }
@@ -84,7 +103,11 @@ static void apply_field(xplane_context::XPlaneContext &ctx,
   else if (field == "airport_name")
     ctx.nearest_airport_name = value;
   else if (field == "towered")
-    ctx.is_towered_airport = parse_bool(value);
+    ctx.facility_type = parse_bool(value)
+                            ? xplane_context::FacilityType::TOWERED
+                            : xplane_context::FacilityType::UNCONTROLLED;
+  else if (field == "facility")
+    ctx.facility_type = facility_from_string(value);
   else if (field == "tower_only")
     ctx.tower_only = parse_bool(value);
   else if (field == "on_ground")
@@ -155,7 +178,14 @@ Scenario load(const std::string &path) {
     const auto &c = j["context"];
     ctx.nearest_airport_id = c.value("airport", std::string{});
     ctx.nearest_airport_name = c.value("airport_name", std::string{});
-    ctx.is_towered_airport = c.value("towered", true);
+    // "facility" wins; else back-compat "towered" bool (default true ->
+    // TOWERED), so pre-FacilityType scenarios keep their behavior.
+    if (c.contains("facility"))
+      ctx.facility_type = facility_from_string(c["facility"].get<std::string>());
+    else
+      ctx.facility_type = c.value("towered", true)
+                              ? xplane_context::FacilityType::TOWERED
+                              : xplane_context::FacilityType::UNCONTROLLED;
     ctx.tower_only = c.value("tower_only", false);
     ctx.on_ground = c.value("on_ground", true);
     ctx.com1_freq_mhz = c.value("com", 121.800f);
@@ -195,7 +225,7 @@ Scenario load(const std::string &path) {
     ctx.groundspeed_kts = c.value("groundspeed_kt", 0.0f);
     ctx.height_agl_ft = c.value("agl_ft", 0.0f);
   } else {
-    ctx.is_towered_airport = true;
+    ctx.facility_type = xplane_context::FacilityType::TOWERED;
     ctx.on_ground = true;
     ctx.com1_freq_mhz = 121.800f;
     ctx.active_com = 1;

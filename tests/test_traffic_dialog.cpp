@@ -15,7 +15,7 @@ xplane_context::XPlaneContext minimal_ctx() {
   ctx.nearest_airport_id = "LSZH";
   ctx.nearest_airport_name = "Zurich";
   ctx.frequency_type = xplane_context::FrequencyType::TOWER;
-  ctx.is_towered_airport = true;
+  ctx.facility_type = xplane_context::FacilityType::TOWERED;
   return ctx;
 }
 

@@ -55,7 +55,7 @@ void load_de_profile() {
 
 xplane_context::XPlaneContext ground_ctx() {
     xplane_context::XPlaneContext ctx{};
-    ctx.is_towered_airport = true;
+    ctx.facility_type = xplane_context::FacilityType::TOWERED;
     ctx.on_ground = true;
     ctx.frequency_type = xplane_context::FrequencyType::TOWER;
     ctx.active_runway = "06";

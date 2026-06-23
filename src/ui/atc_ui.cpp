@@ -122,6 +122,24 @@ static constexpr int kBackendModeCount = 2;
 #endif
 static int backend_mode_selection = 0;
 
+// Status-panel facility label. AFIS must read distinctly from uncontrolled —
+// it is exam-relevant (AFIS mandatory reports vs. self-announce). UNKNOWN ->
+// no label (the cache is not ready / no airport resolved yet).
+static const char *facility_status_label(const xplane_context::XPlaneContext &c) {
+  switch (c.facility_type) {
+  case xplane_context::FacilityType::TOWERED:
+    return c.tower_only ? ui_strings::tr("status.tower_only")
+                        : ui_strings::tr("status.towered");
+  case xplane_context::FacilityType::AFIS:
+    return ui_strings::tr("status.afis");
+  case xplane_context::FacilityType::UNCONTROLLED:
+    return ui_strings::tr("status.uncontrolled");
+  case xplane_context::FacilityType::UNKNOWN:
+    return "";
+  }
+  return "";
+}
+
 // OpenAI / Mistral model + voice combos. Slugs and voice presets are
 // pulled from data/models_catalog.json at boot — the static arrays
 // they replaced lived here pre-v3.1. Edit the JSON to add a new slug,
@@ -501,11 +519,8 @@ static void draw_status_tab() {
                                             ? ""
                                             : " " + ctx.nearest_airport_name);
     ImGui::Text(ui_strings::tr("status.airport_format"), apt_display.c_str(),
-                ctx.nearest_airport_id.empty()
-                    ? ""
-                    : (ctx.is_towered_airport
-                           ? ui_strings::tr("status.towered")
-                           : ui_strings::tr("status.uncontrolled")));
+                ctx.nearest_airport_id.empty() ? ""
+                                               : facility_status_label(ctx));
     if (!ctx.geometric_nearest_id.empty() &&
         ctx.geometric_nearest_id != ctx.nearest_airport_id) {
       const char *reason = xplane_context::locked_airport().empty()
@@ -1866,9 +1881,14 @@ static void draw_pilot_actions(const xplane_context::XPlaneContext &ctx,
     return;
 
   using FT = xplane_context::FrequencyType;
-  bool is_towered = force_towered || (ctx.is_towered_airport &&
-                                      ctx.frequency_type != FT::UNICOM &&
-                                      ctx.frequency_type != FT::CTAF);
+  using Facility = xplane_context::FacilityType;
+  // Facility for the hint matrix. Preserve the legacy downgrade: a towered field
+  // tuned to a UNICOM/CTAF frequency surfaces uncontrolled hints (matches the
+  // former is_towered bool). AFIS/UNCONTROLLED/UNKNOWN pass through unchanged.
+  Facility facility = force_towered ? Facility::TOWERED : ctx.facility_type;
+  if (facility == Facility::TOWERED &&
+      (ctx.frequency_type == FT::UNICOM || ctx.frequency_type == FT::CTAF))
+    facility = Facility::UNCONTROLLED;
 
   auto atc_state = atc_state_machine::get_state();
   std::string state_str = atc_state_machine::state_name(atc_state);
@@ -1885,7 +1905,7 @@ static void draw_pilot_actions(const xplane_context::XPlaneContext &ctx,
   phraseology_hints::HintQuery query{};
   query.state = atc_state;
   query.phase = phase;
-  query.is_towered = is_towered;
+  query.facility = facility;
   query.frequency_type = ctx.frequency_type;
   query.tower_only = ctx.tower_only;
   query.post_landing = post_landing;
@@ -1958,11 +1978,12 @@ static void draw_pilot_actions(const xplane_context::XPlaneContext &ctx,
         filt_join += ":";
         filt_join += r;
       }
-      logging::debug("Hints: state=%s phase=%s freq=%s airport=%s towered=%d "
+      logging::debug("Hints: state=%s phase=%s freq=%s airport=%s facility=%s "
                      "tower_only=%d on_ground=%d readback_pending=%d",
                      state_str.c_str(), flight_phase::phase_name(phase),
                      freq_type_label(ctx.frequency_type),
-                     ctx.nearest_airport_id.c_str(), is_towered ? 1 : 0,
+                     ctx.nearest_airport_id.c_str(),
+                     xplane_context::facility_type_name(facility),
                      ctx.tower_only ? 1 : 0, ctx.on_ground ? 1 : 0,
                      readback_override ? 1 : 0);
       logging::debug("Hints raw [%zu]: %s", raw.size(),
@@ -2089,7 +2110,7 @@ static void draw_pilot_actions(const xplane_context::XPlaneContext &ctx,
     // facilities so a Tower-only field (e.g. LSZG) gets the right hint.
     bool has_twr = ctx.airport_freqs.has(FT::TOWER);
     bool has_gnd = ctx.airport_freqs.has(FT::GROUND);
-    bool uncontrolled = !ctx.is_towered_airport && !has_twr;
+    bool uncontrolled = !ctx.is_towered() && !has_twr;
 
     if (atc_state == atc_state_machine::ATCState::EN_ROUTE) {
       if (has_twr)
@@ -2511,11 +2532,7 @@ static void draw_atc_panel() {
               : ctx.nearest_airport_id + (ctx.nearest_airport_name.empty()
                                               ? ""
                                               : " " + ctx.nearest_airport_name);
-      const char *type_label =
-          ctx.is_towered_airport
-              ? (ctx.tower_only ? ui_strings::tr("status.tower_only")
-                                : ui_strings::tr("status.towered"))
-              : ui_strings::tr("status.uncontrolled");
+      const char *type_label = facility_status_label(ctx);
       bool tuned_elsewhere = !ctx.geometric_nearest_id.empty() &&
                              ctx.geometric_nearest_id != ctx.nearest_airport_id;
       if (tuned_elsewhere) {
