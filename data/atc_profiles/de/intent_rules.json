@@ -1,7 +1,10 @@
 {
   "_comment": "Data-driven intent classification rules for DE/BZF phraseology. Loaded by src/atc/intent_rules.cpp. Schema: see intent_rules.hpp. DE-Region-specific rules: additive to EN keywords so BZF transcripts with mixed EN/DE words ('Friedrichshafen Tower' / 'in sight') still classify. Note: intent_parser::parse() runs de_phraseology::parse_spoken_number() before this layer, so ziffernweise BZF pronunciation ('eins null eins drei') already arrives as raw digits ('1013') -- rules below match on numeric form.",
 
-  "normalize": [],
+  "normalize": [
+    { "_note": "Known Whisper mishearings (DE VFR). See GitHub issue #9. Only map non-words -> collision-free for global substring replace.", "from": "fahrfeld",  "to": "vorfeld" },
+    { "from": "fahrtfeld", "to": "vorfeld" }
+  ],
 
   "rules": [
     {

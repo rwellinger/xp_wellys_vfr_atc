@@ -472,6 +472,19 @@ void on_ptt_released() {
   if (!callsign.empty())
     airport_ctx += " " + callsign;
 
+  // Bias toward German VFR ground/pattern vocabulary. Whisper's German prior
+  // mangles low-frequency aviation terms into near-homophones (observed:
+  // "Vorfeld" -> "Fahrfeld"), which breaks substring-based intent/position
+  // detection downstream. Conditioning the prompt on the expected vocabulary
+  // anchors the transcription across all three backends (OpenAI free-prompt,
+  // local initial_prompt, Mistral per-word context_bias[]). Compact + constant
+  // to stay well under the OpenAI 224-token prompt limit. See GitHub issue #9.
+  static const char *const kVfrVocabBias =
+      "Vorfeld Rollhalt Platzrunde Gegenanflug Queranflug Endanflug "
+      "Abstellposition";
+  airport_ctx += " ";
+  airport_ctx += kVfrVocabBias;
+
   backends::stt::transcribe_async(
       std::move(pcm), src_rate,
       [](const backends::stt::TranscriptResult &wr) {
