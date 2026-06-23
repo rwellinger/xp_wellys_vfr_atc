@@ -26,6 +26,18 @@ Pilotenfehler.
 - **🗺️ Cross Country** — kompletter Überlandflug: Abflugfreigabe,
   En-route-Frequenzwechsel und Anflug-Ablauf zwischen Flugplätzen. Der
   Anflug-Lotse übergibt dich proaktiv mit der Zielfrequenz an den Tower.
+- **🗼 Flugplatztypen** — das Plugin erkennt automatisch die Art der
+  Flugverkehrsdienste am jeweiligen Flugplatz und passt Phraseologie und
+  Ablauf entsprechend an:
+  - **Ohne Flugverkehrskontrolle** — Selbstinformation über UNICOM/CTAF
+    (Selbstansagen, keine Freigaben).
+  - **Mit Tower** — kontrollierter Platz mit Freigaben über die
+    Turm-Frequenz.
+  - **Mit Tower und Ground** — zusätzlich getrennte Rollkontrolle
+    (Ground) für Rollfreigaben.
+  - **Mit AFIS** — Flugplatz mit Fluginformationsdienst (Information
+    statt Kontrolle): Verkehrs- und Platzinformationen ohne
+    verbindliche Freigaben.
 - **🎙️ Funksprache** — natürliche Sprache per Push-to-Talk (Tastatur oder
   Joystick). Kontextbewusste **Phraseologie-Hinweise** zeigen dir, was zu
   sagen ist, und der Tower coacht höflich bei unpassender Funkdisziplin.
