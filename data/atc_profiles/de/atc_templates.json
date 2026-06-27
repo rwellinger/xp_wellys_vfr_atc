@@ -473,6 +473,12 @@
         "next_state": "IDLE",
         "requires_readback": false
       },
+      "SELF_ANNOUNCE_DEPARTURE": {
+        "_comment": "NfL silent -- AFIS bestaetigt Abflug-Selbstansagen nicht aktiv (Para 35-Praxis). Leeres response -> stille Transition.",
+        "response": "",
+        "next_state": "IDLE",
+        "requires_readback": false
+      },
       "REPORT_POSITION_DOWNWIND": {
         "response": "{callsign}, {station}, verstanden, Piste {runway}, kein gemeldeter Verkehr.",
         "next_state": "IDLE",
@@ -529,6 +535,12 @@
       },
       "SELF_ANNOUNCE": {
         "response": "{callsign}, {station}, verstanden.",
+        "next_state": "IDLE",
+        "requires_readback": false
+      },
+      "SELF_ANNOUNCE_DEPARTURE": {
+        "_comment": "NfL silent -- AFIS bestaetigt Abflug-Selbstansagen nicht aktiv (Para 35-Praxis). Leeres response -> stille Transition.",
+        "response": "",
         "next_state": "IDLE",
         "requires_readback": false
       },

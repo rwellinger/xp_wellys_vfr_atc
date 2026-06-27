@@ -238,6 +238,7 @@
   "intent.request_frequency": "Frequenz anfordern",
   "intent.radio_check": "Funkprobe",
   "intent.self_announce": "Selbstmeldung",
+  "intent.self_announce_departure": "Abflug-Selbstansage",
 
   "hints.header": "Phraseologie-Hinweise",
   "hints.state_phase_format": "Status: %s | Phase: %s",

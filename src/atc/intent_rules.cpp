@@ -113,7 +113,8 @@ static bool is_ground_only_intent(PI i) {
   return i == PI::INITIAL_CALL || i == PI::INITIAL_CALL_GROUND ||
          i == PI::INITIAL_CALL_TOWER || i == PI::REQUEST_TAXI ||
          i == PI::REQUEST_TAXI_PARKING || i == PI::READY_FOR_DEPARTURE ||
-         i == PI::READY_FOR_DEPARTURE_VFR || i == PI::RUNWAY_VACATED;
+         i == PI::READY_FOR_DEPARTURE_VFR || i == PI::RUNWAY_VACATED ||
+         i == PI::SELF_ANNOUNCE_DEPARTURE;
 }
 
 // ── Spoken-digit table for ENDS_WITH_RUNWAY_TOKEN ───────────────────────────

@@ -543,6 +543,8 @@ const char *intent_name(PilotIntent intent) {
     return "UNABLE";
   case PilotIntent::SELF_ANNOUNCE:
     return "SELF_ANNOUNCE";
+  case PilotIntent::SELF_ANNOUNCE_DEPARTURE:
+    return "SELF_ANNOUNCE_DEPARTURE";
   case PilotIntent::INAPPROPRIATE_LANGUAGE:
     return "INAPPROPRIATE_LANGUAGE";
   case PilotIntent::NEGATIVE_CORRECTION:
@@ -600,6 +602,7 @@ PilotIntent intent_from_key(const std::string &key) {
       {"LEAVING_FREQUENCY", PilotIntent::LEAVING_FREQUENCY},
       {"UNABLE", PilotIntent::UNABLE},
       {"SELF_ANNOUNCE", PilotIntent::SELF_ANNOUNCE},
+      {"SELF_ANNOUNCE_DEPARTURE", PilotIntent::SELF_ANNOUNCE_DEPARTURE},
       {"INAPPROPRIATE_LANGUAGE", PilotIntent::INAPPROPRIATE_LANGUAGE},
       {"NEGATIVE_CORRECTION", PilotIntent::NEGATIVE_CORRECTION},
       {"TRAFFIC_IN_SIGHT", PilotIntent::TRAFFIC_IN_SIGHT},

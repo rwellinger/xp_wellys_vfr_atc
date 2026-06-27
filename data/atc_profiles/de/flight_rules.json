@@ -233,6 +233,10 @@
       "allowed": ["UNICOM", "CTAF"],
       "rejection": "{callsign}, Selbstmeldung nur auf CTAF."
     },
+    "SELF_ANNOUNCE_DEPARTURE": {
+      "allowed": ["INFO", "RADIO"],
+      "rejection": "{callsign}, Selbstansage nur auf Info-Frequenz."
+    },
     "REQUEST_FREQUENCY": {
       "allowed": ["GROUND", "TOWER"],
       "rejection": "{callsign}, negativ auf dieser Frequenz."
@@ -262,6 +266,7 @@
     "READBACK": "(letzte ATC-Freigabe zurueckmelden)",
     "RADIO_CHECK": "{airport}, {callsign}, Funkprobe",
     "SELF_ANNOUNCE": "{airport} Verkehr, {callsign}, (Position und Absicht melden)",
+    "SELF_ANNOUNCE_DEPARTURE": "{airport} Verkehr, {callsign}, Piste {runway}, starte",
     "LEAVING_FREQUENCY": "{callsign}, verlasse Ihre Frequenz, auf Wiederhoeren"
   },
 

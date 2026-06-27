@@ -173,10 +173,10 @@
     },
 
     {
-      "comment": "AFIS/Info- oder Radio-Stelle am Boden: Erstanruf an die Info-/Radio-Stelle, optionaler Radio-Check. Beratend, keine Freigaben.",
-      "state": "IDLE", "phase": "PARKED", "facility": "afis",
+      "comment": "AFIS/Info- oder Radio-Stelle am Boden: Erstanruf an die Info-/Radio-Stelle, optionaler Radio-Check, Abflug-Selbstansage. Beratend, keine Freigaben.",
+      "state": "IDLE", "phase": ["PARKED", "TAXI"], "facility": "afis",
       "frequency_type": ["INFO", "RADIO"],
-      "intents": ["INITIAL_CALL_GROUND", "RADIO_CHECK"]
+      "intents": ["INITIAL_CALL_GROUND", "RADIO_CHECK", "SELF_ANNOUNCE_DEPARTURE"]
     },
     {
       "comment": "AFIS/Info- oder Radio-Stelle in der Luft: Einflug ansagen, Positionsmeldungen, Abmeldung.",

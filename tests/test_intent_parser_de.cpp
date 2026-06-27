@@ -159,6 +159,37 @@ TEST_CASE("DE: AFIS final-approach report with ATIS letter stays position report
     REQUIRE(m.intent == PilotIntent::REPORT_POSITION_FINAL);
 }
 
+TEST_CASE("DE: AFIS departure self-announce -> SELF_ANNOUNCE_DEPARTURE",
+          "[intent][de][info][self_announce]") {
+    DeRegionGuard g;
+    auto ctx = afis_ground_ctx();
+    // AFIS field has no takeoff clearance: pilot self-announces the departure.
+    auto m = parse("Schwaebisch Hall D-ERKL, Piste 10, ich starte.", ctx);
+    REQUIRE(m.intent == PilotIntent::SELF_ANNOUNCE_DEPARTURE);
+    REQUIRE(m.confidence >= 0.88f);
+}
+
+TEST_CASE("DE: 'erbitte rollen Piste 10' stays REQUEST_TAXI (not self-announce)",
+          "[intent][de][taxi][self_announce]") {
+    DeRegionGuard g;
+    auto ctx = ground_ctx();
+    // Collision guard: the none-clause [erbitte/rollfreigabe/rollen] keeps a
+    // taxi request out of SELF_ANNOUNCE_DEPARTURE.
+    auto m = parse("erbitte rollen Piste 10.", ctx);
+    REQUIRE(m.intent == PilotIntent::REQUEST_TAXI);
+}
+
+TEST_CASE("DE: towered 'Piste 10, abflugbereit' stays READY_FOR_DEPARTURE",
+          "[intent][de][departure][self_announce]") {
+    DeRegionGuard g;
+    auto ctx = ground_ctx();
+    // Collision guard: READY_FOR_DEPARTURE precedes SELF_ANNOUNCE_DEPARTURE in
+    // rule order, so 'abflugbereit' at a towered field wins.
+    auto m = parse("Schwaebisch Hall Tower, D-ERKL, Piste 10, abflugbereit.",
+                   ctx);
+    REQUIRE(m.intent == PilotIntent::READY_FOR_DEPARTURE);
+}
+
 TEST_CASE("DE: Boden + erbitte Rollen -> REQUEST_TAXI",
           "[intent][de][taxi]") {
     DeRegionGuard g;

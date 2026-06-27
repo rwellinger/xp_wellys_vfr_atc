@@ -1843,6 +1843,7 @@ static const char *intent_display_label(const std::string &key) {
       {"REQUEST_FREQUENCY", "intent.request_frequency"},
       {"RADIO_CHECK", "intent.radio_check"},
       {"SELF_ANNOUNCE", "intent.self_announce"},
+      {"SELF_ANNOUNCE_DEPARTURE", "intent.self_announce_departure"},
   };
   for (const auto &p : labels)
     if (key == p.first)

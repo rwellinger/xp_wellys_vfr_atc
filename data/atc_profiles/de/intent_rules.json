@@ -154,6 +154,20 @@
     },
 
     {
+      "_note": "AFIS Abflug-Selbstansage. NfL silent -- extrapoliert aus Para 35/AFIS-Praxis. Frequenz-Gating (INFO/RADIO) via flight_rules.json intent_frequency. Steht nach READY_FOR_DEPARTURE, damit 'abflugbereit' (towered) dort gewinnt; der none-Guard haelt REQUEST_TAXI-Phrasen heraus.",
+      "intent": "SELF_ANNOUNCE_DEPARTURE",
+      "confidence": 0.88,
+      "any": [
+        "ich starte",
+        "starte jetzt",
+        "rolle auf piste",
+        "beginne startlauf",
+        { "all": ["piste", { "any": ["starte", "abflug"] }] }
+      ],
+      "none": ["erbitte", "rollfreigabe", "rollen"]
+    },
+
+    {
       "intent": "REQUEST_TOUCH_AND_GO",
       "confidence": 0.90,
       "any": ["durchstartlandung", "durchstart und landung", "aufsetzen und durchstarten"],

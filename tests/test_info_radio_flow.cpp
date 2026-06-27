@@ -86,6 +86,30 @@ TEST_CASE("info-flow: INFO frequency routes to handle_info_flow, advisory call",
     REQUIRE_FALSE(resp.requires_readback);
 }
 
+TEST_CASE("info-flow: SELF_ANNOUNCE_DEPARTURE is silent on INFO and RADIO",
+          "[info][de][flow][self_announce]") {
+    DeProfileGuard g;
+    atc_state_machine::init();
+    atc_templates::reload();
+
+    // AFIS does not acknowledge departure self-announces: empty response_text
+    // -> the session pipeline speaks nothing (same pattern as READBACK).
+    auto msg = msg_with(PilotIntent::SELF_ANNOUNCE_DEPARTURE);
+
+    ATCResponse info_resp;
+    REQUIRE(ground_ops::handle_info_flow(msg, info_ctx(FT::INFO), info_resp));
+    REQUIRE(info_resp.text.empty());
+    REQUIRE(info_resp.next_state == ATCState::IDLE);
+    REQUIRE_FALSE(info_resp.requires_readback);
+
+    ATCResponse radio_resp;
+    REQUIRE(
+        ground_ops::handle_unicom_flow(msg, info_ctx(FT::RADIO), radio_resp));
+    REQUIRE(radio_resp.text.empty());
+    REQUIRE(radio_resp.next_state == ATCState::IDLE);
+    REQUIRE_FALSE(radio_resp.requires_readback);
+}
+
 TEST_CASE("info-flow: handle_info_flow ignores non-INFO frequencies",
           "[info][de][flow]") {
     DeProfileGuard g;
