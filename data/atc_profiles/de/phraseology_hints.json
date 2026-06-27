@@ -58,8 +58,8 @@
     },
 
     {
-      "comment": "IDLE in der Luft nahe Platz auf Tower (verlorener Kontakt / frischer Anflug): Wiederherstellung via INITIAL_CALL_INBOUND.",
-      "state": "IDLE", "phase": ["PATTERN", "FINAL_APPROACH", "CLIMB"],
+      "comment": "IDLE in der Luft nahe Platz auf Tower (verlorener Kontakt / frischer Anflug / Cross-Country-Inbound): Wiederherstellung via INITIAL_CALL_INBOUND. CRUISE deckt den En-route-Inbound nach Flugplatzwechsel ab (symmetrisch zur AFIS-Regel und zu flight_rules.json INITIAL_CALL_INBOUND.allowed_phases).",
+      "state": "IDLE", "phase": ["PATTERN", "FINAL_APPROACH", "CLIMB", "CRUISE"],
       "facility": "towered", "frequency_type": "TOWER",
       "intents": ["INITIAL_CALL_INBOUND", "INITIAL_CALL_INBOUND_VRP"]
     },

@@ -219,6 +219,20 @@ TEST_CASE("phraseology_hints: AFIS/Radio inbound -> inbound + positions",
   REQUIRE(contains(hints, "LEAVING_FREQUENCY"));
 }
 
+// Issue #14: the cross-country inbound to a towered field reaches IDLE while
+// still at CRUISE phase. The Tower IDLE-airborne rule must surface the inbound
+// first call there, symmetric to the AFIS rule which already covered CRUISE.
+TEST_CASE("phraseology_hints: Tower IDLE cruise inbound -> INITIAL_CALL_INBOUND",
+          "[phraseology_hints][inbound]") {
+  LoadGuard g;
+  auto q = make_query(ATCState::IDLE, FlightPhase::CRUISE,
+                      /*facility=*/FacilityType::TOWERED, FrequencyType::TOWER);
+  auto hints = pipeline(q);
+  REQUIRE_FALSE(hints.empty());
+  REQUIRE(contains(hints, "INITIAL_CALL_INBOUND"));
+  REQUIRE(contains(hints, "INITIAL_CALL_INBOUND_VRP"));
+}
+
 // ── Two-stage pipeline regression (AFIS/Info hints reaching the panel) ──────
 // The matrix surfaced the AFIS intents (covered above), but the UI's
 // defense-in-depth frequency filter dropped every one of them because the

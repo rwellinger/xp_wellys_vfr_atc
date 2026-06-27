@@ -110,7 +110,7 @@ TEST_CASE("post-landing-idle: fresh-spawn IDLE whitelist offers first-contact, "
 }
 
 TEST_CASE("post-landing-idle: post-landing IDLE whitelist offers the sign-off, "
-          "not first-contact",
+          "not the ground first-contact",
           "[idle][de][valid_intents][was_airborne]") {
     atc_templates::reload();
     auto valid = atc_templates::valid_intents(/*is_towered=*/true, "IDLE",
@@ -119,8 +119,12 @@ TEST_CASE("post-landing-idle: post-landing IDLE whitelist offers the sign-off, "
     REQUIRE(contains(valid, "LEAVING_FREQUENCY"));
     REQUIRE_FALSE(contains(valid, "INITIAL_CALL_GROUND"));
     REQUIRE_FALSE(contains(valid, "INITIAL_CALL_TOWER"));
-    REQUIRE_FALSE(contains(valid, "INITIAL_CALL_INBOUND"));
-    REQUIRE_FALSE(contains(valid, "INITIAL_CALL_INBOUND_VRP"));
+    // INITIAL_CALL_INBOUND/_VRP stay available even with was_airborne=true: a
+    // cross-country leg to a new field reaches IDLE airborne and still needs
+    // the inbound first contact (Issue #14). Their phase precondition, not the
+    // post_landing split, gates the on-ground case.
+    REQUIRE(contains(valid, "INITIAL_CALL_INBOUND"));
+    REQUIRE(contains(valid, "INITIAL_CALL_INBOUND_VRP"));
 }
 
 TEST_CASE("post-landing-idle: non-IDLE state is unaffected by the post_landing "

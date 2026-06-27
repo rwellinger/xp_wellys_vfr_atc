@@ -137,12 +137,18 @@ std::vector<std::string> valid_intents(bool is_towered, const std::string &state
   // Towered IDLE carries the union of first-contact and post-landing intents
   // under one key (the state machine cannot tell fresh-spawn-IDLE from post-
   // landing-IDLE). Select the half matching the session phase so the LM
-  // classifier (post-hoc validated against this set) cannot pick a first
-  // contact after a completed flight, nor a sign-off before one. Other states
-  // and uncontrolled fields are unaffected.
+  // classifier (post-hoc validated against this set) cannot pick a ground
+  // first contact after a completed flight, nor a sign-off before one. Other
+  // states and uncontrolled fields are unaffected.
+  //
+  // INITIAL_CALL_INBOUND/_VRP are deliberately NOT filtered by post_landing:
+  // they are airborne approach calls, legitimate whether the session has been
+  // airborne or not (a cross-country leg to a NEW field reaches IDLE with
+  // was_airborne=true but still needs the inbound first contact, Issue #14).
+  // Their own phase precondition (flight_rules.json rejection_ground) is the
+  // ground/air authority, so an on-ground post-landing mis-pick is caught there.
   static const std::set<std::string> kFirstContactOnly = {
-      "INITIAL_CALL_GROUND", "INITIAL_CALL_TOWER", "INITIAL_CALL_INBOUND",
-      "INITIAL_CALL_INBOUND_VRP"};
+      "INITIAL_CALL_GROUND", "INITIAL_CALL_TOWER"};
   static const std::set<std::string> kPostLandingOnly = {"LEAVING_FREQUENCY"};
   const bool filter_idle = is_towered && state == "IDLE";
 
