@@ -238,7 +238,7 @@
     },
 
     {
-      "_note": "Inbound/landing request, but only when no facility keyword (Tower/Turm) is present.",
+      "_note": "Inbound/landing request, but only when no facility keyword (Tower/Turm/Information/Radio) is present. A facility-addressed call with landing intent is the inbound INITIAL_CALL (handled by INITIAL_CALL_INBOUND below) -- excluding all facility keywords keeps that path reachable at AFIS/Info+Radio fields too, not just towered ones.",
       "intent": "REQUEST_LANDING",
       "confidence": 0.93,
       "any": ["zur landung", "voller halt"],
@@ -246,7 +246,9 @@
         "durchstartlandung",
         "aufsetzen und durchstarten",
         { "has_facility": "tower" },
-        { "has_facility": "turm" }
+        { "has_facility": "turm" },
+        { "has_facility": "information" },
+        { "has_facility": "radio" }
       ]
     },
 
@@ -270,12 +272,14 @@
     },
 
     {
-      "_note": "Tower call with inbound/landing intent -- beats INITIAL_CALL_TOWER below.",
+      "_note": "Tower/Info/Radio call with inbound/landing intent -- beats INITIAL_CALL_TOWER below. NfL ANLAGE 1.4.13 a)/e): '[Luftfahrzeugtyp] (Position) (Flughoehe) ZUR LANDUNG' applies to pattern and cross-country inbound alike. At AFIS fields the pilot addresses 'Information'/'Radio' instead of 'Turm', so all three facility keywords qualify. The mandatory ['zur landung','voller halt'] guard keeps this collision-free with the bare INITIAL_CALL_GROUND 'information' rule below (which has no landing phrase) and with the 'Information <NATO>' ATIS letter.",
       "intent": "INITIAL_CALL_INBOUND",
       "confidence": 0.85,
       "all": [
         { "any": [
-            { "has_facility": "turm" }
+            { "has_facility": "turm" },
+            { "has_facility": "information" },
+            { "has_facility": "radio" }
         ] }
       ],
       "any": ["zur landung", "voller halt"]

@@ -320,6 +320,78 @@ TEST_CASE("DE: Friedrichshafen Turm zur Landung -> INITIAL_CALL_INBOUND",
     REQUIRE(m.confidence >= 0.80f);
 }
 
+// ── AFIS/Info inbound initial call (Issue 13) ────────────────────────
+// NfL ANLAGE 1.4.13 a)/e): the inbound first call '... ZUR LANDUNG'
+// applies at AFIS fields too, where the pilot addresses 'Information'/
+// 'Radio' instead of 'Turm'. Before the fix REQUEST_LANDING (no turm in
+// its none-guard) swallowed these into an _INVALID dead end.
+
+TEST_CASE("DE: AFIS Information inbound 'zur Landung' -> INITIAL_CALL_INBOUND",
+          "[intent][de][inbound][info]") {
+    DeRegionGuard g;
+    auto ctx = afis_ground_ctx();
+    ctx.on_ground = false; // airborne, joining the pattern inbound
+    // No pattern-leg keyword and no VRP: a bare inbound first call. With a
+    // leg word ('Endanflug') REPORT_POSITION_FINAL would win; with a VRP
+    // the upgrade rule would lift this to INITIAL_CALL_INBOUND_VRP.
+    auto m = parse("Schwaebisch Hall Information, Delta Echo Romeo Kilo Lima, "
+                   "zur Landung.",
+                   ctx);
+    REQUIRE(m.intent == PilotIntent::INITIAL_CALL_INBOUND);
+    REQUIRE(m.confidence >= 0.85f);
+}
+
+TEST_CASE("DE: AFIS Information cross-country inbound -> INITIAL_CALL_INBOUND",
+          "[intent][de][inbound][info]") {
+    DeRegionGuard g;
+    auto ctx = afis_ground_ctx();
+    ctx.on_ground = false; // airborne, en route to the field
+    auto m = parse("Schwaebisch Hall Information, Delta Echo Romeo Kilo Lima, "
+                   "10 Kilometer suedlich, 1500 Fuss, zur Landung.",
+                   ctx);
+    REQUIRE(m.intent == PilotIntent::INITIAL_CALL_INBOUND);
+    REQUIRE(m.confidence >= 0.85f);
+}
+
+TEST_CASE("DE: AFIS Radio inbound 'zur Landung' -> INITIAL_CALL_INBOUND",
+          "[intent][de][inbound][radio]") {
+    DeRegionGuard g;
+    auto ctx = afis_ground_ctx();
+    ctx.on_ground = false;
+    ctx.frequency_type = xplane_context::FrequencyType::RADIO;
+    auto m = parse("Hamburg Radio, Delta Echo Romeo Kilo Lima, "
+                   "zur Landung.",
+                   ctx);
+    REQUIRE(m.intent == PilotIntent::INITIAL_CALL_INBOUND);
+    REQUIRE(m.confidence >= 0.85f);
+}
+
+TEST_CASE("DE: AFIS Information ground call without landing phrase stays GROUND",
+          "[intent][de][inbound][info][collision]") {
+    DeRegionGuard g;
+    auto ctx = afis_ground_ctx(); // on_ground=true
+    // No 'zur Landung'/'voller Halt' -> the inbound rule must not fire;
+    // this is a ground initial call, not an inbound one.
+    auto m = parse("Schwaebisch Hall Information, Delta Echo Romeo Kilo Lima, "
+                   "am Vorfeld, VFR Platzrunde, Information Alpha.",
+                   ctx);
+    REQUIRE(m.intent == PilotIntent::INITIAL_CALL_GROUND);
+}
+
+TEST_CASE("DE: AFIS Information final report with landing phrase stays FINAL",
+          "[intent][de][inbound][info][regression]") {
+    DeRegionGuard g;
+    auto ctx = afis_ground_ctx();
+    ctx.on_ground = false; // airborne
+    // REPORT_POSITION_FINAL ('Endanflug', conf 0.93) precedes the inbound
+    // rule: the new 'information' matcher must not hijack a leg report even
+    // when 'zur Landung' is also present.
+    auto m = parse("Schwaebisch Hall Information, im Endanflug, "
+                   "zur Landung, Information Bravo.",
+                   ctx);
+    REQUIRE(m.intent == PilotIntent::REPORT_POSITION_FINAL);
+}
+
 TEST_CASE("DE: Verkehr in Sicht -> TRAFFIC_IN_SIGHT",
           "[intent][de][traffic]") {
     DeRegionGuard g;
