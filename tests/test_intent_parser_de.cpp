@@ -59,6 +59,18 @@ xplane_context::XPlaneContext airborne_ctx() {
     return ctx;
 }
 
+// On-ground pilot at an AFIS/Info field. on_ground=true is essential: the
+// ground-only INITIAL_CALL_GROUND is demoted to 0.3 while airborne.
+xplane_context::XPlaneContext afis_ground_ctx() {
+    xplane_context::XPlaneContext ctx;
+    ctx.on_ground = true;
+    ctx.facility_type = xplane_context::FacilityType::AFIS;
+    ctx.frequency_type = xplane_context::FrequencyType::INFO;
+    ctx.nearest_airport_id = "EDTY";
+    ctx.active_runway = "10";
+    return ctx;
+}
+
 } // namespace
 
 // ── Departure phase (ground) ─────────────────────────────────────────
@@ -117,6 +129,34 @@ TEST_CASE("DE: Boden initial call -> INITIAL_CALL_GROUND",
                    ctx);
     REQUIRE(m.intent == PilotIntent::INITIAL_CALL_GROUND);
     REQUIRE(m.confidence >= 0.80f);
+}
+
+TEST_CASE("DE: AFIS Information initial call -> INITIAL_CALL_GROUND",
+          "[intent][de][initial_call][info]") {
+    DeRegionGuard g;
+    auto ctx = afis_ground_ctx();
+    // AFIS field: pilot addresses '<Platz> Information' instead of 'Boden'.
+    // The transcript carries 'Information' twice (station address + ATIS
+    // letter); the standalone-word has_facility matcher catches it on ground.
+    auto m = parse("Schwaebisch Hall Information, Delta Echo Romeo Kilo Lima, "
+                   "BN2P, am Vorfeld, VFR Platzrunde, Information Alpha.",
+                   ctx);
+    REQUIRE(m.intent == PilotIntent::INITIAL_CALL_GROUND);
+    REQUIRE(m.confidence >= 0.85f);
+}
+
+TEST_CASE("DE: AFIS final-approach report with ATIS letter stays position report",
+          "[intent][de][info][regression]") {
+    DeRegionGuard g;
+    auto ctx = afis_ground_ctx();
+    ctx.on_ground = false; // airborne
+    // Regression: REPORT_POSITION_FINAL precedes INITIAL_CALL_GROUND in
+    // rule order and match() returns at the first hit, so the new
+    // 'information' matcher never hijacks an 'Endanflug' position report.
+    auto m = parse("Schwaebisch Hall Information, im Endanflug, "
+                   "Information Bravo.",
+                   ctx);
+    REQUIRE(m.intent == PilotIntent::REPORT_POSITION_FINAL);
 }
 
 TEST_CASE("DE: Boden + erbitte Rollen -> REQUEST_TAXI",

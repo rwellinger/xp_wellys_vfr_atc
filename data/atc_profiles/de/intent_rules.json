@@ -276,6 +276,15 @@
     },
 
     {
+      "_note": "AFIS/Info field initial call: pilot addresses '<Platz> Information' (no Boden/Turm). MUST stay after the Tower rules: unlike 'boden' (never spoken on a tower call), 'information' also appears as the ATIS letter 'Information <NATO>' in towered calls, so an earlier match here would hijack INITIAL_CALL_TOWER. has_facility is a standalone-word match; the on_ground adjustment demotes airborne misfires. NfL 2024 §34 b).",
+      "intent": "INITIAL_CALL_GROUND",
+      "confidence": 0.85,
+      "any": [
+        { "has_facility": "information" }
+      ]
+    },
+
+    {
       "_note": "Generic initial call -- last resort.",
       "intent": "INITIAL_CALL",
       "confidence": 0.80,
