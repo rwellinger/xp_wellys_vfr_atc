@@ -957,6 +957,8 @@ std::vector<NearbyAirport> find_nearby_airports(double max_nm,
       na.has_atis = freq_it->second.has(FrequencyType::ATIS);
       na.has_ground = freq_it->second.has(FrequencyType::GROUND);
       na.has_tower = freq_it->second.has(FrequencyType::TOWER);
+      na.has_afis = freq_it->second.has(FrequencyType::INFO) ||
+                    freq_it->second.has(FrequencyType::RADIO);
     }
     out.push_back(std::move(na));
   }

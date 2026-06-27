@@ -361,16 +361,18 @@ static void draw_nearby_airports() {
 
   auto render_row = [&](const std::string &icao, const std::string &name,
                         double dist_nm, bool has_atis, bool has_ground,
-                        bool has_tower, bool is_locked) {
+                        bool has_tower, bool has_afis, bool is_locked) {
     auto mark = [](bool present) -> const char * {
       return present ? "X" : "-";
     };
     char label[256];
     std::snprintf(
-        label, sizeof(label), "%s %-4s  %-24s  %5.1f NM   %s    %s   %s##nb_%s",
+        label, sizeof(label),
+        "%s %-4s  %-24s  %5.1f NM   %s    %s   %s    %s##nb_%s",
         is_locked ? ">" : " ", // lock marker
         icao.c_str(), name.empty() ? "" : name.substr(0, 24).c_str(), dist_nm,
-        mark(has_atis), mark(has_ground), mark(has_tower), icao.c_str());
+        mark(has_atis), mark(has_ground), mark(has_tower), mark(has_afis),
+        icao.c_str());
     if (is_locked) {
       ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4f, 1.0f, 0.4f, 1.0f));
     }
@@ -381,7 +383,8 @@ static void draw_nearby_airports() {
     if (clicked) {
       xplane_context::lock_airport(icao);
       // Tune standby to the most useful freq of the picked airport:
-      // ATIS if available, otherwise Tower, otherwise Unicom.
+      // ATIS if available, otherwise Tower, otherwise Unicom, otherwise the
+      // AFIS Info/Radio frequency (German info fields have none of the above).
       const auto &cur_ctx = xplane_context::get();
       uint32_t target_khz = 0;
       for (const auto &f : cur_ctx.airport_freqs.all) {
@@ -401,6 +404,15 @@ static void draw_nearby_airports() {
       if (target_khz == 0) {
         for (const auto &f : cur_ctx.airport_freqs.all) {
           if (f.type == xplane_context::FrequencyType::UNICOM) {
+            target_khz = f.freq_khz;
+            break;
+          }
+        }
+      }
+      if (target_khz == 0) {
+        for (const auto &f : cur_ctx.airport_freqs.all) {
+          if (f.type == xplane_context::FrequencyType::INFO ||
+              f.type == xplane_context::FrequencyType::RADIO) {
             target_khz = f.freq_khz;
             break;
           }
@@ -432,7 +444,10 @@ static void draw_nearby_airports() {
     render_row(locked, ctx.nearest_airport_name, dist_nm,
                ctx.airport_freqs.has(FT::ATIS),
                ctx.airport_freqs.has(FT::GROUND),
-               ctx.airport_freqs.has(FT::TOWER), true);
+               ctx.airport_freqs.has(FT::TOWER),
+               ctx.airport_freqs.has(FT::INFO) ||
+                   ctx.airport_freqs.has(FT::RADIO),
+               true);
   }
 
   if (nearby_cache_.empty()) {
@@ -440,7 +455,7 @@ static void draw_nearby_airports() {
   } else {
     for (const auto &na : nearby_cache_) {
       render_row(na.icao, na.name, na.distance_nm, na.has_atis, na.has_ground,
-                 na.has_tower, na.icao == locked);
+                 na.has_tower, na.has_afis, na.icao == locked);
     }
   }
 }
