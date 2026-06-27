@@ -5,6 +5,7 @@
 // approved State x Phase x Facility x Frequency matrix and pins the
 // expected hint set so future JSON edits surface as test failures.
 
+#include "atc/flight_phase.hpp"
 #include "atc/phraseology_hints.hpp"
 #include "core/xplane_context.hpp"
 
@@ -23,12 +24,41 @@ namespace {
 // or falls back to ./data — both point at the live region JSON files,
 // so ::init() loads the same matrix the plugin uses.
 struct LoadGuard {
-  LoadGuard() { phraseology_hints::init(); }
-  ~LoadGuard() { phraseology_hints::stop(); }
+  // Load BOTH stages of the live hint pipeline: the matrix (phraseology_hints)
+  // and the intent_frequency allowlist (flight_phase) the UI's defense filter
+  // consults. Tests that only loaded the matrix masked the AFIS regression
+  // below — the matrix was correct, the allowlist was not.
+  LoadGuard() {
+    phraseology_hints::init();
+    flight_phase::init();
+  }
+  ~LoadGuard() {
+    flight_phase::stop();
+    phraseology_hints::stop();
+  }
 };
 
 bool contains(const std::vector<std::string> &v, const std::string &needle) {
   return std::find(v.begin(), v.end(), needle) != v.end();
+}
+
+// Replicates the UI's two-stage pipeline (src/ui/atc_ui.cpp): matrix lookup,
+// then the defense-in-depth frequency filter. A hint only reaches the panel
+// if it survives BOTH. Mirrors the tower_only carve-out so towered cases are
+// faithful too.
+std::vector<std::string> pipeline(const phraseology_hints::HintQuery &q) {
+  std::vector<std::string> v = phraseology_hints::lookup(q);
+  v.erase(std::remove_if(v.begin(), v.end(),
+                         [&](const std::string &key) {
+                           if (flight_phase::is_intent_valid_for_frequency(
+                                   key, q.frequency_type))
+                             return false;
+                           return !(q.tower_only &&
+                                    q.frequency_type ==
+                                        FrequencyType::TOWER);
+                         }),
+          v.end());
+  return v;
 }
 
 phraseology_hints::HintQuery make_query(ATCState state, FlightPhase phase,
@@ -187,6 +217,52 @@ TEST_CASE("phraseology_hints: AFIS/Radio inbound -> inbound + positions",
   auto hints = phraseology_hints::lookup(q);
   REQUIRE(contains(hints, "INITIAL_CALL_INBOUND"));
   REQUIRE(contains(hints, "LEAVING_FREQUENCY"));
+}
+
+// ── Two-stage pipeline regression (AFIS/Info hints reaching the panel) ──────
+// The matrix surfaced the AFIS intents (covered above), but the UI's
+// defense-in-depth frequency filter dropped every one of them because the
+// intent_frequency allowlist in flight_rules.json listed no INFO/RADIO entry.
+// Result: empty hint panel on the Info frequency. These pin the FULL pipeline.
+
+TEST_CASE("phraseology_hints: is_intent_valid_for_frequency accepts INFO/RADIO",
+          "[phraseology_hints][afis]") {
+  LoadGuard g;
+  using flight_phase::is_intent_valid_for_frequency;
+  for (FrequencyType freq : {FrequencyType::INFO, FrequencyType::RADIO}) {
+    REQUIRE(is_intent_valid_for_frequency("INITIAL_CALL_GROUND", freq));
+    REQUIRE(is_intent_valid_for_frequency("RADIO_CHECK", freq));
+    REQUIRE(is_intent_valid_for_frequency("INITIAL_CALL_INBOUND", freq));
+    REQUIRE(is_intent_valid_for_frequency("REPORT_POSITION_DOWNWIND", freq));
+    REQUIRE(is_intent_valid_for_frequency("REPORT_POSITION_BASE", freq));
+    REQUIRE(is_intent_valid_for_frequency("REPORT_POSITION_FINAL", freq));
+    REQUIRE(is_intent_valid_for_frequency("LEAVING_FREQUENCY", freq));
+  }
+}
+
+TEST_CASE("phraseology_hints: AFIS/Info ground pipeline is non-empty (Sch. Hall)",
+          "[phraseology_hints][afis]") {
+  LoadGuard g;
+  auto q = make_query(ATCState::IDLE, FlightPhase::PARKED,
+                      /*facility=*/FacilityType::AFIS, FrequencyType::INFO);
+  auto hints = pipeline(q);
+  REQUIRE_FALSE(hints.empty());
+  REQUIRE(contains(hints, "INITIAL_CALL_GROUND"));
+  REQUIRE(contains(hints, "RADIO_CHECK"));
+}
+
+TEST_CASE("phraseology_hints: AFIS airborne pipeline keeps position reports",
+          "[phraseology_hints][afis]") {
+  LoadGuard g;
+  for (FrequencyType freq : {FrequencyType::INFO, FrequencyType::RADIO}) {
+    auto q = make_query(ATCState::IDLE, FlightPhase::PATTERN,
+                        /*facility=*/FacilityType::AFIS, freq);
+    auto hints = pipeline(q);
+    REQUIRE_FALSE(hints.empty());
+    REQUIRE(contains(hints, "INITIAL_CALL_INBOUND"));
+    REQUIRE(contains(hints, "REPORT_POSITION_DOWNWIND"));
+    REQUIRE(contains(hints, "LEAVING_FREQUENCY"));
+  }
 }
 
 TEST_CASE("phraseology_hints: EN_ROUTE without relevant freq is empty",

@@ -2257,6 +2257,13 @@ static void draw_flightprep_tab(const xplane_context::XPlaneContext &ctx) {
                        callsign_raw_buf, sizeof(callsign_raw_buf))) {
     settings::set_pilot_callsign_raw(callsign_raw_buf);
   }
+  // Persist once when editing finishes (Enter / focus-out). The handler above
+  // updates the in-memory value per keystroke so the phonetic preview stays
+  // live, but this tab has no "Save Settings" button (unlike the old Settings
+  // tab this field was moved from), so without this the callsign is never
+  // written to disk and is lost on restart.
+  if (ImGui::IsItemDeactivatedAfterEdit())
+    settings::save();
   // Keep the buffer in sync with settings when not actively typing, so it is
   // populated on first open without relying on the Settings tab init.
   if (!ImGui::IsItemActive()) {

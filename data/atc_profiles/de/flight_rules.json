@@ -158,7 +158,7 @@
   },
   "intent_frequency": {
     "INITIAL_CALL_GROUND": {
-      "allowed": ["GROUND"],
+      "allowed": ["GROUND", "INFO", "RADIO"],
       "rejection": "{callsign}, rufen Sie Ground."
     },
     "REQUEST_TAXI": {
@@ -174,7 +174,7 @@
       "rejection": "{callsign}, rufen Sie Tower."
     },
     "INITIAL_CALL_INBOUND": {
-      "allowed": ["TOWER"],
+      "allowed": ["TOWER", "INFO", "RADIO"],
       "rejection": "{callsign}, rufen Sie Tower zur Landung."
     },
     "INITIAL_CALL_INBOUND_VRP": {
@@ -194,15 +194,15 @@
       "rejection": "{callsign}, rufen Sie Tower fuer die Positionsmeldung."
     },
     "REPORT_POSITION_DOWNWIND": {
-      "allowed": ["TOWER"],
+      "allowed": ["TOWER", "INFO", "RADIO"],
       "rejection": "{callsign}, rufen Sie Tower fuer die Positionsmeldung."
     },
     "REPORT_POSITION_BASE": {
-      "allowed": ["TOWER"],
+      "allowed": ["TOWER", "INFO", "RADIO"],
       "rejection": "{callsign}, rufen Sie Tower fuer die Positionsmeldung."
     },
     "REPORT_POSITION_FINAL": {
-      "allowed": ["TOWER"],
+      "allowed": ["TOWER", "INFO", "RADIO"],
       "rejection": "{callsign}, rufen Sie Tower fuer die Positionsmeldung."
     },
     "REQUEST_LANDING": {
@@ -226,7 +226,7 @@
       "rejection": "{callsign}, sagen Sie nochmal."
     },
     "RADIO_CHECK": {
-      "allowed": ["GROUND", "TOWER"],
+      "allowed": ["GROUND", "TOWER", "INFO", "RADIO"],
       "rejection": "{callsign}, negativ."
     },
     "SELF_ANNOUNCE": {
@@ -238,7 +238,7 @@
       "rejection": "{callsign}, negativ auf dieser Frequenz."
     },
     "LEAVING_FREQUENCY": {
-      "allowed": ["TOWER"],
+      "allowed": ["TOWER", "INFO", "RADIO"],
       "rejection": "{callsign}, negativ auf dieser Frequenz."
     }
   },
