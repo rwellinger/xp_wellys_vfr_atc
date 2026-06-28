@@ -25,12 +25,19 @@
 // answer them read as a complete exchange.
 //
 // One valid, pretty-printed JSON document per flight is written to
-// <dir>/YYYY-MM-DD_HHMM_<AIRPORT>.json. The whole document is rewritten
-// (atomically, temp file + rename) after every transmission, so it is
-// always a complete, well-formed file with an up-to-date summary — no
-// "flight finished" event is required. Flights are split by a logging-
-// only heuristic (airborne -> back on the ground + IDLE = new departure)
-// or forced via begin_new_flight().
+// <dir>/YYYY-MM-DD_HHMM_<DEP>-<DEST>.json (the "-<DEST>" suffix is added
+// once an inbound call fixes the destination, renaming the file). The
+// whole document is rewritten (atomically, temp file + rename) after every
+// transmission, so it is always a complete, well-formed file with an
+// up-to-date summary — no "flight finished" event is required.
+//
+// Flights are split (logging-only) at the real-world anchor: a DEPARTURE-
+// type initial call (INITIAL_CALL_GROUND/_TOWER) from IDLE on the ground,
+// once the open flight has already flown. Inbound calls belong to the
+// current flight and set its destination; they never split. A split can
+// also be forced via begin_new_flight(). The flight header carries
+// "missing_initial_call": true when a controlled field (Tower/Ground/AFIS)
+// is departed without any recognised initial call.
 //
 // SDK-free. Lives in the xp_atc_engine OBJECT lib (file I/O only, no
 // XPLM headers) so atc_repl and the scenario tests can exercise it too.
@@ -74,6 +81,10 @@ struct Entry {
   // on transmissions appended to an already-open flight.
   std::string airport_id;     // ctx.nearest_airport_id at time of speech
   std::string pilot_callsign; // pilot callsign for this flight
+  // ctx.frequency_type name (Tower/Ground/Info/...); scopes the
+  // missing_initial_call header flag to controlled fields. Empty when no
+  // context was available for this transmission.
+  std::string frequency_type;
 
   // ── Raw material for offline failure attribution ───────────────────
   // The set of intents plausibly expected in this state (valid_intents

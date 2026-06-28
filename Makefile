@@ -25,7 +25,13 @@ SUBMODULES_SENTINEL := spikes/spike_whisper/third_party/whisper.cpp/CMakeLists.t
 
 CATCH2_VERSION := 3.15.1
 
-.PHONY: all help setup submodules build install clean distclean format lint sanitize release release-build cleanup-tags cleanup-branches cleanup-runs repl run-repl test test-unit test-scenarios
+# SkunkCrafts Updater: staging dir for the publishable release tree.
+# Lives under build/ so `make clean` removes it. The tree mirrors the
+# installed plugin MINUS the in-sim-downloaded models and runtime logs,
+# plus the generated skunkcrafts_updater_*.txt control files.
+SKUNK_DIR := build/skunkcrafts
+
+.PHONY: all help setup submodules build install clean distclean format lint sanitize release release-build skunkcrafts cleanup-tags cleanup-branches cleanup-runs repl run-repl test test-unit test-scenarios
 
 .DEFAULT_GOAL := help
 
@@ -51,6 +57,7 @@ help:
 	@echo "  make sanitize          Build atc_repl + tests with ASan+UBSan and run them"
 	@echo "  make release VERSION=X Tag and push release (writes VERSION.txt)"
 	@echo "  make release-build     Build plugin with RELEASE=ON (embeds VERSION.txt)"
+	@echo "  make skunkcrafts       Stage SkunkCrafts Updater release tree -> $(SKUNK_DIR) (after 'make install')"
 	@echo "  make cleanup-tags      Prune local tags no longer on origin"
 	@echo "  make cleanup-branches  Prune local branches whose remote is gone"
 	@echo "  make cleanup-runs      Delete all GitHub Actions runs except the newest per workflow"
@@ -392,6 +399,37 @@ release:
 release-build:
 	@$(MAKE) build RELEASE_FLAG=-DRELEASE=ON
 	@echo "Done. Universal release build with version from VERSION.txt."
+
+# ── SkunkCrafts Updater release tree ──────────────────────────────────────────
+# Stages a clean, publishable copy of the installed plugin into
+# $(SKUNK_DIR) and generates the SkunkCrafts control files against it.
+# The in-sim-downloaded models (~2 GB) and runtime flight logs are
+# excluded — they are deliberately NOT managed by the updater (untracked
+# files survive every update; blacklisting them would DELETE them).
+# Version comes from VERSION=x.y.z, falling back to VERSION.txt.
+# Publish the contents of $(SKUNK_DIR)/ to the `release` branch (or your
+# HTTPS host) that tools/skunkcrafts/skunkcrafts_updater.cfg.template's
+# `module` URL points at.
+skunkcrafts:
+	@if [ ! -d "$(PLUGIN_DIR)" ]; then \
+	    echo "Plugin not installed at '$(PLUGIN_DIR)'. Run 'make install' first."; exit 1; \
+	fi
+	@VER="$(VERSION)"; \
+	if [ -z "$$VER" ] && [ -f VERSION.txt ]; then VER="$$(cat VERSION.txt)"; fi; \
+	if [ -z "$$VER" ]; then \
+	    echo "No version. Set VERSION=x.y.z or populate VERSION.txt."; exit 1; \
+	fi; \
+	echo "=== Staging SkunkCrafts release tree ($$VER) ==="; \
+	rm -rf "$(SKUNK_DIR)"; mkdir -p "$(SKUNK_DIR)"; \
+	rsync -a \
+	    --exclude 'Resources/models/' \
+	    --exclude 'data/flightlog/' \
+	    --exclude '.DS_Store' \
+	    --exclude 'skunkcrafts_updater*' \
+	    "$(PLUGIN_DIR)/" "$(SKUNK_DIR)/"; \
+	python3 tools/skunkcrafts/generate.py --tree "$(SKUNK_DIR)" --version "$$VER"; \
+	echo "Staged release tree at $(SKUNK_DIR)/ (version $$VER)."; \
+	echo "Publish its contents to the 'release' branch / your update host."
 
 # ── Cleanup Tags ──────────────────────────────────────────────────────────────
 cleanup-tags:

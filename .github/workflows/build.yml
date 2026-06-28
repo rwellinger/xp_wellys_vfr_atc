@@ -95,6 +95,16 @@ jobs:
 
           cp -r docs "$STAGE/docs"
 
+          # Generate the SkunkCrafts Updater control files into the staged
+          # tree BEFORE zipping, so the GitHub-release ZIP also carries
+          # skunkcrafts_updater.cfg — manual installers then become
+          # updater-discoverable. The in-sim-downloaded models (~2 GB) are
+          # excluded by generate.py (untracked => left untouched, never
+          # deleted); settings.json is marked once-only. Version from the
+          # tag (v1.2.3 -> 1.2.3).
+          python3 tools/skunkcrafts/generate.py \
+            --tree "$STAGE" --version "${GITHUB_REF_NAME#v}"
+
           cd dist && zip -r xp_wellys_devfr_atc.zip xp_wellys_devfr_atc/
 
       - name: Create release with assets
@@ -103,3 +113,28 @@ jobs:
         with:
           files: dist/xp_wellys_devfr_atc.zip
           generate_release_notes: true
+
+      - name: Publish SkunkCrafts update tree
+        # Force-push the staged plugin tree to the `release` branch that the
+        # skunkcrafts_updater.cfg `module` URL serves via raw.githubusercontent.
+        # Single orphan commit each release => the branch never accumulates
+        # history (binaries don't bloat the repo over time). The empty
+        # Resources/models dir is dropped (git ignores empty dirs anyway and
+        # the models are not updater-managed).
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          STAGE=dist/xp_wellys_devfr_atc
+          rm -rf "$STAGE/Resources/models"
+          pushd "$STAGE"
+          git init -q
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "release ${GITHUB_REF_NAME}"
+          git branch -M release
+          git push --force \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" release
+          popd
