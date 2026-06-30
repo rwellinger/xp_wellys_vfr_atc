@@ -445,12 +445,17 @@ gültiges, hübsch formatiertes JSON-Dokument pro Flug** nach
 gesetzt). Das ganze Dokument wird **nach jeder Funke** atomar (Temp-Datei
 + `rename`) neu geschrieben — es ist also stets vollständig und valide
 samt aktuellem `summary`; ein „Flug-fertig"-Event ist nicht nötig.
-Aufbau: `{ version, flight{started_at, departure_airport,
-pilot_callsign}, summary{transmissions, classified, unknown, garbled,
-lm_fallbacks, readback_issues, phases[]}, transmissions[] }`.
+Aufbau (`version` 2): `{ version, flight{started_at, started_at_epoch,
+departure_airport, pilot_callsign}, summary{transmissions, classified,
+unknown, garbled, lm_fallbacks, readback_issues, phases[]},
+transmissions[] }`. `started_at_epoch` (Unix-Epoch-Sekunden, UTC) und das
+Per-Funke-Feld `ts` (ebenfalls Epoch, UTC) wurden additiv ergänzt, damit
+der Trainer die Funken ohne TZ/DST-Rekonstruktion gegen das xp_pilot-
+Flight-Log korrelieren kann (Issue #17); die Lokalzeit-Strings `started_at`
+/ `time` bleiben unverändert.
 `engine::process_transcript` fädelt die Per-Funke-Felder an jedem
 Ausstiegspunkt zusammen, **nachdem** `outcome` feststeht — ohne Eingriff
-ins Matching, Routing oder die Klassifikation. Funke-Felder: `time`,
+ins Matching, Routing oder die Klassifikation. Funke-Felder: `time`, `ts`,
 `transcript`/`quality`, `intent`/`confidence`, `path` (`rule_skip_lm` |
 `lm_fallback` | `clearance_match`), `lm_used` + `lm_backend`/`lm_ready`,
 `outcome` (`classified` | `unknown` | `tower_reported_garbled`),

@@ -50,7 +50,10 @@ std::string fresh_dir(const std::string &name) {
       const std::string n = ent->d_name;
       if (n == "." || n == "..")
         continue;
-      ::remove((dir + "/" + n).c_str());
+      std::string path = dir;
+      path += "/";
+      path += n;
+      ::remove(path.c_str());
     }
     closedir(d);
   }
@@ -231,4 +234,34 @@ TEST_CASE("cc_log: initial call present clears the missing flag",
 
   const json j = read_only_flight(dir);
   REQUIRE(j["flight"]["missing_initial_call"] == false);
+}
+
+// Issue #17: the schema carries a UTC epoch alongside the local-time strings
+// so the trainer can correlate transmissions against xp_pilot's epoch track
+// without reconstructing a TZ/DST offset.
+TEST_CASE("cc_log: epoch fields emitted for trainer correlation",
+          "[cross_country_log]") {
+  const std::string dir = begin_case("epoch_fields");
+
+  cross_country_log::write(
+      entry("INITIAL_CALL_GROUND", "IDLE", "PARKED", "EDNY", "Ground"));
+  cross_country_log::write(
+      entry("REPORT_POSITION", "DEPARTURE_CLEARED", "CLIMB", "EDNY", "Tower"));
+
+  const json j = read_only_flight(dir);
+
+  REQUIRE(j["version"] == 2);
+
+  // Flight header epoch is a positive integer (a plausible Unix timestamp).
+  const auto &flight = j["flight"];
+  REQUIRE(flight.contains("started_at_epoch"));
+  REQUIRE(flight["started_at_epoch"].is_number_integer());
+  REQUIRE(flight["started_at_epoch"].get<long long>() > 1'000'000'000LL);
+
+  // Every transmission carries an integer "ts" next to its local-time "time".
+  for (const auto &t : j["transmissions"]) {
+    REQUIRE(t.contains("ts"));
+    REQUIRE(t["ts"].is_number_integer());
+    REQUIRE(t["ts"].get<long long>() > 1'000'000'000LL);
+  }
 }

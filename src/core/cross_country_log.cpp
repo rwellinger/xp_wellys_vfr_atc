@@ -51,6 +51,7 @@ bool g_departure_controlled = false; // field was controlled (Tower/Ground/AFIS)
 struct TimeParts {
   std::string datetime;  // YYYY-MM-DDTHH:MM:SS  (started_at / per-tx time)
   std::string filestamp; // YYYY-MM-DD_HHMM      (file name)
+  long long epoch = 0;   // Unix epoch seconds (UTC) — same clock xp_pilot logs
 };
 
 TimeParts now_parts() {
@@ -65,7 +66,10 @@ TimeParts now_parts() {
   char fs[32] = {};
   std::strftime(dt, sizeof(dt), "%Y-%m-%dT%H:%M:%S", &tm_buf);
   std::strftime(fs, sizeof(fs), "%Y-%m-%d_%H%M", &tm_buf);
-  return {dt, fs};
+  // Keep the raw epoch alongside the local-time strings so the trainer can
+  // correlate transmissions against xp_pilot's UTC epoch track without
+  // reconstructing a TZ/DST offset (Issue #17).
+  return {dt, fs, static_cast<long long>(t)};
 }
 
 bool is_airborne_phase(const std::string &p) {
@@ -122,9 +126,10 @@ std::string sanitize_airport(const std::string &id) {
 
 // Build the per-transmission JSON object. Field order mirrors the Entry
 // struct; the leading "time" stamps the logbook entry.
-json entry_to_json(const Entry &e, const std::string &datetime) {
+json entry_to_json(const Entry &e, const TimeParts &parts) {
   json j;
-  j["time"] = datetime;
+  j["time"] = parts.datetime;
+  j["ts"] = parts.epoch; // Unix epoch seconds (UTC) for trainer correlation
   j["transcript"] = e.transcript;
   j["quality"] = e.quality;
   j["atc_response"] = e.atc_response;
@@ -225,8 +230,9 @@ void open_flight(const Entry &e, const TimeParts &parts) {
   g_departure_controlled = is_controlled_field(e.frequency_type);
 
   g_flight = json::object();
-  g_flight["version"] = 1;
+  g_flight["version"] = 2;
   g_flight["flight"] = {{"started_at", parts.datetime},
+                        {"started_at_epoch", parts.epoch},
                         {"departure_airport", e.airport_id.empty()
                                                   ? json(nullptr)
                                                   : json(e.airport_id)},
@@ -314,7 +320,7 @@ void write(const Entry &e) {
     g_force_new = false;
   }
 
-  g_flight["transmissions"].push_back(entry_to_json(e, parts.datetime));
+  g_flight["transmissions"].push_back(entry_to_json(e, parts));
 
   // Compliance tracking. Collect controlled-field status only before the
   // flight goes airborne (robust against an en-route frequency change),
