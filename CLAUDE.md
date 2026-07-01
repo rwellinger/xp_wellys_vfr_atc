@@ -47,6 +47,22 @@ Der `x86_64`-Slice hat **keine** lokalen Backends einkompiliert; **OpenAI**
 oder **Mistral** ist die einzige Option auf Intel-Macs (der Loader
 schreibt `local` → `openai` beim Start für diesen Slice still um).
 
+**Windows-Slice (`win_x64/win.xpl`, cloud-only)** — funktional identisch
+zum Intel-`x86_64`-Slice: `XPWELLYS_USE_LOCAL_INFERENCE=OFF`, kein
+whisper.cpp/llama.cpp/Piper/onnxruntime, kein Metal — nur OpenAI + Mistral
+über libcurl. Gebaut mit MSVC via CMake auf `windows-latest` in CI (nicht
+lokal); libcurl statisch aus vcpkg (`x64-windows-static`, Schannel-TLS),
+sodass das Artefakt **null** Extra-DLLs trägt — ein reiner Drop-in-Ordner
+für einen Zero-Toolchain-Test-Laptop. Der CMake-`elseif(WIN32)`-Zweig
+setzt `IBM=1 APL=0 LIN=0` und linkt `XPLM_64.lib`/`XPWidgets_64.lib` +
+`opengl32 Ws2_32 Crypt32 Bcrypt Advapi32`. Die macOS-`.mm`-Bridges
+(`clipboard.mm`, `mic_permission.mm`) sind aus dem Windows-Build
+ausgeschlossen und durch `*_win.cpp`-Stubs ersetzt (echte Win32-
+Implementierungen: Issues #21/#22). SHA256 (`model_manifest`) und die
+pthread-QoS-Hints (`manager`) sind auf Nicht-Apple aktuell Stubs
+(echte CNG- bzw. Windows-Thread-Priority-Ports: Issues #19/#23) —
+harmlos, da cloud-only nie lokale Modelle verifiziert. Siehe Epic #24.
+
 Alle drei Backend-Familien teilen sich dieselben drei abstrakten
 `i_*.hpp`-Strategie-Interfaces. Engine-Code berührt nie ein konkretes
 Backend. Siehe den Abschnitt **Backend Adapter Rule** — eine harte

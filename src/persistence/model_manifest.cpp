@@ -9,7 +9,9 @@
 
 #include "persistence/models_catalog.hpp"
 
+#if defined(__APPLE__)
 #include <CommonCrypto/CommonDigest.h>
+#endif
 #include <sys/stat.h>
 
 #include <cstdio>
@@ -234,6 +236,15 @@ std::string default_voice_for(VoiceRole role, const std::string &language) {
   return default_voice_for(role);
 }
 
+#if !defined(__APPLE__)
+// Non-Apple build gate (issue #18). SHA256 is only exercised by the
+// local-model verifier, which the cloud-only Windows slice
+// (XPWELLYS_USE_LOCAL_INFERENCE=OFF) never runs. Returning "" means
+// "unverifiable" — callers treat a hash mismatch as a failed download,
+// so this must be replaced with a real CNG/BCrypt implementation
+// before local inference is ever enabled on Windows. That is issue #19.
+std::string sha256_file(const std::string & /*path*/) { return {}; }
+#else
 std::string sha256_file(const std::string &path) {
   std::FILE *f = std::fopen(path.c_str(), "rb");
   if (!f)
@@ -269,6 +280,7 @@ std::string sha256_file(const std::string &path) {
   }
   return out;
 }
+#endif // __APPLE__
 
 bool size_matches(const Entry &e, const std::string &full_path) {
   struct stat st{};

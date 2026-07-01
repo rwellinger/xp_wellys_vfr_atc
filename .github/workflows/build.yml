@@ -5,12 +5,20 @@ on:
     types: [closed]
     branches: [main]
   push:
+    branches:
+      # Feature-branch scaffolding for the Windows port: build both the
+      # macOS universal binary and the Windows slice on every push here
+      # so the win.xpl can be bring-up-tested before a release tag.
+      - windows_support
     tags:
       - 'v*'
 
 jobs:
   build-macos:
     runs-on: macos-latest
+    # Wait for the Windows slice so a release tag can fold win_x64/win.xpl
+    # into the same drop-in ZIP the macOS job assembles + publishes.
+    needs: build-windows
     if: github.event_name == 'push' || github.event.pull_request.merged == true
     permissions:
       contents: write
@@ -53,16 +61,31 @@ jobs:
           make build RELEASE_FLAG="$RELEASE_FLAG"
           ccache --show-stats
 
+      - name: Download Windows slice
+        # The Windows job uploads win_x64/win.xpl as an artifact; fold it
+        # into the same drop-in bundle so one release ZIP serves both
+        # platforms. Tag builds only — dev pushes keep the two artifacts
+        # separate.
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/download-artifact@v4
+        with:
+          name: xp_wellys_devfr_atc-win
+          path: win-dist
+
       - name: Stage release bundle
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           set -euo pipefail
           STAGE=dist/xp_wellys_devfr_atc
           mkdir -p "$STAGE/mac_x64"
+          mkdir -p "$STAGE/win_x64"
           mkdir -p "$STAGE/Resources/espeak-ng-data"
           mkdir -p "$STAGE/Resources/models"
           mkdir -p "$STAGE/data/atc_profiles/de"
           mkdir -p "$STAGE/data/vrps"
+
+          # Windows slice (cloud-only, self-contained DLL — no extra libs).
+          cp win-dist/win_x64/win.xpl "$STAGE/win_x64/"
 
           cp build/xp_wellys_devfr_atc.xpl           "$STAGE/mac_x64/"
           cp build/libpiper.dylib              "$STAGE/mac_x64/"
@@ -138,3 +161,86 @@ jobs:
           git push --force \
             "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" release
           popd
+
+  # ── Windows slice (cloud-only) ──────────────────────────────────────────────
+  # GitHub Actions is the Windows compiler — no local MSVC toolchain
+  # needed. Builds the same source tree with XPWELLYS_USE_LOCAL_INFERENCE=OFF
+  # (no whisper/llama/Piper/onnxruntime, no Metal) into a self-contained
+  # win_x64/win.xpl. libcurl is linked statically from vcpkg (Schannel TLS)
+  # so the artifact carries zero extra DLLs — a pure "unzip into
+  # Resources/plugins" drop-in for a zero-toolchain test laptop.
+  build-windows:
+    runs-on: windows-latest
+    if: github.event_name == 'push' || github.event.pull_request.merged == true
+    steps:
+      - uses: actions/checkout@v5
+        # No submodules: cloud-only build pulls in none of the local
+        # inference third-party trees.
+
+      - name: Install libcurl (vcpkg, static, Schannel TLS)
+        shell: pwsh
+        run: vcpkg install curl:x64-windows-static
+
+      - name: Setup dependencies (SDK headers + Win libs, ImGui, json)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p sdk/XPLM sdk/XPWidgets sdk/Libraries/Win vendor/imgui/backends
+
+          echo "Downloading X-Plane SDK..."
+          curl -fsSL "https://developer.x-plane.com/wp-content/plugins/code-sample-generation/sdk_zip_files/XPSDK430.zip" -o sdk.zip
+          mkdir -p sdk_extracted
+          tar -xf sdk.zip -C sdk_extracted
+          find sdk_extracted -path "*/CHeaders/XPLM/*.h"    -exec cp {} sdk/XPLM/ \;
+          find sdk_extracted -path "*/CHeaders/Widgets/*.h" -exec cp {} sdk/XPWidgets/ \;
+          find sdk_extracted -path "*/Libraries/Win/*.lib"  -exec cp {} sdk/Libraries/Win/ \;
+
+          echo "Downloading Dear ImGui v1.92.8..."
+          curl -fsSL "https://github.com/ocornut/imgui/archive/refs/tags/v1.92.8.zip" -o imgui.zip
+          mkdir -p imgui_extracted
+          tar -xf imgui.zip -C imgui_extracted
+          SRC=imgui_extracted/imgui-1.92.8
+          cp "$SRC"/imgui.h "$SRC"/imgui.cpp vendor/imgui/
+          cp "$SRC"/imgui_draw.cpp "$SRC"/imgui_tables.cpp "$SRC"/imgui_widgets.cpp vendor/imgui/
+          cp "$SRC"/imgui_internal.h "$SRC"/imconfig.h vendor/imgui/
+          cp "$SRC"/imstb_textedit.h "$SRC"/imstb_rectpack.h "$SRC"/imstb_truetype.h vendor/imgui/
+          cp "$SRC"/backends/imgui_impl_opengl2.h "$SRC"/backends/imgui_impl_opengl2.cpp vendor/imgui/backends/
+
+          echo "Downloading nlohmann/json v3.12.0..."
+          curl -fsSL "https://github.com/nlohmann/json/releases/download/v3.12.0/json.hpp" -o vendor/json.hpp
+
+      - name: Configure (CMake, MSVC, cloud-only)
+        shell: pwsh
+        run: |
+          cmake -B build-win -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows-static `
+            -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded `
+            -DXPWELLYS_USE_LOCAL_INFERENCE=OFF `
+            -DBUILD_TESTS=OFF `
+            -Wno-dev
+
+      - name: Build (Release)
+        shell: pwsh
+        run: cmake --build build-win --config Release --target xp_wellys_devfr_atc --parallel
+
+      - name: Stage drop-in bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          STAGE=dist/xp_wellys_devfr_atc
+          mkdir -p "$STAGE/win_x64" "$STAGE/data/atc_profiles/de" "$STAGE/data/vrps"
+          cp build-win/Release/win.xpl      "$STAGE/win_x64/"
+          cp data/atc_prompt_templates.json "$STAGE/data/"
+          cp data/models_catalog.json       "$STAGE/data/"
+          cp data/settings.json             "$STAGE/data/"
+          cp data/atc_profiles/de/*.json    "$STAGE/data/atc_profiles/de/"
+          cp data/vrps/airport_vrps.json    "$STAGE/data/vrps/"
+          cp -r docs "$STAGE/docs"
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: xp_wellys_devfr_atc-win
+          path: dist/xp_wellys_devfr_atc
+          if-no-files-found: error
