@@ -30,6 +30,21 @@
 #if defined(__APPLE__)
 #include <AudioToolbox/AudioToolbox.h>
 #include <AudioUnit/AudioUnit.h>
+#elif defined(_WIN32)
+// Windows capture via miniaudio (WASAPI). Only the low-level device layer
+// is needed — no decoders, encoders, resource manager, node graph, or the
+// high-level engine — but ma_device still performs the native->16 kHz
+// resample + mono downmix we rely on. MINIAUDIO_IMPLEMENTATION lives in
+// this single TU (every other TU would include just the header). No extra
+// link libraries: miniaudio loads ole32/WASAPI dynamically at runtime.
+#define MA_NO_DECODING
+#define MA_NO_ENCODING
+#define MA_NO_GENERATION
+#define MA_NO_RESOURCE_MANAGER
+#define MA_NO_NODE_GRAPH
+#define MA_NO_ENGINE
+#define MINIAUDIO_IMPLEMENTATION
+#include <miniaudio.h>
 #endif
 
 namespace audio_recorder {
@@ -371,6 +386,132 @@ void stop_recording() {
                       "System Settings "
                       "> Privacy & Security > Microphone > enable X-Plane\n");
     }
+  }
+}
+
+#elif defined(_WIN32)
+
+static ma_device device_;
+static bool device_ready_ = false;
+static std::atomic<uint64_t> frames_captured_{0};
+
+// Capture callback: miniaudio hands us `frame_count` frames already
+// resampled to kDesiredSampleRate and downmixed to mono s16 (the format
+// requested in init()), so we append straight into buffer_.
+static void data_callback(ma_device * /*dev*/, void * /*output*/,
+                          const void *input, ma_uint32 frame_count) {
+  if (input == nullptr || frame_count == 0 || !recording_.load())
+    return;
+  const int16_t *samples = static_cast<const int16_t *>(input);
+  frames_captured_.fetch_add(frame_count);
+  std::lock_guard<std::mutex> lock(buffer_mutex_);
+  buffer_.insert(buffer_.end(), samples, samples + frame_count);
+}
+
+void init() {
+  // Windows has no per-app mic prompt; this logs and returns true. A
+  // system-level privacy block surfaces as an empty capture stream, which
+  // stop_recording() reports.
+  mic_permission::check_and_request();
+
+  ma_device_config config = ma_device_config_init(ma_device_type_capture);
+  config.capture.format = ma_format_s16;
+  config.capture.channels = kNumChannels;
+  config.sampleRate = kDesiredSampleRate; // miniaudio resamples to this
+  config.dataCallback = data_callback;
+
+  ma_result r = ma_device_init(nullptr, &config, &device_);
+  if (r != MA_SUCCESS) {
+    char log[128];
+    std::snprintf(log, sizeof(log),
+                  "[xp_wellys_devfr_atc] Error: ma_device_init failed (%d)\n",
+                  static_cast<int>(r));
+    XPLMDebugString(log);
+    return;
+  }
+  device_ready_ = true;
+  actual_sample_rate_ = kDesiredSampleRate;
+  initialized_ = true;
+
+  char log[256];
+  std::snprintf(log, sizeof(log),
+                "[xp_wellys_devfr_atc] Audio recorder initialized (miniaudio "
+                "WASAPI, %uHz mono 16-bit); input device: \"%s\"\n",
+                actual_sample_rate_, device_.capture.name);
+  XPLMDebugString(log);
+}
+
+void stop() {
+  if (device_ready_) {
+    ma_device_uninit(&device_); // stops the device + joins the callback
+    device_ready_ = false;
+  }
+  recording_ = false;
+  initialized_ = false;
+  std::lock_guard<std::mutex> lock(buffer_mutex_);
+  buffer_.clear();
+}
+
+void start_recording() {
+  if (!initialized_ || !device_ready_) {
+    XPLMDebugString(
+        "[xp_wellys_devfr_atc] Warning: audio recorder not initialized\n");
+    return;
+  }
+
+  {
+    std::lock_guard<std::mutex> lock(buffer_mutex_);
+    buffer_.clear();
+  }
+
+  frames_captured_ = 0;
+  recording_ = true;
+  ma_result r = ma_device_start(&device_);
+  if (r != MA_SUCCESS) {
+    char log[128];
+    std::snprintf(log, sizeof(log),
+                  "[xp_wellys_devfr_atc] Error: ma_device_start failed (%d)\n",
+                  static_cast<int>(r));
+    XPLMDebugString(log);
+    recording_ = false;
+  } else if (settings::debug_logging()) {
+    XPLMDebugString("[xp_wellys_devfr_atc][DEBUG] miniaudio device started\n");
+  }
+}
+
+void stop_recording() {
+  recording_ = false;
+  if (device_ready_) {
+    // Blocks until the device has stopped and the callback has returned,
+    // so reading buffer_ below is race-free.
+    ma_device_stop(&device_);
+  }
+
+  std::lock_guard<std::mutex> lock(buffer_mutex_);
+  int16_t peak = 0;
+  for (auto s : buffer_) {
+    int16_t abs_s = (s < 0) ? static_cast<int16_t>(-s) : s;
+    if (abs_s > peak)
+      peak = abs_s;
+  }
+  float peak_pct = (static_cast<float>(peak) / 32767.0f) * 100.0f;
+
+  if (settings::debug_logging()) {
+    char log[256];
+    std::snprintf(
+        log, sizeof(log),
+        "[xp_wellys_devfr_atc][DEBUG] Recording stopped: %zu samples "
+        "captured, %llu frames, peak: %d (%.1f%%)\n",
+        buffer_.size(),
+        static_cast<unsigned long long>(frames_captured_.load()),
+        static_cast<int>(peak), peak_pct);
+    XPLMDebugString(log);
+  }
+  if (buffer_.empty()) {
+    XPLMDebugString(
+        "[xp_wellys_devfr_atc] ERROR: No audio captured. Check Windows "
+        "Settings > Privacy & security > Microphone (enable for desktop apps) "
+        "and the selected default input device\n");
   }
 }
 

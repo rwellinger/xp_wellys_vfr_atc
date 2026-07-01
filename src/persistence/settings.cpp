@@ -26,10 +26,25 @@
 #include <fstream>
 #include <string>
 #include <sys/stat.h>
+#if defined(_WIN32)
+#include <direct.h> // _mkdir (no mode argument on Windows)
+#endif
 
 #include <XPLMPlugin.h>
 #include <XPLMUtilities.h>
 #include <json.hpp>
+
+namespace {
+// POSIX mkdir takes a mode; Windows _mkdir does not. Best-effort at every
+// call site — an already-existing directory (EEXIST) is fine.
+int make_dir(const std::string &p) {
+#if defined(_WIN32)
+  return _mkdir(p.c_str());
+#else
+  return mkdir(p.c_str(), 0755);
+#endif
+}
+} // namespace
 
 namespace settings {
 
@@ -143,7 +158,7 @@ void init() {
     data_dir_path = "data";
   }
 
-  mkdir(data_dir_path.c_str(), 0755);
+  make_dir(data_dir_path);
 
   // Load the model catalog BEFORE default_config() — default_config()
   // calls model_manifest::default_voice_for(), which now reads from
@@ -236,7 +251,7 @@ std::string user_prefs_dir() {
   XPLMGetSystemPath(xp_root);
   std::string path =
       std::string(xp_root) + "Output/preferences/xp_wellys_devfr_atc";
-  mkdir(path.c_str(), 0755);
+  make_dir(path);
   return path;
 }
 
@@ -248,7 +263,7 @@ std::string output_dir() {
   char xp_root[2048] = {};
   XPLMGetSystemPath(xp_root);
   std::string path = std::string(xp_root) + "Output/xp_wellys_devfr_atc";
-  mkdir(path.c_str(), 0755);
+  make_dir(path);
   return path;
 }
 

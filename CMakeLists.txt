@@ -1,8 +1,27 @@
 cmake_minimum_required(VERSION 3.26)
-project(xp_wellys_devfr_atc CXX OBJCXX)
+# Objective-C++ is only used by the macOS UI/permission bridges
+# (clipboard.mm, mic_permission.mm). MSVC has no ObjC++ frontend, so the
+# language is enabled per-platform below rather than in project().
+project(xp_wellys_devfr_atc CXX)
+if(APPLE)
+    enable_language(OBJCXX)
+endif()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Windows-wide compile definitions. libcurl transitively drags in
+# <windows.h>, which otherwise defines min()/max() macros (breaking
+# std::min/std::max) and pulls the legacy WinSock1 symbols that clash
+# with <winsock2.h>. Applied to every target (engine lib, ImGui, plugin)
+# so a stray <windows.h> include anywhere stays benign.
+if(WIN32)
+    # _USE_MATH_DEFINES: MSVC only exposes M_PI et al. from <cmath> when
+    # this is defined. As a global compile definition it is set before any
+    # header is seen, so every TU gets the constants.
+    add_compile_definitions(
+        NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS _USE_MATH_DEFINES)
+endif()
 
 option(BUILD_TESTS "Build Catch2 unit tests" ON)
 
@@ -226,6 +245,12 @@ add_library(xp_atc_engine OBJECT
 target_include_directories(xp_atc_engine PRIVATE
     ${CMAKE_SOURCE_DIR}/vendor
     ${CMAKE_SOURCE_DIR}/src
+    # manager.cpp includes <curl/curl.h>. The OBJECT lib does not link
+    # (consumers do), but it must see curl's headers at compile time. On
+    # macOS system libcurl these sit on the default search path; via
+    # vcpkg (Windows) they are exposed only through the imported target's
+    # interface include dirs.
+    $<TARGET_PROPERTY:CURL::libcurl,INTERFACE_INCLUDE_DIRECTORIES>
 )
 target_compile_definitions(xp_atc_engine PRIVATE
     XP_WELLYS_ATC_VERSION="${VERSION_STRING}"
@@ -252,7 +277,6 @@ add_library(xp_wellys_devfr_atc MODULE
     src/audio/ptt_input.cpp
     src/audio/audio_recorder.cpp
     src/audio/audio_player.cpp
-    src/audio/mic_permission.mm
     # OpenAI cloud clients — libcurl + nlohmann/json, never include
     # any local backend header. Each TU carries a kBackendTag
     # constant so every inference call shows up under
@@ -285,12 +309,27 @@ add_library(xp_wellys_devfr_atc MODULE
     src/persistence/keychain.cpp
     src/ui/atc_ui.cpp
     src/ui/ui_strings.cpp
-    # NSPasteboard bridge — the ImGui platform backend in this
-    # plugin does not wire up a clipboard connector, so the Paste
-    # button has to read the system pasteboard via AppKit directly.
-    src/ui/clipboard.mm
     ${IMGUI_SOURCES}
 )
+
+# Platform UI/permission bridges. macOS uses the Objective-C++ sources
+# (NSPasteboard + AVFoundation); Windows uses the Win32 .cpp counterparts
+# (issue #22: real clipboard via the Win32 clipboard API + a no-op mic
+# permission — Windows has no per-app mic prompt). Windows capture itself
+# lives in audio_recorder.cpp behind #elif defined(_WIN32) (miniaudio,
+# issue #21); its single-header vendor dep is fetched by `make setup`
+# / the CI deps step and needs no extra link libraries.
+if(APPLE)
+    target_sources(xp_wellys_devfr_atc PRIVATE
+        src/audio/mic_permission.mm
+        src/ui/clipboard.mm
+    )
+elseif(WIN32)
+    target_sources(xp_wellys_devfr_atc PRIVATE
+        src/audio/mic_permission_win.cpp
+        src/ui/clipboard_win.cpp
+    )
+endif()
 
 if(XPWELLYS_USE_LOCAL_INFERENCE)
     # Concrete local backends — pull whisper.h / llama.h / piper.h
@@ -330,8 +369,17 @@ if(XPWELLYS_USE_LOCAL_INFERENCE)
     )
 endif()
 
+# X-Plane resolves fat plugins by the platform subfolder (mac_x64/,
+# win_x64/), so the .xpl base name is free. The Windows slice ships as
+# win_x64/win.xpl per the X-Plane convention; macOS keeps its historical
+# name. The .xpl suffix stays on both — on Windows it is a renamed DLL.
+if(WIN32)
+    set(_xp_plugin_output_name "win")
+else()
+    set(_xp_plugin_output_name "xp_wellys_devfr_atc")
+endif()
 set_target_properties(xp_wellys_devfr_atc PROPERTIES
-    OUTPUT_NAME "xp_wellys_devfr_atc"
+    OUTPUT_NAME "${_xp_plugin_output_name}"
     SUFFIX      ".xpl"
     PREFIX      ""
 )
@@ -429,6 +477,34 @@ if(APPLE)
             INSTALL_RPATH "@loader_path"
         )
     endif()
+elseif(WIN32)
+    # ── Windows: cloud-only slice (XPWELLYS_USE_LOCAL_INFERENCE=OFF) ─────
+    # Functionally the Intel x86_64 macOS slice: OpenAI + Mistral over
+    # libcurl, no whisper/llama/Piper/onnxruntime, no Metal. Built by
+    # MSVC in CI (windows-latest) with libcurl from vcpkg. No @loader_path
+    # / lipo / dylib staging — a single self-contained win.xpl DLL.
+    target_compile_definitions(xp_wellys_devfr_atc PRIVATE
+        APL=0 IBM=1 LIN=0
+        XPLM200=1 XPLM210=1 XPLM300=1 XPLM301=1 XPLM400=1
+        XP_WELLYS_ATC_VERSION="${VERSION_STRING}"
+    )
+    target_compile_options(xp_wellys_devfr_atc PRIVATE /W3 /utf-8)
+
+    set(SDK_WIN_LIBS "${CMAKE_SOURCE_DIR}/sdk/Libraries/Win")
+    target_link_libraries(xp_wellys_devfr_atc PRIVATE
+        "${SDK_WIN_LIBS}/XPLM_64.lib"
+        "${SDK_WIN_LIBS}/XPWidgets_64.lib"
+        opengl32
+        # Ws2_32: sockets pulled in by libcurl. Crypt32: Schannel TLS
+        # certificate store used by the statically linked curl. Bcrypt:
+        # CNG, for the Windows SHA256 path (issue #19) + curl's RNG.
+        # Advapi32: registry / Credential Manager (issue #20).
+        Ws2_32
+        Crypt32
+        Bcrypt
+        Advapi32
+        CURL::libcurl
+    )
 endif()
 
 # ── CLI Executable (ohne X-Plane) ────────────────────────────────────────────

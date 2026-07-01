@@ -23,21 +23,23 @@ const std::string kTestAccount = "keychain_unit_test";
 
 TEST_CASE("keychain roundtrip with dedicated test service",
           "[keychain][persistence]") {
-#if !defined(__APPLE__)
-  SKIP("Keychain wrapper is macOS-only");
+#if !defined(__APPLE__) && !defined(_WIN32)
+  SKIP("Secret-storage backend is macOS/Windows only");
 #else
   // Pre-clean any leftover from a previous run.
   persistence::keychain::remove(kTestService, kTestAccount);
 
-  // The wrapper writes to the user's login keychain via Security.framework,
-  // which requires an unlocked login keychain in a real user session. Over
-  // SSH, on a headless CI box, or with a locked keychain,
-  // SecKeychainAddGenericPassword returns a non-success status and save()
-  // is false. That is an environment limitation, not a code defect — probe
-  // once and skip cleanly rather than reporting a spurious failure. In the
-  // live X-Plane (Aqua session, unlocked keychain) the path works.
+  // The macOS wrapper writes to the user's login keychain via
+  // Security.framework, which requires an unlocked login keychain in a
+  // real user session. Over SSH, on a headless CI box, or with a locked
+  // keychain, SecKeychainAddGenericPassword returns a non-success status
+  // and save() is false. That is an environment limitation, not a code
+  // defect — probe once and skip cleanly rather than reporting a spurious
+  // failure. In the live X-Plane (Aqua session, unlocked keychain) the
+  // path works. The Windows Credential Manager has no such gate but the
+  // same probe keeps the test environment-robust.
   if (!persistence::keychain::save(kTestService, kTestAccount, "probe")) {
-    SKIP("Login keychain not writable in this environment "
+    SKIP("Secret store not writable in this environment "
          "(headless/SSH session or locked login keychain)");
   }
   persistence::keychain::remove(kTestService, kTestAccount);
@@ -54,11 +56,13 @@ TEST_CASE("keychain roundtrip with dedicated test service",
   SECTION("save overwrites an existing entry") {
     REQUIRE(persistence::keychain::save(kTestService, kTestAccount, "first"));
     REQUIRE(persistence::keychain::save(kTestService, kTestAccount, "second"));
-    REQUIRE(persistence::keychain::load(kTestService, kTestAccount) == "second");
+    REQUIRE(persistence::keychain::load(kTestService, kTestAccount) ==
+            "second");
   }
 
   SECTION("remove makes load return empty") {
-    REQUIRE(persistence::keychain::save(kTestService, kTestAccount, "to-delete"));
+    REQUIRE(
+        persistence::keychain::save(kTestService, kTestAccount, "to-delete"));
     REQUIRE(persistence::keychain::remove(kTestService, kTestAccount));
     REQUIRE_FALSE(persistence::keychain::has(kTestService, kTestAccount));
     REQUIRE(persistence::keychain::load(kTestService, kTestAccount).empty());

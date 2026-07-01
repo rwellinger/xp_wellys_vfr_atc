@@ -43,9 +43,16 @@
 #include "ui/clipboard.hpp"
 #include "ui/ui_strings.hpp"
 
+#if defined(__APPLE__)
 #include <mach/mach.h>
 #include <mach/task.h>
 #include <mach/task_info.h>
+#elif defined(_WIN32)
+#include <windows.h>
+// psapi.h must follow windows.h.
+#include <psapi.h>
+#pragma comment(lib, "psapi.lib")
+#endif
 
 #include <XPLMDataAccess.h>
 #include <XPLMDisplay.h>
@@ -67,6 +74,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <functional>
 #include <vector>
 
@@ -125,7 +133,8 @@ static int backend_mode_selection = 0;
 // Status-panel facility label. AFIS must read distinctly from uncontrolled —
 // it is exam-relevant (AFIS mandatory reports vs. self-announce). UNKNOWN ->
 // no label (the cache is not ready / no airport resolved yet).
-static const char *facility_status_label(const xplane_context::XPlaneContext &c) {
+static const char *
+facility_status_label(const xplane_context::XPlaneContext &c) {
   switch (c.facility_type) {
   case xplane_context::FacilityType::TOWERED:
     return c.tower_only ? ui_strings::tr("status.tower_only")
@@ -218,6 +227,7 @@ static std::string format_bytes(uint64_t b) {
 // from the Models tab — the call itself is cheap (microseconds) but
 // not worth running every frame.
 static uint64_t resident_bytes() {
+#if defined(__APPLE__)
   mach_task_basic_info_data_t info{};
   mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
   if (task_info(mach_task_self(), MACH_TASK_BASIC_INFO,
@@ -225,6 +235,15 @@ static uint64_t resident_bytes() {
     return info.resident_size;
   }
   return 0;
+#elif defined(_WIN32)
+  PROCESS_MEMORY_COUNTERS pmc{};
+  if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
+    return pmc.WorkingSetSize;
+  }
+  return 0;
+#else
+  return 0;
+#endif
 }
 
 static const char *file_state_label(backends::loader::FileState s) {
@@ -366,13 +385,12 @@ static void draw_nearby_airports() {
       return present ? "X" : "-";
     };
     char label[256];
-    std::snprintf(
-        label, sizeof(label),
-        "%s %-4s  %-24s  %5.1f NM   %s    %s   %s    %s##nb_%s",
-        is_locked ? ">" : " ", // lock marker
-        icao.c_str(), name.empty() ? "" : name.substr(0, 24).c_str(), dist_nm,
-        mark(has_atis), mark(has_ground), mark(has_tower), mark(has_afis),
-        icao.c_str());
+    std::snprintf(label, sizeof(label),
+                  "%s %-4s  %-24s  %5.1f NM   %s    %s   %s    %s##nb_%s",
+                  is_locked ? ">" : " ", // lock marker
+                  icao.c_str(), name.empty() ? "" : name.substr(0, 24).c_str(),
+                  dist_nm, mark(has_atis), mark(has_ground), mark(has_tower),
+                  mark(has_afis), icao.c_str());
     if (is_locked) {
       ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4f, 1.0f, 0.4f, 1.0f));
     }
@@ -441,13 +459,12 @@ static void draw_nearby_airports() {
       dist_nm = dm / 1852.0;
     }
     using FT = xplane_context::FrequencyType;
-    render_row(locked, ctx.nearest_airport_name, dist_nm,
-               ctx.airport_freqs.has(FT::ATIS),
-               ctx.airport_freqs.has(FT::GROUND),
-               ctx.airport_freqs.has(FT::TOWER),
-               ctx.airport_freqs.has(FT::INFO) ||
-                   ctx.airport_freqs.has(FT::RADIO),
-               true);
+    render_row(
+        locked, ctx.nearest_airport_name, dist_nm,
+        ctx.airport_freqs.has(FT::ATIS), ctx.airport_freqs.has(FT::GROUND),
+        ctx.airport_freqs.has(FT::TOWER),
+        ctx.airport_freqs.has(FT::INFO) || ctx.airport_freqs.has(FT::RADIO),
+        true);
   }
 
   if (nearby_cache_.empty()) {
@@ -1209,9 +1226,17 @@ static void draw_audio_tab() {
             settings::volume(), audio_test_wav_.size());
         XPLMDebugString(log);
 
-        // Save WAV to disk for debugging
+        // Save WAV to disk for debugging. Resolve the OS temp dir at
+        // runtime (std::filesystem is C++17, platform-neutral) instead of
+        // hardcoding /tmp — Windows has no /tmp. Fall back to a relative
+        // filename if temp_directory_path() throws (no TMPDIR/%TEMP%).
         if (settings::debug_logging()) {
-          std::string path = "/tmp/xp_wellys_devfr_atc_test.wav";
+          std::error_code ec;
+          std::filesystem::path dir = std::filesystem::temp_directory_path(ec);
+          std::filesystem::path wav_path =
+              (ec ? std::filesystem::path() : dir) /
+              "xp_wellys_devfr_atc_test.wav";
+          std::string path = wav_path.string();
           FILE *f = std::fopen(path.c_str(), "wb");
           if (f) {
             std::fwrite(audio_test_wav_.data(), 1, audio_test_wav_.size(), f);
@@ -1898,9 +1923,10 @@ static void draw_pilot_actions(const xplane_context::XPlaneContext &ctx,
 
   using FT = xplane_context::FrequencyType;
   using Facility = xplane_context::FacilityType;
-  // Facility for the hint matrix. Preserve the legacy downgrade: a towered field
-  // tuned to a UNICOM/CTAF frequency surfaces uncontrolled hints (matches the
-  // former is_towered bool). AFIS/UNCONTROLLED/UNKNOWN pass through unchanged.
+  // Facility for the hint matrix. Preserve the legacy downgrade: a towered
+  // field tuned to a UNICOM/CTAF frequency surfaces uncontrolled hints (matches
+  // the former is_towered bool). AFIS/UNCONTROLLED/UNKNOWN pass through
+  // unchanged.
   Facility facility = force_towered ? Facility::TOWERED : ctx.facility_type;
   if (facility == Facility::TOWERED &&
       (ctx.frequency_type == FT::UNICOM || ctx.frequency_type == FT::CTAF))
@@ -1994,14 +2020,13 @@ static void draw_pilot_actions(const xplane_context::XPlaneContext &ctx,
         filt_join += ":";
         filt_join += r;
       }
-      logging::debug("Hints: state=%s phase=%s freq=%s airport=%s facility=%s "
-                     "tower_only=%d on_ground=%d readback_pending=%d",
-                     state_str.c_str(), flight_phase::phase_name(phase),
-                     freq_type_label(ctx.frequency_type),
-                     ctx.nearest_airport_id.c_str(),
-                     xplane_context::facility_type_name(facility),
-                     ctx.tower_only ? 1 : 0, ctx.on_ground ? 1 : 0,
-                     readback_override ? 1 : 0);
+      logging::debug(
+          "Hints: state=%s phase=%s freq=%s airport=%s facility=%s "
+          "tower_only=%d on_ground=%d readback_pending=%d",
+          state_str.c_str(), flight_phase::phase_name(phase),
+          freq_type_label(ctx.frequency_type), ctx.nearest_airport_id.c_str(),
+          xplane_context::facility_type_name(facility), ctx.tower_only ? 1 : 0,
+          ctx.on_ground ? 1 : 0, readback_override ? 1 : 0);
       logging::debug("Hints raw [%zu]: %s", raw.size(),
                      raw_join.empty() ? "(none)" : raw_join.c_str());
       logging::debug("Hints filtered [%zu]: %s", filtered.size(),
@@ -2598,8 +2623,8 @@ static void draw_atc_panel() {
         ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.2f, 1.0f),
                            ui_strings::tr("panel.destination_format"),
                            dest.c_str());
-        ImGui::TextDisabled("  %s",
-                            de_phraseology::expand_callsign_phonetic(dest).c_str());
+        ImGui::TextDisabled(
+            "  %s", de_phraseology::expand_callsign_phonetic(dest).c_str());
       }
     }
 
@@ -2686,9 +2711,10 @@ static void draw_atc_panel() {
         ImGui::EndTabItem();
       }
 
-      // Transcript now lives in its own floating window (draw_transcript_window)
-      // so the pilot can keep the radio history + debug text input open
-      // alongside the operative panel while reading back clearances.
+      // Transcript now lives in its own floating window
+      // (draw_transcript_window) so the pilot can keep the radio history +
+      // debug text input open alongside the operative panel while reading back
+      // clearances.
 
       ImGui::EndTabBar();
     }

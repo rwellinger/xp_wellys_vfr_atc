@@ -83,6 +83,10 @@ if(APPLE)
                                                       "-framework CoreFoundation")
     # Inherit OSX_ARCHITECTURES from the top-level project so the architectures
     # of the reused xp_atc_engine objects match the test executable.
+elseif(WIN32)
+    # persistence/keychain.cpp uses the Credential Manager (Advapi32) and
+    # model_manifest.cpp the CNG SHA256 provider (Bcrypt) on Windows.
+    target_link_libraries(xp_wellys_devfr_atc_tests PRIVATE Advapi32 Bcrypt)
 endif()
 if(XP_WELLYS_ATC_SANITIZE)
     target_compile_options(xp_wellys_devfr_atc_tests PRIVATE

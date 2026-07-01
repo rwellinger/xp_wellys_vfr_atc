@@ -9,8 +9,19 @@
 
 #include "persistence/models_catalog.hpp"
 
+#if defined(__APPLE__)
 #include <CommonCrypto/CommonDigest.h>
+#elif defined(_WIN32)
+#include <windows.h>
+// bcrypt.h must follow windows.h. Provides the CNG SHA256 provider.
+#include <bcrypt.h>
+#endif
 #include <sys/stat.h>
+// MSVC's <sys/stat.h> ships the S_IF* flags but not the POSIX S_ISREG
+// test macro.
+#if !defined(S_ISREG)
+#define S_ISREG(m) (((m) & S_IFMT) == S_IFREG)
+#endif
 
 #include <cstdio>
 #include <cstdlib>
@@ -234,13 +245,72 @@ std::string default_voice_for(VoiceRole role, const std::string &language) {
   return default_voice_for(role);
 }
 
+namespace {
+
+// Thin platform SHA256 primitive. The file streaming + hex encoding in
+// sha256_file() are shared; only these three operations differ per OS —
+// CommonCrypto on macOS, CNG (bcrypt) on Windows. finish() reports
+// whether a valid 32-byte digest was produced, so an unsupported
+// platform (no branch) yields "" and callers treat it as a verify
+// failure rather than a false match.
+constexpr size_t kSha256DigestLen = 32;
+
+#if defined(__APPLE__)
+struct Sha256 {
+  CC_SHA256_CTX ctx;
+  Sha256() { CC_SHA256_Init(&ctx); }
+  void update(const unsigned char *p, size_t n) {
+    CC_SHA256_Update(&ctx, p, static_cast<CC_LONG>(n));
+  }
+  bool finish(unsigned char out[kSha256DigestLen]) {
+    CC_SHA256_Final(out, &ctx);
+    return true;
+  }
+};
+#elif defined(_WIN32)
+struct Sha256 {
+  BCRYPT_ALG_HANDLE alg = nullptr;
+  BCRYPT_HASH_HANDLE hash = nullptr;
+  bool ok = false;
+  Sha256() {
+    if (BCryptOpenAlgorithmProvider(&alg, BCRYPT_SHA256_ALGORITHM, nullptr, 0) <
+        0)
+      return;
+    if (BCryptCreateHash(alg, &hash, nullptr, 0, nullptr, 0, 0) < 0)
+      return;
+    ok = true;
+  }
+  ~Sha256() {
+    if (hash)
+      BCryptDestroyHash(hash);
+    if (alg)
+      BCryptCloseAlgorithmProvider(alg, 0);
+  }
+  Sha256(const Sha256 &) = delete;
+  Sha256 &operator=(const Sha256 &) = delete;
+  void update(const unsigned char *p, size_t n) {
+    if (ok)
+      BCryptHashData(hash, const_cast<PUCHAR>(p), static_cast<ULONG>(n), 0);
+  }
+  bool finish(unsigned char out[kSha256DigestLen]) {
+    return ok && BCryptFinishHash(hash, out, kSha256DigestLen, 0) >= 0;
+  }
+};
+#else
+struct Sha256 { // no platform provider — verification unavailable
+  void update(const unsigned char *, size_t) {}
+  bool finish(unsigned char[kSha256DigestLen]) { return false; }
+};
+#endif
+
+} // namespace
+
 std::string sha256_file(const std::string &path) {
   std::FILE *f = std::fopen(path.c_str(), "rb");
   if (!f)
     return {};
 
-  CC_SHA256_CTX ctx;
-  CC_SHA256_Init(&ctx);
+  Sha256 hasher;
 
   // 1 MB chunks: large enough to amortise read syscalls, small enough
   // to avoid a single big allocation that competes with model load.
@@ -251,19 +321,20 @@ std::string sha256_file(const std::string &path) {
   std::vector<unsigned char> buf(kChunkBytes);
   size_t n = 0;
   while ((n = std::fread(buf.data(), 1, buf.size(), f)) > 0) {
-    CC_SHA256_Update(&ctx, buf.data(), static_cast<CC_LONG>(n));
+    hasher.update(buf.data(), n);
   }
   bool eof_clean = std::feof(f) != 0;
   std::fclose(f);
   if (!eof_clean)
     return {}; // read error
 
-  unsigned char digest[CC_SHA256_DIGEST_LENGTH];
-  CC_SHA256_Final(digest, &ctx);
+  unsigned char digest[kSha256DigestLen];
+  if (!hasher.finish(digest))
+    return {};
 
   static const char hex[] = "0123456789abcdef";
-  std::string out(static_cast<size_t>(2) * CC_SHA256_DIGEST_LENGTH, '\0');
-  for (size_t i = 0; i < CC_SHA256_DIGEST_LENGTH; ++i) {
+  std::string out(static_cast<size_t>(2) * kSha256DigestLen, '\0');
+  for (size_t i = 0; i < kSha256DigestLen; ++i) {
     out[(2 * i)] = hex[(digest[i] >> 4) & 0xF];
     out[(2 * i) + 1] = hex[digest[i] & 0xF];
   }

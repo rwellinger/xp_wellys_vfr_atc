@@ -10,7 +10,9 @@
 #include "persistence/settings.hpp"
 
 #include <curl/curl.h>
+#if defined(__APPLE__)
 #include <pthread/qos.h>
+#endif
 
 #include <atomic>
 #include <chrono>
@@ -78,7 +80,14 @@ void enqueue_callback(std::function<void()> fn) {
 template <class Fn> void spawn_worker(Fn &&fn) {
   g_active_workers.fetch_add(1, std::memory_order_relaxed);
   std::thread t([fn = std::forward<Fn>(fn)]() mutable {
+#if defined(__APPLE__)
+    // QoS hints are a Darwin/Metal concern (deprioritize local whisper/
+    // llama Metal workers against X-Plane's renderer). The non-Apple
+    // builds (Intel x86_64, Windows) are cloud-only with no Metal
+    // contention, so there is nothing to deprioritize against — the
+    // deliberate resolution here is a no-op, not a deferred port (#23).
     pthread_set_qos_class_self_np(QOS_CLASS_UTILITY, 0);
+#endif
     fn();
     g_active_workers.fetch_sub(1, std::memory_order_relaxed);
   });
