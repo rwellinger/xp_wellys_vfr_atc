@@ -180,6 +180,9 @@ jobs:
           Write-Host "Downloading nlohmann/json v3.12.0..."
           curl.exe -fsSL "https://github.com/nlohmann/json/releases/download/v3.12.0/json.hpp" -o vendor/json.hpp
 
+          Write-Host "Downloading miniaudio v0.11.25..."
+          curl.exe -fsSL "https://raw.githubusercontent.com/mackron/miniaudio/0.11.25/miniaudio.h" -o vendor/miniaudio.h
+
       - name: Configure (CMake, Ninja + MSVC, cloud-only)
         shell: pwsh
         run: |

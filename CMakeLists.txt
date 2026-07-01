@@ -313,8 +313,12 @@ add_library(xp_wellys_devfr_atc MODULE
 )
 
 # Platform UI/permission bridges. macOS uses the Objective-C++ sources
-# (NSPasteboard + AVFoundation); Windows uses linkable .cpp stubs
-# (real Win32 clipboard + mic permission are issues #22/#21).
+# (NSPasteboard + AVFoundation); Windows uses the Win32 .cpp counterparts
+# (issue #22: real clipboard via the Win32 clipboard API + a no-op mic
+# permission — Windows has no per-app mic prompt). Windows capture itself
+# lives in audio_recorder.cpp behind #elif defined(_WIN32) (miniaudio,
+# issue #21); its single-header vendor dep is fetched by `make setup`
+# / the CI deps step and needs no extra link libraries.
 if(APPLE)
     target_sources(xp_wellys_devfr_atc PRIVATE
         src/audio/mic_permission.mm

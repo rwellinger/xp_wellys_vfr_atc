@@ -57,11 +57,20 @@ für einen Zero-Toolchain-Test-Laptop. Der CMake-`elseif(WIN32)`-Zweig
 setzt `IBM=1 APL=0 LIN=0` und linkt `XPLM_64.lib`/`XPWidgets_64.lib` +
 `opengl32 Ws2_32 Crypt32 Bcrypt Advapi32`. Die macOS-`.mm`-Bridges
 (`clipboard.mm`, `mic_permission.mm`) sind aus dem Windows-Build
-ausgeschlossen und durch `*_win.cpp`-Stubs ersetzt (echte Win32-
-Implementierungen: Issues #21/#22). SHA256 (`model_manifest`) und die
-pthread-QoS-Hints (`manager`) sind auf Nicht-Apple aktuell Stubs
-(echte CNG- bzw. Windows-Thread-Priority-Ports: Issues #19/#23) —
-harmlos, da cloud-only nie lokale Modelle verifiziert. Siehe Epic #24.
+ausgeschlossen und durch echte `*_win.cpp`-Ports ersetzt (Issue #22):
+`clipboard_win.cpp` liest/schreibt das System-Clipboard über die
+Win32-Clipboard-API (`CF_UNICODETEXT`, UTF-8↔UTF-16), `mic_permission_win.cpp`
+ist ein bewusster No-op (`return true` — Windows hat keinen In-Process-
+Mic-Prompt; ein System-Privacy-Block äussert sich als leerer Capture-Stream).
+Die Windows-**Mic-Capture** (Issue #21) liegt in `audio_recorder.cpp` hinter
+`#elif defined(_WIN32)`: **miniaudio** (single-header, WASAPI) resampelt das
+Standard-Mic nativ → 16 kHz mono s16 in denselben `buffer_`; der macOS-
+Core-Audio-Pfad bleibt unangetastet. miniaudio (`vendor/miniaudio.h`, von
+`make setup` / dem CI-Deps-Step geholt) braucht **keine** Extra-Link-Libs —
+ole32/WASAPI werden zur Laufzeit dynamisch geladen; `MINIAUDIO_IMPLEMENTATION`
+lebt allein in `audio_recorder.cpp`. Die pthread-QoS-Hints (`manager`) sind
+auf Nicht-Apple weiterhin Stub (echter Windows-Thread-Priority-Port: Issue
+#23) — harmlos, da cloud-only nie lokale Modelle verifiziert. Siehe Epic #24.
 
 Alle drei Backend-Familien teilen sich dieselben drei abstrakten
 `i_*.hpp`-Strategie-Interfaces. Engine-Code berührt nie ein konkretes
@@ -147,6 +156,7 @@ Von `make setup` befüllt, nie eingecheckt:
 | `sdk/` | X-Plane-SDK-Header (XPLM/, XPWidgets/) |
 | `vendor/imgui/` | Dear ImGui v1.91.x |
 | `vendor/json.hpp` | nlohmann/json v3.11.x |
+| `vendor/miniaudio.h` | miniaudio v0.11.x (Windows-Mic-Capture, WASAPI) |
 | `spikes/spike_whisper/third_party/whisper.cpp/` | whisper.cpp-Submodul |
 | `spikes/spike_llama/third_party/llama.cpp/` | llama.cpp-Submodul (liefert `ggml`) |
 | `spikes/spike_piper/third_party/piper1-gpl/` | Piper-Submodul (espeak-ng + onnxruntime) |

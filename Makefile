@@ -8,6 +8,14 @@ IMGUI_SENTINEL  := vendor/imgui/imgui.h
 JSON_SENTINEL   := vendor/json.hpp
 CATCH2_SENTINEL := vendor/catch2/catch_amalgamated.hpp
 
+# miniaudio: single-header capture backend, Windows-only (issue #21). The
+# macOS build never references it (the #elif defined(_WIN32) branch in
+# audio_recorder.cpp is dead code on Apple), but `make setup` still fetches
+# it so the vendor tree is complete for anyone cross-checking the Windows
+# slice locally.
+MINIAUDIO_VERSION  := 0.11.25
+MINIAUDIO_SENTINEL := vendor/miniaudio.h
+
 # One sentinel for the three submodule trees (whisper.cpp, llama.cpp,
 # Piper). They are all pulled in by a single
 # `git submodule update --init --recursive` invocation, so tracking
@@ -68,7 +76,7 @@ help:
 	@echo "  make help              Show this help"
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
-setup: submodules $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $(CATCH2_SENTINEL)
+setup: submodules $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $(CATCH2_SENTINEL) $(MINIAUDIO_SENTINEL)
 	@echo "Setup complete. Run 'make build' to compile."
 
 # Cloud-only setup: the four non-submodule vendor deps only. Deliberately
@@ -76,7 +84,7 @@ setup: submodules $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $(CATCH2_SE
 # slice (XPWELLYS_USE_LOCAL_INFERENCE=OFF) never references them, so the
 # fast CI sanity build (`make ci-fast`) needs neither the submodule
 # checkout nor the espeak-ng/onnxruntime ExternalProject work.
-setup-cloud: $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $(CATCH2_SENTINEL)
+setup-cloud: $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $(CATCH2_SENTINEL) $(MINIAUDIO_SENTINEL)
 	@echo "Cloud-only setup complete (no submodules). Run 'make ci-fast'."
 
 # Always-run: force every submodule back to the commit pinned in this
@@ -157,6 +165,13 @@ $(JSON_SENTINEL):
 	@curl -fsSL "https://github.com/nlohmann/json/releases/download/v3.12.0/json.hpp" \
 	     -o vendor/json.hpp
 	@echo "nlohmann/json installed."
+
+$(MINIAUDIO_SENTINEL):
+	@echo "Downloading miniaudio v$(MINIAUDIO_VERSION)..."
+	@mkdir -p vendor
+	@curl -fsSL "https://raw.githubusercontent.com/mackron/miniaudio/$(MINIAUDIO_VERSION)/miniaudio.h" \
+	     -o vendor/miniaudio.h
+	@echo "miniaudio installed."
 
 $(CATCH2_SENTINEL):
 	@echo "Downloading Catch2 v$(CATCH2_VERSION) (amalgamated)..."
@@ -385,7 +400,10 @@ lint: $(SUBMODULES_SENTINEL) $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) 
 	    echo "Then add to PATH: export PATH=\"$$(brew --prefix llvm)/bin:$$PATH\""; \
 	    exit 1; }
 	cmake -B build-lint -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_OSX_ARCHITECTURES=arm64 -Wno-dev
-	clang-tidy -p build-lint --extra-arg="-isysroot" --extra-arg="$(shell xcrun --show-sdk-path)" src/main.cpp src/*/*.cpp
+	# Exclude the Windows-only *_win.cpp bridges: CMake selects the .mm
+	# counterparts on macOS, so those TUs are absent from the compile DB
+	# and pull <windows.h>, which this (macOS) toolchain cannot resolve.
+	clang-tidy -p build-lint --extra-arg="-isysroot" --extra-arg="$(shell xcrun --show-sdk-path)" $(shell find src -maxdepth 2 -name '*.cpp' ! -name '*_win.cpp')
 
 # ── Sanitize ──────────────────────────────────────────────────────────────────
 # AddressSanitizer + UBSan on the SDK-free engine OBJECT lib + atc_repl +
