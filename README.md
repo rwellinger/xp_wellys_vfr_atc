@@ -50,13 +50,13 @@ Pilotenfehler.
   - **OpenAI Cloud** (jeder Mac) — mit eigenem API-Key.
   - **Mistral Cloud** (jeder Mac) — mit eigenem API-Key; spricht Deutsch
     ohne US-Akzent.
-- **🪟 Windows (EXPERIMENTELL, ungetestet)** — ein reiner Cloud-Build für
-  X-Plane 12 unter Windows ist enthalten (`win_x64/win.xpl`, OpenAI **oder**
-  Mistral, API-Key im Windows Credential Manager). Er **kompiliert in der CI**,
-  wurde aber **noch nicht in einer laufenden Windows-X-Plane-Installation
-  getestet** — nutze ihn als frühen Vorabtest, nicht als produktive Version.
-  Lokale Offline-KI gibt es unter Windows **nicht** (kein Apple Silicon / kein
-  Metal); Cloud ist die einzige Option.
+- **🪟 Windows (Cloud-only, funktioniert)** — ein reiner Cloud-Build für
+  X-Plane 12 unter Windows ist enthalten (`win_x64/xp_wellys_devfr_atc.xpl`,
+  OpenAI **oder** Mistral, API-Key im Windows Credential Manager). Auf echter
+  Windows-Hardware (X-Plane 12) verifiziert: Laden, Mikrofon/PTT, die
+  STT→ATC→TTS-Pipeline und der API-Key im Credential Manager laufen. Lokale
+  Offline-KI gibt es unter Windows **nicht** (kein Apple Silicon / kein Metal);
+  Cloud ist die einzige Option.
 
 ## Wofür Welly's ATC gedacht ist
 
@@ -83,10 +83,9 @@ BZF-Inhabern sind ausdrücklich willkommen.
   andere Sprachen oder Profile sind nicht vorgesehen.
 - **Lokaler Modus nur auf Apple Silicon** — Intel-Macs können das Plugin
   nutzen, aber nur im Cloud-Modus (OpenAI oder Mistral, API-Key nötig).
-- **Windows nur experimentell & ungetestet** — ein Cloud-only-Build
-  (`win_x64/win.xpl`) existiert und baut in der CI, ist aber bisher **in
-  keiner echten Windows-X-Plane-Installation verifiziert**. Keine lokale
-  Offline-KI unter Windows.
+- **Keine lokale Offline-KI unter Windows** — der Windows-Build funktioniert,
+  aber ausschliesslich im Cloud-Modus (OpenAI oder Mistral, API-Key nötig);
+  lokale Modelle brauchen Apple Silicon / Metal.
 - **Noch nicht modelliert** — Wirbelschleppen-Staffelung, frei wählbare
   Rollwege (aktuell immer „via Alpha"), grosse Hub-Flugplätze (LSZH, LSGG …)
   mit Delivery-Workflow, sowie ein virtueller Co-Pilot / Checklisten-Reader.

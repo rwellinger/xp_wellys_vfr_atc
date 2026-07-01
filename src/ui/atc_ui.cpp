@@ -226,7 +226,7 @@ static std::string format_bytes(uint64_t b) {
 // Resident set size in bytes via Mach. Polled at most once a second
 // from the Models tab — the call itself is cheap (microseconds) but
 // not worth running every frame.
-static uint64_t resident_bytes() {
+[[maybe_unused]] static uint64_t resident_bytes() {
 #if defined(__APPLE__)
   mach_task_basic_info_data_t info{};
   mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
@@ -246,7 +246,7 @@ static uint64_t resident_bytes() {
 #endif
 }
 
-static const char *file_state_label(backends::loader::FileState s) {
+[[maybe_unused]] static const char *file_state_label(backends::loader::FileState s) {
   using FS = backends::loader::FileState;
   switch (s) {
   case FS::NotChecked:
@@ -678,7 +678,7 @@ static void draw_status_tab() {
 //
 // RAM usage and per-stage inference latency live at the bottom for
 // live tuning during dev sessions; both are read-only.
-static void draw_models_tab() {
+[[maybe_unused]] static void draw_models_tab() {
   // Cloud modes have no local models to manage — short-circuit the
   // whole panel so the user is not tempted to download files they
   // would never use.
@@ -2983,6 +2983,11 @@ static int draw_phase_cb(XPLMDrawingPhase, int, void *) {
         // "Models" sits second so first-launch users see it
         // immediately after Status — they cannot use the plugin
         // until they download here.
+        // Only compiled in on slices that actually have local backends
+        // (XPWELLYS_USE_LOCAL_INFERENCE=ON, i.e. Apple Silicon). The
+        // cloud-only slices (x86_64 macOS, Windows) never download models,
+        // so the whole tab is hidden there — nothing to manage.
+#ifdef XPWELLYS_USE_LOCAL_INFERENCE
         // Highlight Models tab only in Local mode — in cloud modes
         // the user goes to Settings, not Models, when something is
         // missing (see the Status-tab banner above for the cloud
@@ -3011,6 +3016,7 @@ static int draw_phase_cb(XPLMDrawingPhase, int, void *) {
           draw_models_tab();
           ImGui::EndTabItem();
         }
+#endif // XPWELLYS_USE_LOCAL_INFERENCE
         // Transcript-Tab lebt jetzt am ATC-Panel (siehe draw_atc_panel)
         // — Pilot soll Funkverlauf neben dem Status sehen, nicht im
         // Config-Fenster.

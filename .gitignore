@@ -4,6 +4,7 @@ build-sanitize/
 build-arm64/
 build-x86_64/
 build-ci/
+dist-win/
 download/
 sdk/
 vendor/
