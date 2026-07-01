@@ -182,32 +182,32 @@ jobs:
         run: vcpkg install curl:x64-windows-static
 
       - name: Setup dependencies (SDK headers + Win libs, ImGui, json)
-        shell: bash
+        # PowerShell, not Git Bash: the bash on windows-latest ships GNU
+        # tar, which cannot extract .zip. Expand-Archive handles both zips.
+        shell: pwsh
         run: |
-          set -euo pipefail
-          mkdir -p sdk/XPLM sdk/XPWidgets sdk/Libraries/Win vendor/imgui/backends
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force -Path sdk/XPLM, sdk/XPWidgets, sdk/Libraries/Win, vendor/imgui/backends | Out-Null
 
-          echo "Downloading X-Plane SDK..."
-          curl -fsSL "https://developer.x-plane.com/wp-content/plugins/code-sample-generation/sdk_zip_files/XPSDK430.zip" -o sdk.zip
-          mkdir -p sdk_extracted
-          tar -xf sdk.zip -C sdk_extracted
-          find sdk_extracted -path "*/CHeaders/XPLM/*.h"    -exec cp {} sdk/XPLM/ \;
-          find sdk_extracted -path "*/CHeaders/Widgets/*.h" -exec cp {} sdk/XPWidgets/ \;
-          find sdk_extracted -path "*/Libraries/Win/*.lib"  -exec cp {} sdk/Libraries/Win/ \;
+          Write-Host "Downloading X-Plane SDK..."
+          curl.exe -fsSL "https://developer.x-plane.com/wp-content/plugins/code-sample-generation/sdk_zip_files/XPSDK430.zip" -o sdk.zip
+          Expand-Archive -Path sdk.zip -DestinationPath sdk_extracted -Force
+          Get-ChildItem sdk_extracted -Recurse -Filter *.h   | Where-Object { $_.FullName -match '\\CHeaders\\XPLM\\' }   | Copy-Item -Destination sdk/XPLM/
+          Get-ChildItem sdk_extracted -Recurse -Filter *.h   | Where-Object { $_.FullName -match '\\CHeaders\\Widgets\\' } | Copy-Item -Destination sdk/XPWidgets/
+          Get-ChildItem sdk_extracted -Recurse -Filter *.lib | Where-Object { $_.FullName -match '\\Libraries\\Win\\' }    | Copy-Item -Destination sdk/Libraries/Win/
 
-          echo "Downloading Dear ImGui v1.92.8..."
-          curl -fsSL "https://github.com/ocornut/imgui/archive/refs/tags/v1.92.8.zip" -o imgui.zip
-          mkdir -p imgui_extracted
-          tar -xf imgui.zip -C imgui_extracted
-          SRC=imgui_extracted/imgui-1.92.8
-          cp "$SRC"/imgui.h "$SRC"/imgui.cpp vendor/imgui/
-          cp "$SRC"/imgui_draw.cpp "$SRC"/imgui_tables.cpp "$SRC"/imgui_widgets.cpp vendor/imgui/
-          cp "$SRC"/imgui_internal.h "$SRC"/imconfig.h vendor/imgui/
-          cp "$SRC"/imstb_textedit.h "$SRC"/imstb_rectpack.h "$SRC"/imstb_truetype.h vendor/imgui/
-          cp "$SRC"/backends/imgui_impl_opengl2.h "$SRC"/backends/imgui_impl_opengl2.cpp vendor/imgui/backends/
+          Write-Host "Downloading Dear ImGui v1.92.8..."
+          curl.exe -fsSL "https://github.com/ocornut/imgui/archive/refs/tags/v1.92.8.zip" -o imgui.zip
+          Expand-Archive -Path imgui.zip -DestinationPath imgui_extracted -Force
+          $SRC = "imgui_extracted/imgui-1.92.8"
+          Copy-Item "$SRC/imgui.h","$SRC/imgui.cpp" vendor/imgui/
+          Copy-Item "$SRC/imgui_draw.cpp","$SRC/imgui_tables.cpp","$SRC/imgui_widgets.cpp" vendor/imgui/
+          Copy-Item "$SRC/imgui_internal.h","$SRC/imconfig.h" vendor/imgui/
+          Copy-Item "$SRC/imstb_textedit.h","$SRC/imstb_rectpack.h","$SRC/imstb_truetype.h" vendor/imgui/
+          Copy-Item "$SRC/backends/imgui_impl_opengl2.h","$SRC/backends/imgui_impl_opengl2.cpp" vendor/imgui/backends/
 
-          echo "Downloading nlohmann/json v3.12.0..."
-          curl -fsSL "https://github.com/nlohmann/json/releases/download/v3.12.0/json.hpp" -o vendor/json.hpp
+          Write-Host "Downloading nlohmann/json v3.12.0..."
+          curl.exe -fsSL "https://github.com/nlohmann/json/releases/download/v3.12.0/json.hpp" -o vendor/json.hpp
 
       - name: Configure (CMake, MSVC, cloud-only)
         shell: pwsh
