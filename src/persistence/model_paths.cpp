@@ -11,10 +11,22 @@
 #include <XPLMUtilities.h>
 
 #include <sys/stat.h>
+#if defined(_WIN32)
+#include <direct.h> // _mkdir (no mode argument on Windows)
+#endif
 
 namespace model_paths {
 
 namespace {
+
+// POSIX mkdir takes a mode; Windows _mkdir does not.
+int make_dir(const std::string &p) {
+#if defined(_WIN32)
+  return _mkdir(p.c_str());
+#else
+  return mkdir(p.c_str(), 0755);
+#endif
+}
 
 std::string g_plugin_root;
 std::string g_models_dir;
@@ -51,7 +63,7 @@ void mkdir_p(const std::string &dir) {
   for (size_t i = 0; i < dir.size(); ++i) {
     cur.push_back(dir[i]);
     if (dir[i] == '/' && cur.size() > 1) {
-      mkdir(cur.c_str(), 0755);
+      make_dir(cur);
     }
   }
   if (!cur.empty() && cur.back() != '/') {

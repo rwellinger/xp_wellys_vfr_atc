@@ -10,6 +10,15 @@ endif()
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Windows-wide compile definitions. libcurl transitively drags in
+# <windows.h>, which otherwise defines min()/max() macros (breaking
+# std::min/std::max) and pulls the legacy WinSock1 symbols that clash
+# with <winsock2.h>. Applied to every target (engine lib, ImGui, plugin)
+# so a stray <windows.h> include anywhere stays benign.
+if(WIN32)
+    add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
+endif()
+
 option(BUILD_TESTS "Build Catch2 unit tests" ON)
 
 # ── Local-inference toggle ───────────────────────────────────────────────────
@@ -470,12 +479,6 @@ elseif(WIN32)
         APL=0 IBM=1 LIN=0
         XPLM200=1 XPLM210=1 XPLM300=1 XPLM301=1 XPLM400=1
         XP_WELLYS_ATC_VERSION="${VERSION_STRING}"
-        # Windows headers otherwise pull in min()/max() macros and the
-        # legacy WinSock1 symbols that clash with <winsock2.h> (dragged
-        # in transitively by libcurl).
-        NOMINMAX
-        WIN32_LEAN_AND_MEAN
-        _CRT_SECURE_NO_WARNINGS
     )
     target_compile_options(xp_wellys_devfr_atc PRIVATE /W3 /utf-8)
 

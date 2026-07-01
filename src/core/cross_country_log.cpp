@@ -13,6 +13,9 @@
 #include <json.hpp>
 
 #include <sys/stat.h>
+#if defined(_WIN32)
+#include <direct.h> // _mkdir (no mode argument on Windows)
+#endif
 
 #include <cstdio> // std::rename
 #include <ctime>
@@ -35,10 +38,10 @@ std::string g_lm_backend;        // backend label set by the loader
 
 bool g_force_new = false; // force a fresh flight on the next write()
 
-bool g_flight_open = false;   // a flight document is currently in memory
-bool g_was_airborne = false;  // the open flight has been airborne at least once
-json g_flight;                // the open flight document
-std::string g_flight_path;    // its target file path
+bool g_flight_open = false;  // a flight document is currently in memory
+bool g_was_airborne = false; // the open flight has been airborne at least once
+json g_flight;               // the open flight document
+std::string g_flight_path;   // its target file path
 
 // Per-flight naming + compliance state, all reset by open_flight().
 std::string g_departure_id;      // sanitized departure airport (file name)
@@ -262,7 +265,12 @@ void rename_flight_file() {
 // Atomically rewrite the open flight to disk: temp file + rename. A failed
 // open must never disturb the sim, so this is best-effort.
 void flush_flight() {
-  mkdir(g_dir.c_str(), 0755); // lazy; -1/EEXIST is fine
+  // lazy; -1/EEXIST is fine. POSIX mkdir takes a mode; Windows _mkdir does not.
+#if defined(_WIN32)
+  _mkdir(g_dir.c_str());
+#else
+  mkdir(g_dir.c_str(), 0755);
+#endif
 
   // Compact-but-readable pretty print; invalid UTF-8 bytes replaced rather
   // than thrown — a German VRP name with a stray byte must not abort a run.
