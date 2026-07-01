@@ -13,6 +13,11 @@
 #include <CommonCrypto/CommonDigest.h>
 #endif
 #include <sys/stat.h>
+// MSVC's <sys/stat.h> ships the S_IF* flags but not the POSIX S_ISREG
+// test macro.
+#if !defined(S_ISREG)
+#define S_ISREG(m) (((m) & S_IFMT) == S_IFREG)
+#endif
 
 #include <cstdio>
 #include <cstdlib>
