@@ -16,7 +16,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # with <winsock2.h>. Applied to every target (engine lib, ImGui, plugin)
 # so a stray <windows.h> include anywhere stays benign.
 if(WIN32)
-    add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
+    # _USE_MATH_DEFINES: MSVC only exposes M_PI et al. from <cmath> when
+    # this is defined. As a global compile definition it is set before any
+    # header is seen, so every TU gets the constants.
+    add_compile_definitions(
+        NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS _USE_MATH_DEFINES)
 endif()
 
 option(BUILD_TESTS "Build Catch2 unit tests" ON)
