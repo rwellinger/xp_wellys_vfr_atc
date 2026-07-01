@@ -39,7 +39,7 @@ CATCH2_VERSION := 3.15.1
 # plus the generated skunkcrafts_updater_*.txt control files.
 SKUNK_DIR := build/skunkcrafts
 
-.PHONY: all help setup setup-cloud submodules build ci-fast install clean distclean format lint sanitize release release-build skunkcrafts cleanup-tags cleanup-branches cleanup-runs repl run-repl test test-unit test-scenarios
+.PHONY: all help setup setup-cloud submodules build ci-fast ci-remote win-artifact install clean distclean format lint sanitize release release-build skunkcrafts cleanup-tags cleanup-branches cleanup-runs repl run-repl test test-unit test-scenarios
 
 .DEFAULT_GOAL := help
 
@@ -56,6 +56,8 @@ help:
 	@echo "  make submodules        Force-sync git submodules (whisper.cpp, llama.cpp, Piper) to pinned commits"
 	@echo "  make build             Build universal plugin (arm64 local+cloud, x86_64 cloud-only) -> build/xp_wellys_devfr_atc.xpl"
 	@echo "  make ci-fast           Fast cloud-only arm64 sanity build + unit/scenario tests (no submodules, no local backends)"
+	@echo "  make ci-remote         Trigger the GitHub CI (fast macOS + Windows slice) on the current branch via gh (builds the PUSHED state)"
+	@echo "  make win-artifact      Download the newest Windows CI artifact (xp_wellys_devfr_atc-win) via gh -> dist-win/"
 	@echo "  make repl              Build headless CLI -> build/atc_repl"
 	@echo "  make run-repl          Build + run the CLI (stdin transcripts)"
 	@echo "  make test              Run unit tests + scenario tests"
@@ -271,6 +273,49 @@ ci-fast: $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $(CATCH2_SENTINEL)
 	@echo ""
 	@file build-ci/xp_wellys_devfr_atc.xpl
 	@echo "Fast sanity build clean."
+
+# ── Remote CI trigger (GitHub Actions) ────────────────────────────────────────
+# There is NO local Windows toolchain — the Windows .xpl (and a fresh macOS
+# sanity build) can only be produced by GitHub Actions. This fires the `Build`
+# workflow's `workflow_dispatch` trigger against the CURRENT branch, which runs
+# `build-macos-fast` + `build-windows` (NOT the tag-only universal build /
+# release). Grab the result afterwards with `make win-artifact`.
+#
+# IMPORTANT: CI builds the state PUSHED to the branch on GitHub, never your
+# local worktree. Commit + push first, or the run compiles stale sources.
+# The workflow_dispatch trigger itself must already exist on the branch's
+# build.yml on GitHub (i.e. this Makefile+workflow change has to be pushed once
+# before `make ci-remote` can find it).
+ci-remote:
+	@command -v gh >/dev/null 2>&1 || { \
+	    echo "gh not found. Install with: brew install gh (then: gh auth login)"; exit 1; }
+	@set -euo pipefail; \
+	BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
+	if [ -n "$$(git status --porcelain)" ]; then \
+	    echo "WARNING: uncommitted changes — CI builds the PUSHED state of '$$BRANCH', not your worktree."; \
+	fi; \
+	if [ -n "$$(git log origin/$$BRANCH..$$BRANCH 2>/dev/null || true)" ]; then \
+	    echo "WARNING: local commits not on origin/$$BRANCH — push first so CI sees them."; \
+	fi; \
+	echo "Triggering the Build workflow (workflow_dispatch) on '$$BRANCH'..."; \
+	gh workflow run build.yml --ref "$$BRANCH"; \
+	echo ""; \
+	echo "Started. Track it with:"; \
+	echo "    gh run list --workflow=build.yml"; \
+	echo "    gh run watch"; \
+	echo "Then fetch the Windows drop-in with: make win-artifact"
+
+# Download the freshest Windows CI artifact into dist-win/ (drop-in tree:
+# win_x64/xp_wellys_devfr_atc.xpl + data/). Pulls from the most recent run
+# that produced the artifact.
+win-artifact:
+	@command -v gh >/dev/null 2>&1 || { \
+	    echo "gh not found. Install with: brew install gh (then: gh auth login)"; exit 1; }
+	@rm -rf dist-win && mkdir -p dist-win
+	@echo "Downloading newest xp_wellys_devfr_atc-win artifact -> dist-win/ ..."
+	@gh run download -n xp_wellys_devfr_atc-win -D dist-win
+	@echo "Done. Windows drop-in tree:"
+	@find dist-win -name '*.xpl' -print
 
 # ── REPL (headless CLI) ───────────────────────────────────────────────────────
 repl: $(SUBMODULES_SENTINEL) $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $(CATCH2_SENTINEL)
