@@ -177,6 +177,14 @@ jobs:
         # No submodules: cloud-only build pulls in none of the local
         # inference third-party trees.
 
+      - name: Set up MSVC developer environment
+        # Puts cl.exe + the Windows SDK on PATH so CMake's Ninja generator
+        # finds the toolchain directly, sidestepping the flaky Visual
+        # Studio generator instance lookup on the hosted image.
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
       - name: Install libcurl (vcpkg, static, Schannel TLS)
         shell: pwsh
         run: vcpkg install curl:x64-windows-static
@@ -209,10 +217,11 @@ jobs:
           Write-Host "Downloading nlohmann/json v3.12.0..."
           curl.exe -fsSL "https://github.com/nlohmann/json/releases/download/v3.12.0/json.hpp" -o vendor/json.hpp
 
-      - name: Configure (CMake, MSVC, cloud-only)
+      - name: Configure (CMake, Ninja + MSVC, cloud-only)
         shell: pwsh
         run: |
-          cmake -B build-win -G "Visual Studio 17 2022" -A x64 `
+          cmake -B build-win -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
             -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" `
             -DVCPKG_TARGET_TRIPLET=x64-windows-static `
             -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded `
@@ -222,7 +231,7 @@ jobs:
 
       - name: Build (Release)
         shell: pwsh
-        run: cmake --build build-win --config Release --target xp_wellys_devfr_atc --parallel
+        run: cmake --build build-win --target xp_wellys_devfr_atc --parallel
 
       - name: Stage drop-in bundle
         shell: bash
@@ -230,7 +239,7 @@ jobs:
           set -euo pipefail
           STAGE=dist/xp_wellys_devfr_atc
           mkdir -p "$STAGE/win_x64" "$STAGE/data/atc_profiles/de" "$STAGE/data/vrps"
-          cp build-win/Release/win.xpl      "$STAGE/win_x64/"
+          cp build-win/win.xpl              "$STAGE/win_x64/"
           cp data/atc_prompt_templates.json "$STAGE/data/"
           cp data/models_catalog.json       "$STAGE/data/"
           cp data/settings.json             "$STAGE/data/"
