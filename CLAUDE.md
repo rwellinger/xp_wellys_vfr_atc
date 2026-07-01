@@ -47,7 +47,10 @@ Der `x86_64`-Slice hat **keine** lokalen Backends einkompiliert; **OpenAI**
 oder **Mistral** ist die einzige Option auf Intel-Macs (der Loader
 schreibt `local` → `openai` beim Start für diesen Slice still um).
 
-**Windows-Slice (`win_x64/win.xpl`, cloud-only)** — funktional identisch
+**Windows-Slice (`win_x64/xp_wellys_devfr_atc.xpl`, cloud-only)** — die
+per-arch `.xpl` MUSS den Plugin-Namen tragen (nicht `win.xpl`): X-Plane 12
+auf Windows lädt eine generisch benannte Datei still nicht. Funktional
+identisch
 zum Intel-`x86_64`-Slice: `XPWELLYS_USE_LOCAL_INFERENCE=OFF`, kein
 whisper.cpp/llama.cpp/Piper/onnxruntime, kein Metal — nur OpenAI + Mistral
 über libcurl. Gebaut mit MSVC via CMake auf `windows-latest` in CI (nicht

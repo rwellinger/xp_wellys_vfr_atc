@@ -8,7 +8,7 @@ on:
     branches:
       # Feature-branch scaffolding for the Windows port: build both the
       # macOS universal binary and the Windows slice on every push here
-      # so the win.xpl can be bring-up-tested before a release tag.
+      # so the Windows .xpl can be bring-up-tested before a release tag.
       - windows_support
     tags:
       - 'v*'
@@ -134,7 +134,9 @@ jobs:
   # GitHub Actions is the Windows compiler — no local MSVC toolchain
   # needed. Builds the same source tree with XPWELLYS_USE_LOCAL_INFERENCE=OFF
   # (no whisper/llama/Piper/onnxruntime, no Metal) into a self-contained
-  # win_x64/win.xpl. libcurl is linked statically from vcpkg (Schannel TLS)
+  # win_x64/xp_wellys_devfr_atc.xpl (the per-arch .xpl MUST carry the plugin
+  # name, not win.xpl — X-Plane 12 on Windows silently skips a generically
+  # named file). libcurl is linked statically from vcpkg (Schannel TLS)
   # so the artifact carries zero extra DLLs — a pure "unzip into
   # Resources/plugins" drop-in for a zero-toolchain test laptop.
   build-windows:
@@ -210,7 +212,7 @@ jobs:
           set -euo pipefail
           STAGE=dist/xp_wellys_devfr_atc
           mkdir -p "$STAGE/win_x64" "$STAGE/data/atc_profiles/de" "$STAGE/data/vrps"
-          cp build-win/win.xpl              "$STAGE/win_x64/"
+          cp build-win/xp_wellys_devfr_atc.xpl "$STAGE/win_x64/"
           cp data/atc_prompt_templates.json "$STAGE/data/"
           cp data/models_catalog.json       "$STAGE/data/"
           cp data/settings.json             "$STAGE/data/"
@@ -268,7 +270,7 @@ jobs:
           mkdir -p "$STAGE/data/vrps"
 
           # Windows slice (cloud-only, self-contained DLL — no extra libs).
-          cp win-dist/win_x64/win.xpl "$STAGE/win_x64/"
+          cp win-dist/win_x64/xp_wellys_devfr_atc.xpl "$STAGE/win_x64/"
 
           # macOS universal slice + its runtime dylibs (from the artifact).
           cp mac-dist/xp_wellys_devfr_atc.xpl        "$STAGE/mac_x64/"

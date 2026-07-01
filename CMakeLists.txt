@@ -370,16 +370,13 @@ if(XPWELLYS_USE_LOCAL_INFERENCE)
 endif()
 
 # X-Plane resolves fat plugins by the platform subfolder (mac_x64/,
-# win_x64/), so the .xpl base name is free. The Windows slice ships as
-# win_x64/win.xpl per the X-Plane convention; macOS keeps its historical
-# name. The .xpl suffix stays on both — on Windows it is a renamed DLL.
-if(WIN32)
-    set(_xp_plugin_output_name "win")
-else()
-    set(_xp_plugin_output_name "xp_wellys_devfr_atc")
-endif()
+# win_x64/). The .xpl file MUST carry the plugin name on every platform:
+# X-Plane 12 on Windows silently fails to load a plugin whose per-arch file
+# is named generically (win.xpl) — it must be <plugin>/win_x64/
+# xp_wellys_devfr_atc.xpl, matching macOS mac_x64/xp_wellys_devfr_atc.xpl.
+# The .xpl suffix stays on both — on Windows it is a renamed DLL.
 set_target_properties(xp_wellys_devfr_atc PROPERTIES
-    OUTPUT_NAME "${_xp_plugin_output_name}"
+    OUTPUT_NAME "xp_wellys_devfr_atc"
     SUFFIX      ".xpl"
     PREFIX      ""
 )
