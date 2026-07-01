@@ -136,13 +136,24 @@ sind typischerweise langsamer: 2–3 s warm, dominiert von der API-Latenz.
 
 ## Hardware-Anforderungen
 
-Das Plugin wird als **Universal Binary** ausgeliefert — ein `.xpl`, zwei
-Slices. X-Plane lädt automatisch den passenden.
+Auf **macOS** wird das Plugin als **Universal Binary** ausgeliefert — ein
+`.xpl`, zwei Slices. X-Plane lädt automatisch den passenden. Für **Windows**
+gibt es einen separaten, reinen Cloud-Build (`win_x64/xp_wellys_devfr_atc.xpl`).
 
-| Mac | Geladener Slice | Verfügbare Backends |
+| Plattform | Geladener Slice / Build | Verfügbare Backends |
 |---|---|---|
-| Apple Silicon (M1 / M2 / M3 / M4) | `arm64` | **Local**, **OpenAI Cloud** *oder* **Mistral Cloud** |
-| Intel (x86_64) | `x86_64` | **Nur Cloud** — **OpenAI** oder **Mistral** (lokale Inferenz braucht Metal + Apple Silicon) |
+| macOS · Apple Silicon (M1 / M2 / M3 / M4) | `mac_x64` (arm64) | **Local**, **OpenAI Cloud** *oder* **Mistral Cloud** |
+| macOS · Intel (x86_64) | `mac_x64` (x86_64) | **Nur Cloud** — **OpenAI** oder **Mistral** (lokale Inferenz braucht Metal + Apple Silicon) |
+| Windows 11 (x64) | `win_x64` | **Nur Cloud** — **OpenAI** oder **Mistral** (keine lokale Inferenz; kein Metal / Apple Silicon) |
+
+**Windows-Status:** Der Windows-Build ist **voll unterstützt und auf echter
+Hardware end-to-end verifiziert** — ein kompletter VFR-Rundflug ab
+**Friedrichshafen (EDNY)** auf einem Shadow-Cloud-PC (Windows 11, NVIDIA-GPU):
+Plugin-Laden, Mikrofon-Capture (WASAPI via miniaudio) + PTT, die volle
+STT→ATC→TTS-Pipeline und der API-Key im Windows Credential Manager laufen
+einwandfrei. Windows ist funktional identisch zum Intel-`x86_64`-Slice
+(cloud-only, OpenAI **oder** Mistral über libcurl); lokale Offline-KI gibt es
+unter Windows **nicht**.
 
 | Ressource | Local-Modus | OpenAI- / Mistral-Cloud-Modus |
 |---|---|---|
@@ -163,14 +174,16 @@ lokaler Inferenz.
 | Punkt | Anforderung |
 |---|---|
 | macOS | **13.3 oder neuer** (onnxruntime 1.22.0 verlangt dies auf dem arm64-Slice; der x86_64-Slice erbt dasselbe Deployment-Target, damit das lipo'd Binary konsistent bleibt) |
+| Windows | **Windows 11 (x64)**, verifiziert. Cloud-only — nur OpenAI oder Mistral; der API-Key liegt im Windows Credential Manager. Das Artefakt ist ein reiner Drop-in-Ordner ohne Extra-DLLs (libcurl statisch, Schannel-TLS). |
 | X-Plane | X-Plane 12 (12.0 oder neuer) |
 | OpenAI-/Mistral-Konto | Nur falls du einen Cloud-Modus nutzen willst — braucht einen API-Key mit aktivierter Abrechnung beim jeweiligen Anbieter. Der Local-Modus hat keine Cloud-Abhängigkeit. |
 | Zum Bauen aus Quellcode | CMake 3.26+, Homebrew LLVM (`brew install llvm`), Xcode Command Line Tools |
 
 ## Schnellstart (vorgefertigtes Release)
 
-1. Lade `xp_wellys_devfr_atc-vX.Y.Z.zip` von der GitHub-Releases-Seite. Das
-   `.xpl` darin ist ein Universal Binary für arm64 und x86_64.
+1. Lade `xp_wellys_devfr_atc-vX.Y.Z.zip` von der GitHub-Releases-Seite. Der
+   macOS-`.xpl` darin ist ein Universal Binary für arm64 und x86_64; der
+   Windows-`.xpl` liegt im `win_x64/`-Ordner (cloud-only).
 2. Entpacke nach `X-Plane 12/Resources/plugins/`. Ergebnis:
    ```
    X-Plane 12/Resources/plugins/xp_wellys_devfr_atc/
@@ -179,11 +192,17 @@ lokaler Inferenz.
      │     ├── libpiper.dylib          (nur vom arm64-Slice genutzt)
      │     ├── libonnxruntime.1.22.0.dylib
      │     └── libonnxruntime.dylib
+     ├── win_x64/
+     │     └── xp_wellys_devfr_atc.xpl       (Windows x64, cloud-only, keine Extra-DLLs)
      ├── Resources/
      │     └── espeak-ng-data/   (~19 MB, nur vom arm64-Slice genutzt)
      └── data/
            └── (ATC-Profil-Bundle, Prompt-Templates, VRP-Datenbank, etc.)
    ```
+   Unter **Windows** lädt X-Plane 12 den `win_x64/`-Ordner. Der Ordnername
+   und der Dateiname `xp_wellys_devfr_atc.xpl` müssen exakt so bleiben —
+   eine generisch benannte `win.xpl` wird von X-Plane 12 unter Windows
+   **still nicht** geladen.
 3. Starte X-Plane. Öffne das Plugin-Fenster über *Plugins → Welly's ATC*.
 4. **Wähle dein Backend** im **Settings**-Tab:
    - **Local** (Apple Silicon, Standard): der **Models**-Tab zeigt die
@@ -192,19 +211,23 @@ lokaler Inferenz.
      jeder Datei SHA256-verifiziert. Sobald alle Zeilen **Ready**
      (grün) zeigen, verschwindet das PTT-deaktiviert-Banner im
      Status-Tab.
-   - **OpenAI Cloud** (jeder Mac): füge deinen OpenAI-API-Key in das
-     Feld **OpenAI API Key** in den Einstellungen ein (nutze den
-     `[Paste]`-Button — Cmd+V im ImGui-Kontext von X-Plane ist
-     unzuverlässig). Klicke **Save Key**. Der Key wird im macOS Keychain
-     unter dem Service `com.xp_wellys_devfr_atc.openai` gespeichert. PTT ist
-     sofort aktiv; kein Modell-Download.
-   - **Mistral Cloud** (jeder Mac): füge deinen Mistral-API-Key in das
-     Feld **Mistral API key** ein (gleiches `[Paste]`-Muster). Klicke
-     **Save Key##mistral**. Der Key wird unter einem separaten
-     Keychain-Eintrag `com.xp_wellys_devfr_atc.mistral` gespeichert, sodass
-     der OpenAI-Key (falls vorhanden) unberührt bleibt und du ohne
-     erneutes Einfügen zwischen Anbietern wechseln kannst. PTT ist
-     sofort aktiv.
+   - **OpenAI Cloud** (jeder Mac **und Windows**): füge deinen
+     OpenAI-API-Key in das Feld **OpenAI API Key** in den Einstellungen ein
+     (nutze den `[Paste]`-Button — Cmd+V im ImGui-Kontext von X-Plane ist
+     unzuverlässig). Klicke **Save Key**. Der Key wird auf macOS im Keychain
+     unter dem Service `com.xp_wellys_devfr_atc.openai` gespeichert, unter
+     Windows im **Credential Manager**. PTT ist sofort aktiv; kein
+     Modell-Download.
+   - **Mistral Cloud** (jeder Mac **und Windows**): füge deinen
+     Mistral-API-Key in das Feld **Mistral API key** ein (gleiches
+     `[Paste]`-Muster). Klicke **Save Key##mistral**. Der Key wird unter
+     einem separaten Eintrag `com.xp_wellys_devfr_atc.mistral` gespeichert
+     (macOS Keychain bzw. Windows Credential Manager), sodass der
+     OpenAI-Key (falls vorhanden) unberührt bleibt und du ohne erneutes
+     Einfügen zwischen Anbietern wechseln kannst. PTT ist sofort aktiv.
+   - **Windows** hat keinen **Local**-Modus (kein Apple Silicon / kein
+     Metal) — der Windows-Build startet direkt in einem der beiden
+     Cloud-Modi; der **Models**-Tab bleibt ohne Funktion.
 5. Fliege. Das Banner im Status-Tab zeigt dir den aktiven Modus, und
    die `Log.txt` trägt bei jedem Laden ein einzeiliges
    `BACKEND MODE: ...`-Banner, sodass du im Nachhinein belegen kannst,
@@ -332,6 +355,17 @@ alles lokal. Der x86_64-Slice hat keinerlei onnxruntime- / Piper- /
 whisper- / llama-Abhängigkeit; er linkt nur gegen libcurl + die
 System-Frameworks (Security, AudioToolbox usw.) und die Cloud-Clients.
 
+**Windows-Build.** Der `win_x64/xp_wellys_devfr_atc.xpl` wird mit **MSVC via
+CMake auf `windows-latest` in CI** gebaut (nicht lokal auf dem Mac). Er ist
+cloud-only (`XPWELLYS_USE_LOCAL_INFERENCE=OFF`, kein whisper.cpp/llama.cpp/
+Piper/onnxruntime/Metal) und funktional identisch zum Intel-`x86_64`-Slice:
+OpenAI + Mistral über libcurl (statisch aus vcpkg, `x64-windows-static`,
+Schannel-TLS), sodass das Artefakt **null** Extra-DLLs trägt — ein reiner
+Drop-in-Ordner. Die Mic-Capture nutzt **miniaudio** (WASAPI) statt Core
+Audio; der API-Key liegt im Windows Credential Manager statt im Keychain.
+Auf Windows 11 (Shadow-Cloud-PC, NVIDIA-GPU) mit einem VFR-Rundflug ab
+Friedrichshafen (EDNY) end-to-end verifiziert.
+
 ## Lokale Inferenz-Modelle
 
 Das Plugin wird **ohne** die Modell-Dateien ausgeliefert (~2,0 GB
@@ -428,7 +462,7 @@ Backend-Sprache konstant `de`).
 | `debug_traffic` | `false` | Zeigt den Traffic-Tab im ATC-Panel (listet die 10 nächsten Flugzeuge aus den TCAS-DataRefs) |
 | `debug_text_input` | `false` | Zeigt unter dem Transkript im Status-Tab ein InputText-Feld. Getippter Text wird direkt in `engine::process_transcript` via `atc_session::submit_text()` eingespeist — STT wird übersprungen, LM + State-Machine + TTS laufen wie im Sprachpfad. Hilfreich ohne Headset und zum Isolieren von ATC-Logik-Bugs von STT-Fehlern. PTT bleibt parallel aktiv; das Kürzel `REG` expandiert zum phonetischen Rufzeichen. |
 | `traffic_features_enabled` | `true` | Hauptschalter für das Verkehrs-Subsystem (Hinweise, Lande-Sequenzierung, Durchstart-Trigger). Aus → `traffic_context::update()` liefert einen leeren Snapshot und jeder nachgelagerte Konsument wird zum No-op. Braucht ohnehin einen Verkehrs-Provider (LiveTraffic, xPilot, swift, X-IvAp, native AI). |
-| `backend_mode` | `local` | `local` (whisper + llama + Piper, nur arm64), `openai` (Whisper API + Chat Completions + TTS API) oder `mistral` (Voxtral STT + Mistral Chat Completions + Voxtral TTS). Der x86_64-Slice schreibt `local` beim Start still auf `openai` um, da Local dort nicht verfügbar ist; `mistral` wird auf beiden Slices honoriert. |
+| `backend_mode` | `local` | `local` (whisper + llama + Piper, nur arm64), `openai` (Whisper API + Chat Completions + TTS API) oder `mistral` (Voxtral STT + Mistral Chat Completions + Voxtral TTS). Der x86_64-Slice **und der Windows-Build** schreiben `local` beim Start still auf `openai` um, da Local dort nicht verfügbar ist; `mistral` wird überall honoriert. |
 | `api_key_saved` | `false` | Nur Flag — automatisch gesetzt, wenn der Nutzer in den Einstellungen **Save Key** klickt. Der echte OpenAI-Key liegt im macOS Keychain unter Service `com.xp_wellys_devfr_atc.openai` / Account `default`. Durch **Delete Key** gelöscht. |
 | `openai_stt_model` | `whisper-1` | OpenAI-Whisper-Modell-ID für den STT-Aufruf. |
 | `openai_lm_model` | `gpt-4o-mini` | OpenAI-Chat-Completions-Modell-ID für den Absichts-Classifier. JSON-Modus wird automatisch aktiviert. |
@@ -623,7 +657,7 @@ Prüfungsfragen, NfL Teil B) und die Coverage-Matrix liegen unter
 
 | Einschränkung | Auswirkung | Aufwand |
 |---|---|---|
-| **Lokale Inferenz nur auf Apple Silicon** | Intel-Macs können das Plugin über den x86_64-Slice fahren, aber nur im OpenAI- oder Mistral-Cloud-Modus (API-Key + Abrechnung nötig) | Durch das Universal Binary gelöst; die Intel-Beschränkung für den Local-Modus aufzuheben bräuchte Metal-Alternativen + einen x86_64-onnxruntime-Build |
+| **Lokale Inferenz nur auf Apple Silicon** | Intel-Macs (x86_64-Slice) und **Windows** (`win_x64`-Build, auf Windows 11 verifiziert) können das Plugin fahren, aber nur im OpenAI- oder Mistral-Cloud-Modus (API-Key + Abrechnung nötig) — kein lokaler Offline-Modus | Für macOS durch das Universal Binary gelöst; die Beschränkung für den Local-Modus aufzuheben bräuchte Metal-Alternativen + einen non-Apple-onnxruntime-Build (auf Windows zusätzlich einen CUDA-/DirectML-Pfad) |
 | **Nur Deutsch** | Das Plugin modelliert ausschliesslich deutsche NfL-DACH-VFR-Phraseologie; andere Sprachen sind nicht vorgesehen | Per Design — dies ist ein reines Deutschland-VFR-Plugin |
 | **OpenAI-Stimmen sprechen Deutsch mit US-Akzent** | Im `backend_mode=openai` transkribiert Whisper korrekt und das LM antwortet korrekt auf Deutsch, aber die `tts-1`-Stimmen (`alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`) sind englisch-trainiert und geben Deutsch mit hörbarem US-Akzent wieder — besonders NATO-Buchstaben klingen anglophon (z. B. „Tschaar-lie" statt „Tschar-li"). Für lockeres Üben akzeptabel, für BZF/AZF-Training unrealistisch. | Für den Local-Modus durch Piper `de_DE-thorsten` gelöst. Für Cloud-Nutzer ist **Mistral Cloud** die Alternative — Voxtral TTS ist nativ multilingual und spricht Deutsch ohne US-Akzent. |
 | **Lokale STT verhört buchstabierte Rufzeichen** | Im Local-Modus verhört das kleine `ggml-small-q5_1`-Whisper deutsche NATO-Buchstabierfolgen oft als echte Wörter („Whiskey Romeo Oscar" → „Wisskrieg"/„Wiesbäcki"), was die Intent-Erkennung bricht. Die Phraseologie selbst wird gut erkannt — nur das Rufzeichen leidet. Folge: **BZF-Strict-Mode** kann bei Local (und Mistral) korrekte Readbacks fälschlich abweisen. Der `initial_prompt` wird bereits mit dem eigenen Rufzeichen vorkonditioniert (`atc_session.cpp`), was die Trefferquote hebt, aber das Modell-Limit nicht ganz aufhebt. | Local-Modus: Strict-Mode aus lassen (Settings-Tab warnt bei aktivem Strict). Ein grösseres Whisper (`large-v3-turbo`, ~547 MB) wurde getestet und verworfen — zu langsam, Sim-Hänger beim Landeanflug. **OpenAI** ist bei buchstabierten Rufzeichen deutlich robuster und die Empfehlung, wenn Strict-Mode gewünscht ist. |
