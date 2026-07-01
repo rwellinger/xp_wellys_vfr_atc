@@ -14,14 +14,44 @@ on:
       - 'v*'
 
 jobs:
-  build-macos:
+  # ── Fast macOS sanity gate (feature-branch pushes) ──────────────────────────
+  # Cloud-only arm64 build + tests: no submodules, no whisper/llama/Piper/
+  # espeak-ng/onnxruntime, so it finishes in ~4 min instead of ~50. Crucially
+  # it has NO `needs: build-windows`, so it runs IN PARALLEL with the Windows
+  # slice. Runs on branch pushes that are not release tags (e.g. every push to
+  # windows_support). Tags + PR-merges take build-macos-release instead.
+  build-macos-fast:
     runs-on: macos-latest
-    # Wait for the Windows slice so a release tag can fold win_x64/win.xpl
-    # into the same drop-in ZIP the macOS job assembles + publishes.
-    needs: build-windows
-    if: github.event_name == 'push' || github.event.pull_request.merged == true
-    permissions:
-      contents: write
+    if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup dependencies (cloud-only — no submodules)
+        run: make setup-cloud
+
+      - name: Set up ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ runner.os }}-${{ github.job }}-debug
+          max-size: 1500M
+          variant: ccache
+
+      - name: Fast sanity build + tests (cloud-only)
+        # One cloud-only arm64 configure builds the tests, REPL and plugin and
+        # runs the unit + scenario suites.
+        run: |
+          make ci-fast
+          ccache --show-stats
+
+  # ── Full universal macOS build (tags / main merges) ─────────────────────────
+  # Carries the local-inference backends, so it needs the submodules + the
+  # espeak-ng/onnxruntime cache. Builds the universal .xpl + dylibs +
+  # espeak-ng-data and uploads them as an artifact for the final `release`
+  # job. NO `needs: build-windows` — this runs IN PARALLEL with the Windows
+  # slice; the two artifacts are folded together only in `release`.
+  build-macos-universal:
+    runs-on: macos-latest
+    if: startsWith(github.ref, 'refs/tags/v') || github.event.pull_request.merged == true
     steps:
       - uses: actions/checkout@v5
         with:
@@ -40,11 +70,27 @@ jobs:
           max-size: 1500M
           variant: ccache
 
+      - name: Cache espeak-ng build + onnxruntime prebuilt
+        # The espeak-ng ExternalProject (git clone + its own CMake build +
+        # install) and the onnxruntime prebuilt download are the long pole that
+        # ccache does NOT cover. Persisting them across runs turns
+        # clone/build/install and download/extract into cache hits. Restored
+        # AFTER `make setup` so the submodule checkout doesn't clobber the
+        # restored untracked onnxruntime files. Keyed on the Piper libpiper
+        # CMakeLists (pins the espeak GIT_TAG + onnxruntime version).
+        uses: actions/cache@v4
+        with:
+          path: |
+            build-arm64/espeak_ng
+            build-arm64/espeak_ng-install
+            spikes/spike_piper/third_party/piper1-gpl/libpiper/lib
+            spikes/spike_piper/third_party/piper1-gpl/libpiper/download
+          key: ${{ runner.os }}-espeak-onnx-${{ hashFiles('spikes/spike_piper/third_party/piper1-gpl/libpiper/CMakeLists.txt') }}
+
       - name: Run tests
-        # Builds the default arm64 tree (build/) with BUILD_TESTS=ON
-        # and runs the Catch2 + scenario suite. This is the local
-        # path's regression gate — fails loudly before we burn time
-        # on the universal-binary build.
+        # Builds the default arm64 tree (build/) with BUILD_TESTS=ON and runs
+        # the Catch2 + scenario suite — the regression gate before the
+        # universal-binary build.
         run: make test
 
       - name: Build (universal)
@@ -61,106 +107,23 @@ jobs:
           make build RELEASE_FLAG="$RELEASE_FLAG"
           ccache --show-stats
 
-      - name: Download Windows slice
-        # The Windows job uploads win_x64/win.xpl as an artifact; fold it
-        # into the same drop-in bundle so one release ZIP serves both
-        # platforms. Tag builds only — dev pushes keep the two artifacts
-        # separate.
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: actions/download-artifact@v4
+      - name: Upload macOS artifact
+        # Raw universal .xpl (dev rpaths intact, unsigned) + the arm64 dylibs
+        # + espeak-ng-data. The final `release` job downloads this, does the
+        # rpath fixup + codesign, and folds it together with the Windows slice
+        # into the drop-in ZIP. upload-artifact roots the archive at the
+        # common ancestor (build/), so the paths land as xp_wellys_devfr_atc.xpl,
+        # libpiper.dylib, ... , espeak_ng-install/share/espeak-ng-data/.
+        uses: actions/upload-artifact@v4
         with:
-          name: xp_wellys_devfr_atc-win
-          path: win-dist
-
-      - name: Stage release bundle
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          set -euo pipefail
-          STAGE=dist/xp_wellys_devfr_atc
-          mkdir -p "$STAGE/mac_x64"
-          mkdir -p "$STAGE/win_x64"
-          mkdir -p "$STAGE/Resources/espeak-ng-data"
-          mkdir -p "$STAGE/Resources/models"
-          mkdir -p "$STAGE/data/atc_profiles/de"
-          mkdir -p "$STAGE/data/vrps"
-
-          # Windows slice (cloud-only, self-contained DLL — no extra libs).
-          cp win-dist/win_x64/win.xpl "$STAGE/win_x64/"
-
-          cp build/xp_wellys_devfr_atc.xpl           "$STAGE/mac_x64/"
-          cp build/libpiper.dylib              "$STAGE/mac_x64/"
-          cp build/libonnxruntime.1.22.0.dylib "$STAGE/mac_x64/"
-          cp build/libonnxruntime.dylib        "$STAGE/mac_x64/"
-
-          for rp in $(otool -l "$STAGE/mac_x64/xp_wellys_devfr_atc.xpl" \
-                      | awk '/LC_RPATH/{flag=1; next} flag && /path/ {print $2; flag=0}'); do
-            install_name_tool -delete_rpath "$rp" "$STAGE/mac_x64/xp_wellys_devfr_atc.xpl" 2>/dev/null || true
-          done
-          install_name_tool -add_rpath "@loader_path" "$STAGE/mac_x64/xp_wellys_devfr_atc.xpl"
-
-          codesign --force --deep --sign - "$STAGE/mac_x64/libonnxruntime.1.22.0.dylib"
-          codesign --force --deep --sign - "$STAGE/mac_x64/libpiper.dylib"
-          codesign --force --deep --sign - "$STAGE/mac_x64/xp_wellys_devfr_atc.xpl"
-
-          rsync -a --delete \
-            build/espeak_ng-install/share/espeak-ng-data/ \
-            "$STAGE/Resources/espeak-ng-data/"
-
-          cp data/atc_prompt_templates.json         "$STAGE/data/"
-          cp data/models_catalog.json               "$STAGE/data/"
-          cp data/settings.json                     "$STAGE/data/"
-          cp data/atc_profiles/de/atc_templates.json     "$STAGE/data/atc_profiles/de/"
-          cp data/atc_profiles/de/flight_rules.json      "$STAGE/data/atc_profiles/de/"
-          cp data/atc_profiles/de/intent_rules.json      "$STAGE/data/atc_profiles/de/"
-          cp data/atc_profiles/de/phraseology_hints.json "$STAGE/data/atc_profiles/de/"
-          cp data/atc_profiles/de/ui_strings.json        "$STAGE/data/atc_profiles/de/"
-          cp data/vrps/airport_vrps.json                 "$STAGE/data/vrps/"
-
-          cp -r docs "$STAGE/docs"
-
-          # Generate the SkunkCrafts Updater control files into the staged
-          # tree BEFORE zipping, so the GitHub-release ZIP also carries
-          # skunkcrafts_updater.cfg — manual installers then become
-          # updater-discoverable. The in-sim-downloaded models (~2 GB) are
-          # excluded by generate.py (untracked => left untouched, never
-          # deleted); settings.json is marked once-only. Version from the
-          # tag (v1.2.3 -> 1.2.3).
-          python3 tools/skunkcrafts/generate.py \
-            --tree "$STAGE" --version "${GITHUB_REF_NAME#v}"
-
-          cd dist && zip -r xp_wellys_devfr_atc.zip xp_wellys_devfr_atc/
-
-      - name: Create release with assets
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/xp_wellys_devfr_atc.zip
-          generate_release_notes: true
-
-      - name: Publish SkunkCrafts update tree
-        # Force-push the staged plugin tree to the `release` branch that the
-        # skunkcrafts_updater.cfg `module` URL serves via raw.githubusercontent.
-        # Single orphan commit each release => the branch never accumulates
-        # history (binaries don't bloat the repo over time). The empty
-        # Resources/models dir is dropped (git ignores empty dirs anyway and
-        # the models are not updater-managed).
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          STAGE=dist/xp_wellys_devfr_atc
-          rm -rf "$STAGE/Resources/models"
-          pushd "$STAGE"
-          git init -q
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -q -m "release ${GITHUB_REF_NAME}"
-          git branch -M release
-          git push --force \
-            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" release
-          popd
+          name: xp_wellys_devfr_atc-mac
+          path: |
+            build/xp_wellys_devfr_atc.xpl
+            build/libpiper.dylib
+            build/libonnxruntime.1.22.0.dylib
+            build/libonnxruntime.dylib
+            build/espeak_ng-install/share/espeak-ng-data
+          if-no-files-found: error
 
   # ── Windows slice (cloud-only) ──────────────────────────────────────────────
   # GitHub Actions is the Windows compiler — no local MSVC toolchain
@@ -253,3 +216,122 @@ jobs:
           name: xp_wellys_devfr_atc-win
           path: dist/xp_wellys_devfr_atc
           if-no-files-found: error
+
+  # ── Release: package both slices into one drop-in ZIP + publish ─────────────
+  # The final end-job (tags only). Waits for BOTH platform builds, downloads
+  # their artifacts, folds them into a single drop-in tree, codesigns the mac
+  # slice, generates the SkunkCrafts control files, creates the GitHub release
+  # and force-pushes the update tree to the `release` branch. Runs on macOS
+  # because the mac-slice rpath fixup + codesign need otool/install_name_tool/
+  # codesign. build-macos-universal + build-windows run in parallel; only this
+  # step serializes on both — and only on a release tag.
+  release:
+    runs-on: macos-latest
+    needs: [build-macos-universal, build-windows]
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        # Repo only — for data/*.json, docs/ and tools/skunkcrafts/generate.py.
+        # The compiled binaries arrive via the two artifacts below.
+
+      - name: Download macOS slice
+        uses: actions/download-artifact@v4
+        with:
+          name: xp_wellys_devfr_atc-mac
+          path: mac-dist
+
+      - name: Download Windows slice
+        uses: actions/download-artifact@v4
+        with:
+          name: xp_wellys_devfr_atc-win
+          path: win-dist
+
+      - name: Stage release bundle
+        run: |
+          set -euo pipefail
+          STAGE=dist/xp_wellys_devfr_atc
+          mkdir -p "$STAGE/mac_x64"
+          mkdir -p "$STAGE/win_x64"
+          mkdir -p "$STAGE/Resources/espeak-ng-data"
+          mkdir -p "$STAGE/Resources/models"
+          mkdir -p "$STAGE/data/atc_profiles/de"
+          mkdir -p "$STAGE/data/vrps"
+
+          # Windows slice (cloud-only, self-contained DLL — no extra libs).
+          cp win-dist/win_x64/win.xpl "$STAGE/win_x64/"
+
+          # macOS universal slice + its runtime dylibs (from the artifact).
+          cp mac-dist/xp_wellys_devfr_atc.xpl        "$STAGE/mac_x64/"
+          cp mac-dist/libpiper.dylib                 "$STAGE/mac_x64/"
+          cp mac-dist/libonnxruntime.1.22.0.dylib    "$STAGE/mac_x64/"
+          cp mac-dist/libonnxruntime.dylib           "$STAGE/mac_x64/"
+
+          for rp in $(otool -l "$STAGE/mac_x64/xp_wellys_devfr_atc.xpl" \
+                      | awk '/LC_RPATH/{flag=1; next} flag && /path/ {print $2; flag=0}'); do
+            install_name_tool -delete_rpath "$rp" "$STAGE/mac_x64/xp_wellys_devfr_atc.xpl" 2>/dev/null || true
+          done
+          install_name_tool -add_rpath "@loader_path" "$STAGE/mac_x64/xp_wellys_devfr_atc.xpl"
+
+          codesign --force --deep --sign - "$STAGE/mac_x64/libonnxruntime.1.22.0.dylib"
+          codesign --force --deep --sign - "$STAGE/mac_x64/libpiper.dylib"
+          codesign --force --deep --sign - "$STAGE/mac_x64/xp_wellys_devfr_atc.xpl"
+
+          rsync -a --delete \
+            mac-dist/espeak_ng-install/share/espeak-ng-data/ \
+            "$STAGE/Resources/espeak-ng-data/"
+
+          cp data/atc_prompt_templates.json         "$STAGE/data/"
+          cp data/models_catalog.json               "$STAGE/data/"
+          cp data/settings.json                     "$STAGE/data/"
+          cp data/atc_profiles/de/atc_templates.json     "$STAGE/data/atc_profiles/de/"
+          cp data/atc_profiles/de/flight_rules.json      "$STAGE/data/atc_profiles/de/"
+          cp data/atc_profiles/de/intent_rules.json      "$STAGE/data/atc_profiles/de/"
+          cp data/atc_profiles/de/phraseology_hints.json "$STAGE/data/atc_profiles/de/"
+          cp data/atc_profiles/de/ui_strings.json        "$STAGE/data/atc_profiles/de/"
+          cp data/vrps/airport_vrps.json                 "$STAGE/data/vrps/"
+
+          cp -r docs "$STAGE/docs"
+
+          # Generate the SkunkCrafts Updater control files into the staged
+          # tree BEFORE zipping, so the GitHub-release ZIP also carries
+          # skunkcrafts_updater.cfg — manual installers then become
+          # updater-discoverable. The in-sim-downloaded models (~2 GB) are
+          # excluded by generate.py (untracked => left untouched, never
+          # deleted); settings.json is marked once-only. Version from the
+          # tag (v1.2.3 -> 1.2.3).
+          python3 tools/skunkcrafts/generate.py \
+            --tree "$STAGE" --version "${GITHUB_REF_NAME#v}"
+
+          cd dist && zip -r xp_wellys_devfr_atc.zip xp_wellys_devfr_atc/
+
+      - name: Create release with assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/xp_wellys_devfr_atc.zip
+          generate_release_notes: true
+
+      - name: Publish SkunkCrafts update tree
+        # Force-push the staged plugin tree to the `release` branch that the
+        # skunkcrafts_updater.cfg `module` URL serves via raw.githubusercontent.
+        # Single orphan commit each release => the branch never accumulates
+        # history (binaries don't bloat the repo over time). The empty
+        # Resources/models dir is dropped (git ignores empty dirs anyway and
+        # the models are not updater-managed).
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          STAGE=dist/xp_wellys_devfr_atc
+          rm -rf "$STAGE/Resources/models"
+          pushd "$STAGE"
+          git init -q
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "release ${GITHUB_REF_NAME}"
+          git branch -M release
+          git push --force \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" release
+          popd

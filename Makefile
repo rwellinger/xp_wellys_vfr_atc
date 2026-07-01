@@ -31,7 +31,7 @@ CATCH2_VERSION := 3.15.1
 # plus the generated skunkcrafts_updater_*.txt control files.
 SKUNK_DIR := build/skunkcrafts
 
-.PHONY: all help setup submodules build install clean distclean format lint sanitize release release-build skunkcrafts cleanup-tags cleanup-branches cleanup-runs repl run-repl test test-unit test-scenarios
+.PHONY: all help setup setup-cloud submodules build ci-fast install clean distclean format lint sanitize release release-build skunkcrafts cleanup-tags cleanup-branches cleanup-runs repl run-repl test test-unit test-scenarios
 
 .DEFAULT_GOAL := help
 
@@ -44,8 +44,10 @@ help:
 	@echo "  make                   Show this help (default)"
 	@echo "  make all               clean + format + build + lint"
 	@echo "  make setup             Sync submodules to pinned commits + download X-Plane SDK, Dear ImGui, nlohmann/json, Catch2"
+	@echo "  make setup-cloud       Cloud-only deps (SDK, ImGui, json, Catch2) WITHOUT submodules — for the fast CI sanity build"
 	@echo "  make submodules        Force-sync git submodules (whisper.cpp, llama.cpp, Piper) to pinned commits"
 	@echo "  make build             Build universal plugin (arm64 local+cloud, x86_64 cloud-only) -> build/xp_wellys_devfr_atc.xpl"
+	@echo "  make ci-fast           Fast cloud-only arm64 sanity build + unit/scenario tests (no submodules, no local backends)"
 	@echo "  make repl              Build headless CLI -> build/atc_repl"
 	@echo "  make run-repl          Build + run the CLI (stdin transcripts)"
 	@echo "  make test              Run unit tests + scenario tests"
@@ -68,6 +70,14 @@ help:
 # ── Setup ─────────────────────────────────────────────────────────────────────
 setup: submodules $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $(CATCH2_SENTINEL)
 	@echo "Setup complete. Run 'make build' to compile."
+
+# Cloud-only setup: the four non-submodule vendor deps only. Deliberately
+# skips the git submodules (whisper.cpp, llama.cpp, Piper) — the cloud-only
+# slice (XPWELLYS_USE_LOCAL_INFERENCE=OFF) never references them, so the
+# fast CI sanity build (`make ci-fast`) needs neither the submodule
+# checkout nor the espeak-ng/onnxruntime ExternalProject work.
+setup-cloud: $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $(CATCH2_SENTINEL)
+	@echo "Cloud-only setup complete (no submodules). Run 'make ci-fast'."
 
 # Always-run: force every submodule back to the commit pinned in this
 # repo, regardless of what's currently checked out. `sync` re-applies the
@@ -218,6 +228,34 @@ build: $(SUBMODULES_SENTINEL) $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL)
 	@file build/xp_wellys_devfr_atc.xpl
 	@lipo -info build/xp_wellys_devfr_atc.xpl
 	@echo "Done. Run 'make install' to deploy the universal .xpl."
+
+# ── CI fast sanity build ──────────────────────────────────────────────────────
+# Single cloud-only arm64 configure that builds the tests, the headless
+# REPL and the plugin (all with XPWELLYS_USE_LOCAL_INFERENCE=OFF), then runs
+# the unit + scenario suites. No whisper/llama/Piper/espeak-ng/onnxruntime,
+# so no submodules are required (see `setup-cloud`). This is the fast macOS
+# gate for feature-branch pushes; the full universal `make build` only runs
+# on release tags / main merges. Uses its own build-ci/ dir so it never
+# clobbers the release build/ trees. Depends on the four non-submodule
+# vendor sentinels only.
+ci-fast: $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $(CATCH2_SENTINEL)
+	@echo "=== Fast cloud-only sanity build (arm64, no local backends) ==="
+	cmake -B build-ci -DCMAKE_BUILD_TYPE=Release \
+	    -DCMAKE_OSX_ARCHITECTURES=arm64 \
+	    -DXPWELLYS_USE_LOCAL_INFERENCE=OFF \
+	    -DBUILD_TESTS=ON \
+	    -Wno-dev
+	cmake --build build-ci --target xp_wellys_devfr_atc_tests atc_repl xp_wellys_devfr_atc --parallel
+	@echo ""
+	@echo "=== Running unit tests ==="
+	@# Same rand+fixed-seed regime as `make test` (see Issue #3).
+	@./build-ci/xp_wellys_devfr_atc_tests --order rand --rng-seed 42
+	@echo ""
+	@echo "=== Running scenario tests ==="
+	./build-ci/atc_repl run testscripts/*.json
+	@echo ""
+	@file build-ci/xp_wellys_devfr_atc.xpl
+	@echo "Fast sanity build clean."
 
 # ── REPL (headless CLI) ───────────────────────────────────────────────────────
 repl: $(SUBMODULES_SENTINEL) $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $(CATCH2_SENTINEL)
@@ -465,7 +503,7 @@ cleanup-runs:
 
 # ── Clean ─────────────────────────────────────────────────────────────────────
 clean:
-	rm -rf build/ build-lint/ build-sanitize/ build-arm64/ build-x86_64/
+	rm -rf build/ build-ci/ build-lint/ build-sanitize/ build-arm64/ build-x86_64/
 
 # ── Distclean ─────────────────────────────────────────────────────────────────
 # Remove everything 'make setup' downloaded so a full re-bootstrap is forced.
