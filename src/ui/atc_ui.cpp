@@ -74,6 +74,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <functional>
 #include <vector>
 
@@ -1225,9 +1226,17 @@ static void draw_audio_tab() {
             settings::volume(), audio_test_wav_.size());
         XPLMDebugString(log);
 
-        // Save WAV to disk for debugging
+        // Save WAV to disk for debugging. Resolve the OS temp dir at
+        // runtime (std::filesystem is C++17, platform-neutral) instead of
+        // hardcoding /tmp — Windows has no /tmp. Fall back to a relative
+        // filename if temp_directory_path() throws (no TMPDIR/%TEMP%).
         if (settings::debug_logging()) {
-          std::string path = "/tmp/xp_wellys_devfr_atc_test.wav";
+          std::error_code ec;
+          std::filesystem::path dir = std::filesystem::temp_directory_path(ec);
+          std::filesystem::path wav_path =
+              (ec ? std::filesystem::path() : dir) /
+              "xp_wellys_devfr_atc_test.wav";
+          std::string path = wav_path.string();
           FILE *f = std::fopen(path.c_str(), "wb");
           if (f) {
             std::fwrite(audio_test_wav_.data(), 1, audio_test_wav_.size(), f);
