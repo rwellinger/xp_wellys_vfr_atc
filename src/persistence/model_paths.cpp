@@ -67,7 +67,7 @@ void mkdir_p(const std::string &dir) {
     }
   }
   if (!cur.empty() && cur.back() != '/') {
-    mkdir(cur.c_str(), 0755);
+    make_dir(cur);
   }
 }
 
