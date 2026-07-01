@@ -21,7 +21,12 @@ jobs:
   # slice. Runs on branch pushes that are not release tags (e.g. every push to
   # windows_support). Tags + PR-merges take build-macos-release instead.
   build-macos-fast:
-    runs-on: macos-latest
+    # Pinned to macos-15 (Sequoia, Apple Silicon) — the maintainer's test
+    # system. macos-latest migrated to macOS 26 on 2026-06-15; pinning keeps
+    # CI on the same OS generation + arch the native arm64 Universal build
+    # (onnxruntime/espeak-ng/whisper/llama, deployment target 13.3) is
+    # verified against, so a silent runner bump cannot break a release.
+    runs-on: macos-15
     if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/v')
     steps:
       - uses: actions/checkout@v5
@@ -50,7 +55,7 @@ jobs:
   # job. NO `needs: build-windows` — this runs IN PARALLEL with the Windows
   # slice; the two artifacts are folded together only in `release`.
   build-macos-universal:
-    runs-on: macos-latest
+    runs-on: macos-15 # pinned — see build-macos-fast (matches test system)
     if: startsWith(github.ref, 'refs/tags/v') || github.event.pull_request.merged == true
     steps:
       - uses: actions/checkout@v5
@@ -229,7 +234,7 @@ jobs:
   # codesign. build-macos-universal + build-windows run in parallel; only this
   # step serializes on both — and only on a release tag.
   release:
-    runs-on: macos-latest
+    runs-on: macos-15 # pinned — see build-macos-fast (matches test system)
     needs: [build-macos-universal, build-windows]
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
