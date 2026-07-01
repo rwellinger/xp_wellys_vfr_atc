@@ -25,6 +25,13 @@
 #include <mutex>
 #include <string>
 #include <sys/stat.h>
+// MSVC ships the S_IF* flags but not the POSIX S_ISREG/S_ISDIR test macros.
+#if !defined(S_ISREG)
+#define S_ISREG(m) (((m) & S_IFMT) == S_IFREG)
+#endif
+#if !defined(S_ISDIR)
+#define S_ISDIR(m) (((m) & S_IFMT) == S_IFDIR)
+#endif
 #include <thread>
 #include <unordered_set>
 
