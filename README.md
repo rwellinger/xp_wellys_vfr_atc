@@ -96,6 +96,15 @@ BZF-Inhabern sind ausdrücklich willkommen.
 > Eine ausführliche Aufstellung der Einschränkungen samt Aufwandsschätzung
 > steht in der [technischen Dokumentation](docs/README.md#bekannte-einschränkungen).
 
+## Companion-Plugin: Welly's VFR Trainer
+
+**[Welly's VFR Trainer](https://github.com/rwellinger/xp_wellys_vfr_trainer)** ist
+ein optionaler Gamification-Aufsatz für Welly's ATC: Er schlägt VFR-Flüge im
+DACH-Raum nach Flugplatz-Schwierigkeit vor und bewertet nach der Landung deinen
+Flug, indem er die ATC-Funksprüche dieses Plugins mit den Flugdaten
+zeitkorreliert und vom LLM beurteilen lässt. Welly's ATC funktioniert vollständig
+eigenständig — der Trainer ist rein optional.
+
 ## 📖 Technische Dokumentation
 
 Installation, Schnellstart, Backend-Modi, Build aus Quellcode, lokale
