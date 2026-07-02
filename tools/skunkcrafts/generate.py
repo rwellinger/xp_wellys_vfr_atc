@@ -10,7 +10,14 @@ the updater compares against:
     skunkcrafts_updater.cfg             rendered from the .cfg.template (version filled in)
 
 It also writes a skunkcrafts_updater_oncelist.txt so user-owned files
-(settings.json) are pulled only when missing and never overwritten.
+(settings.json) are pulled only when missing and never overwritten. Such
+files are deliberately kept OUT of the whitelist and sizeslist: a whitelist
+CRC32 (or a sizeslist entry) is what the updater diffs against, so once the
+user edits settings.json its checksum drifts and a client that honours the
+whitelist over the oncelist would flag it out-of-sync and clobber it (wiping
+backend_mode, api_key_saved, the pilot callsign, ...). Listing it in the
+oncelist ALONE preserves the "download only if absent" behaviour without ever
+giving the updater a reason to overwrite a present copy.
 
 The huge, separately-downloaded model files under Resources/models/ are
 deliberately NOT tracked: anything not in the whitelist is left untouched by
@@ -82,10 +89,16 @@ def main() -> None:
             rel = abs_path.relative_to(tree).as_posix()
             if matches(rel, IGNORE_GLOBS):
                 continue
-            whitelist.append(f"{rel}|{crc32(abs_path)}")
-            sizes.append(f"{rel}|{abs_path.stat().st_size}")
+            # ONCE_GLOBS files (user-owned settings) go into the oncelist
+            # ONLY — never the whitelist/sizeslist. A CRC32/size entry there
+            # is what a client diffs against, and a user-edited copy would be
+            # flagged out-of-sync and overwritten (issue #27). Kept present in
+            # the tree so "download only if absent" still serves fresh installs.
             if matches(rel, ONCE_GLOBS):
                 oncelist.append(rel)
+                continue
+            whitelist.append(f"{rel}|{crc32(abs_path)}")
+            sizes.append(f"{rel}|{abs_path.stat().st_size}")
 
     whitelist.sort()
     sizes.sort()

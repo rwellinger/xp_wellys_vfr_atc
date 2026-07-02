@@ -35,7 +35,7 @@ Dinge, die du pro Projekt anpassen musst.
 | `skunkcrafts_updater.cfg` | `key\|value` | Version + Modul-URL (wird auch mit-ausgeliefert) |
 | `skunkcrafts_updater_whitelist.txt` | `pfad\|crc32` | CRC32 (unsigned 32-Bit **dezimal**) je verwalteter Datei |
 | `skunkcrafts_updater_sizeslist.txt` | `pfad\|bytes` | Dateigröße je Datei |
-| `skunkcrafts_updater_oncelist.txt` | `pfad` | nur laden wenn **fehlend**, nie überschreiben |
+| `skunkcrafts_updater_oncelist.txt` | `pfad` | nur laden wenn **fehlend**, nie überschreiben — Datei gehört **nicht** zusätzlich in whitelist/sizeslist |
 | `skunkcrafts_updater_blacklist.txt` | `pfad` | lokal **LÖSCHEN** (Vorsicht!) |
 | `skunkcrafts_updater_ignorelist.txt` | `pfad` | beim Update-Check ignorieren |
 
@@ -43,6 +43,15 @@ Dinge, die du pro Projekt anpassen musst.
 > der Updater unangetastet. Große, separat heruntergeladene Daten (Modelle,
 > User-Daten) gehören **weder in die whitelist noch in die blacklist** —
 > einfach gar nicht tracken. Die blacklist löscht!
+>
+> **Oncelist-Sonderfall:** Eine user-editierbare Config (`settings.json`)
+> steht **ausschliesslich** in der oncelist — **nie** zusätzlich in
+> whitelist/sizeslist. Der whitelist-CRC32 (bzw. der sizeslist-Eintrag) ist
+> der Diff-Trigger des Updaters: sobald der Nutzer die Datei ändert, driftet
+> die Prüfsumme und ein Client, der die whitelist über die oncelist stellt,
+> flaggt sie als out-of-sync und überschreibt sie (siehe Issue #27). Nur in
+> der oncelist bleibt „laden wenn fehlend" erhalten, ohne je einen
+> Überschreib-Grund zu liefern.
 
 ### cfg-Felder
 
@@ -143,10 +152,14 @@ def main() -> None:
             rel = ap_.relative_to(tree).as_posix()
             if matches(rel, IGNORE_GLOBS):
                 continue
-            whitelist.append(f"{rel}|{crc32(ap_)}")
-            sizes.append(f"{rel}|{ap_.stat().st_size}")
+            # ONCE_GLOBS -> oncelist ONLY, never whitelist/sizeslist. Ein
+            # CRC32/Size-Eintrag dort ist der Diff-Trigger; eine user-editierte
+            # Datei wuerde sonst als out-of-sync geflaggt + ueberschrieben.
             if matches(rel, ONCE_GLOBS):
                 once.append(rel)
+                continue
+            whitelist.append(f"{rel}|{crc32(ap_)}")
+            sizes.append(f"{rel}|{ap_.stat().st_size}")
     whitelist.sort(); sizes.sort(); once.sort()
     (tree / "skunkcrafts_updater_whitelist.txt").write_text("\n".join(whitelist) + "\n")
     (tree / "skunkcrafts_updater_sizeslist.txt").write_text("\n".join(sizes) + "\n")
@@ -164,7 +177,9 @@ Frag dich für jedes Projekt:
 1. **Was wird separat geladen / ist riesig?** → in `IGNORE_GLOBS` (Modelle,
    große Assets, die nicht über den Updater laufen sollen).
 2. **Welche Dateien editiert der Nutzer?** → in `ONCE_GLOBS` (Settings, Keys,
-   Profile), damit ein Update sie nicht überschreibt.
+   Profile), damit ein Update sie nicht überschreibt. Der Generator schreibt
+   ONCE_GLOBS-Treffer bewusst **nur** in die oncelist und lässt sie aus
+   whitelist/sizeslist — sonst würde der CRC/Size-Diff sie doch überschreiben.
 3. **Was ist reine Runtime-Ausgabe?** (Logs, Caches) → in `IGNORE_GLOBS`.
 
 ---
@@ -334,7 +349,7 @@ cat build/skunkcrafts/skunkcrafts_updater_oncelist.txt   # nur User-Configs?
 |---|---|
 | Updater will 2 GB Modelle hosten | Modelle stehen in der whitelist → in `IGNORE_GLOBS` aufnehmen |
 | Modelle werden beim Update gelöscht | Modelle stehen in der **blacklist** → NIE blacklisten, nur ignorieren |
-| User-Settings nach Update weg | Datei in whitelist statt `ONCE_GLOBS` → in `ONCE_GLOBS` verschieben |
+| User-Settings nach Update weg | Datei steht in whitelist/sizeslist (ggf. zusätzlich zur oncelist) → CRC-Diff überschreibt sie. Fix: in `ONCE_GLOBS` und **nur** in die oncelist schreiben, aus whitelist/sizeslist raushalten (Issue #27) |
 | Push schlägt fehl (403) | Repo-Workflow-Permissions auf read-only → auf „read and write" stellen |
 | Addon erscheint nicht im Updater | `skunkcrafts_updater.cfg` fehlt im Plugin-Root, `disabled` ist `true`, oder `module`-URL nicht erreichbar |
 | Falsche/keine Version angezeigt | `@VERSION@` nicht ersetzt → `--version` an `generate.py` prüfen |
