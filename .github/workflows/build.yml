@@ -11,12 +11,29 @@ on:
     branches: [main]
   push:
     branches:
+      # main: every push (incl. PR merges) rebuilds the universal binary so
+      # the arm64 local-inference deps (whisper/llama/ggml/Piper) stay warm in
+      # the DEFAULT-branch ccache. A release tag can only restore caches from
+      # its own tag or from main — never from another tag — so main is the one
+      # scope that keeps the heavy deps cached across releases. See the
+      # `build-macos-universal` ccache step.
+      - main
       # Feature-branch scaffolding for the Windows port: build both the
       # macOS universal binary and the Windows slice on every push here
       # so the Windows .xpl can be bring-up-tested before a release tag.
       - windows_support
     tags:
       - 'v*'
+
+# Supersede an in-progress run when a newer push lands on the SAME ref, so
+# stale branch/main builds don't pile up (they were previously un-cancelable
+# and ran to the 6h default). Release TAGS are exempt (cancel-in-progress is
+# false for refs/tags/v*) so a running release publish is never killed
+# mid-way. main and each tag are distinct groups, so a main push never
+# cancels a concurrent tag build.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/v') }}
 
 jobs:
   # ── Fast macOS sanity gate (feature-branch pushes) ──────────────────────────
@@ -32,7 +49,11 @@ jobs:
     # (onnxruntime/espeak-ng/whisper/llama, deployment target 13.3) is
     # verified against, so a silent runner bump cannot break a release.
     runs-on: macos-15
-    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && !startsWith(github.ref, 'refs/tags/v')
+    timeout-minutes: 20
+    # Excludes main: a push to main runs the full build-macos-universal instead
+    # (which also runs `make test`), so a cloud-only sanity build there would be
+    # redundant. Fires on windows_support pushes + workflow_dispatch only.
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && !startsWith(github.ref, 'refs/tags/v') && github.ref != 'refs/heads/main'
     steps:
       - uses: actions/checkout@v5
 
@@ -61,7 +82,11 @@ jobs:
   # slice; the two artifacts are folded together only in `release`.
   build-macos-universal:
     runs-on: macos-15 # pinned — see build-macos-fast (matches test system)
-    if: startsWith(github.ref, 'refs/tags/v') || github.event.pull_request.merged == true
+    timeout-minutes: 60 # bounds a cold submodule-bump rebuild; warm runs ~10-15 min
+    # Runs on: release tags, PR merges, AND direct pushes to main. The main-push
+    # run is what populates the DEFAULT-branch ccache that later tag runs restore
+    # from (a tag cannot read another tag's cache — only its own or main's).
+    if: startsWith(github.ref, 'refs/tags/v') || github.event.pull_request.merged == true || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     steps:
       - uses: actions/checkout@v5
         with:
@@ -73,11 +98,29 @@ jobs:
       - name: Setup dependencies
         run: make setup
 
+      - name: Compute submodule SHA key
+        # Hash the checked-out commits of whisper.cpp/llama.cpp/Piper (and their
+        # nested submodules). This is the ccache key suffix: it changes ONLY when
+        # a submodule pin moves, so the heavy local-inference deps stay a cache
+        # hit across every release until a pin is actually bumped.
+        id: subsha
+        # shasum -a 256 (Perl, always on macOS) rather than GNU sha256sum, which
+        # is not guaranteed on the stock runner image.
+        run: echo "sha=$(git submodule status --recursive | shasum -a 256 | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
       - name: Set up ccache
+        # Keyed on the submodule SHAs (not on job+release/debug): an exact hit
+        # means whisper/llama/ggml/Piper are all ccache hits (ccache is
+        # mtime-immune, so no spurious Ninja rebuilds). restore-keys falls back
+        # to the previous deps cache on a pin bump for partial reuse. Written on
+        # main pushes -> lives in the default-branch scope that release tags can
+        # restore from.
         uses: hendrikmuhs/ccache-action@v1.2.23
         with:
-          key: ${{ runner.os }}-${{ github.job }}-${{ startsWith(github.ref, 'refs/tags/v') && 'release' || 'debug' }}
-          max-size: 1500M
+          key: ${{ runner.os }}-arm64-deps-${{ steps.subsha.outputs.sha }}
+          restore-keys: |
+            ${{ runner.os }}-arm64-deps-
+          max-size: 2500M
           variant: ccache
 
       - name: Cache espeak-ng build + onnxruntime prebuilt
@@ -146,6 +189,7 @@ jobs:
   # Resources/plugins" drop-in for a zero-toolchain test laptop.
   build-windows:
     runs-on: windows-latest
+    timeout-minutes: 30
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
     steps:
       - uses: actions/checkout@v5
@@ -243,6 +287,7 @@ jobs:
   # step serializes on both — and only on a release tag.
   release:
     runs-on: macos-15 # pinned — see build-macos-fast (matches test system)
+    timeout-minutes: 20
     needs: [build-macos-universal, build-windows]
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
