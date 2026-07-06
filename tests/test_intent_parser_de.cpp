@@ -117,6 +117,21 @@ TEST_CASE("DE: 'abflugbereit Piste 24' -> READY_FOR_DEPARTURE",
     REQUIRE(m.confidence >= 0.85f);
 }
 
+// Issue #30: the collision-free non-word mishearing "Bisten" -> "piste" is
+// fixed deterministically by the normalize[] map (before rule matching), so
+// the rule parser resolves runway + intent without an LM round-trip.
+TEST_CASE("DE: Whisper mishearing 'Bisten 24' normalises to 'Piste 24'",
+          "[intent][de][departure][normalize]") {
+    DeRegionGuard g;
+    auto ctx = ground_ctx();
+    auto m = parse("Delta Echo Whiskey Lima Yankee, am Rollhalt Bisten 24, "
+                   "abflugbereit.",
+                   ctx);
+    REQUIRE(m.runway == "24");
+    REQUIRE(m.intent == PilotIntent::READY_FOR_DEPARTURE);
+    REQUIRE(m.confidence >= 0.85f);
+}
+
 TEST_CASE("DE: Boden initial call -> INITIAL_CALL_GROUND",
           "[intent][de][initial_call]") {
     DeRegionGuard g;
