@@ -2,8 +2,10 @@
   "_comment": "Data-driven intent classification rules for DE/BZF phraseology. Loaded by src/atc/intent_rules.cpp. Schema: see intent_rules.hpp. DE-Region-specific rules: additive to EN keywords so BZF transcripts with mixed EN/DE words ('Friedrichshafen Tower' / 'in sight') still classify. Note: intent_parser::parse() runs de_phraseology::parse_spoken_number() before this layer, so ziffernweise BZF pronunciation ('eins null eins drei') already arrives as raw digits ('1013') -- rules below match on numeric form.",
 
   "normalize": [
-    { "_note": "Known Whisper mishearings (DE VFR). See GitHub issue #9. Only map non-words -> collision-free for global substring replace.", "from": "fahrfeld",  "to": "vorfeld" },
-    { "from": "fahrtfeld", "to": "vorfeld" }
+    { "_note": "Known Whisper/Voxtral mishearings (DE VFR). See GitHub issues #9, #30. INVARIANT: only map non-words that are collision-free under a global substring replace (never a legitimate German word/token, e.g. 'drei'). Context-dependent mishearings ('drei'->'frei' only post-landing, 'Landung frei'->'Piste frei') live in the LLM classify prompt (atc_prompt_templates.json :: gpt_classify_prompt_de), not here.", "from": "fahrfeld",  "to": "vorfeld" },
+    { "from": "fahrtfeld", "to": "vorfeld" },
+    { "_note": "'Piste' mis-transcribed as the non-words 'Bisten'/'Pieste' — unblocks the rule parser directly so no LM round-trip is needed.", "from": "bisten", "to": "piste" },
+    { "from": "pieste", "to": "piste" }
   ],
 
   "rules": [
