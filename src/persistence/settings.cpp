@@ -244,6 +244,10 @@ std::string vrps_data_path() {
   return data_dir_path + "/vrps/airport_vrps.json";
 }
 
+std::string airspaces_data_path() {
+  return data_dir_path + "/airspaces/de_airspace.txt";
+}
+
 std::string user_prefs_dir() {
   // XPLMGetSystemPath returns the X-Plane root with a trailing slash.
   // Sits under Output/preferences/ so it survives plugin re-installs.

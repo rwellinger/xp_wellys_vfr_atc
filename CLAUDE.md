@@ -233,6 +233,7 @@ xp_wellys_vfr_atc/
 │   ├── data/
 │   │   ├── airport_vrps.hpp/.cpp       # JSON-geladene VFR-Meldepunkte (gebündelt + User-Override)
 │   │   ├── airspace_db.hpp/.cpp        # apt.dat-abgeleiteter Airspace/Controller-Index
+│   │   ├── openair_db.hpp/.cpp         # Echter 3D-OpenAir-Luftraum-Parser (CTR/RMZ/TMZ/TMA/CTA/ED-R) mit Floor/Ceiling (SDK-frei)
 │   │   ├── traffic_context.hpp/.cpp    # SDK-freier TrafficContext-Struct + Helfer
 │   │   ├── traffic_context_runtime.cpp # 2-Hz-TCAS-DataRef-Snapshot (plugin-only)
 │   │   ├── traffic_geometry.hpp/.cpp   # Relativ-Peilung-/Uhrzeit-Mathematik (SDK-frei)
@@ -252,6 +253,7 @@ xp_wellys_vfr_atc/
 │   ├── models_catalog.json             # Wählbare Modell-Slugs + Voices für alle drei Backends (editierbar, kein Recompile)
 │   ├── atc_prompt_templates.json       # whisper_prompt + gpt_classify_prompt_de + gpt_fallback_prompt_de
 │   ├── vrps/airport_vrps.json          # VRP-/Platzrunden-DB (durch User-Datei überschreibbar)
+│   ├── airspaces/de_airspace.txt       # Gebündeltes DE-Luftraum-Starterset (OpenAir); User-Override <prefs>/airspace.txt
 │   └── atc_profiles/
 │       └── de/{atc_templates,flight_rules,intent_rules,phraseology_hints,ui_strings,conformance}.json
 ├── tools/atc_repl/                     # Headless-Dev-Tool (nur Engine-OBJECT-Lib)
@@ -270,7 +272,7 @@ TUs (engine, intent_parser, intent_rules, State-Machine, Templates,
 flight_phase, ATIS, phraseology_hints, traffic_advisor, traffic_dialog,
 landing_sequence, flows/*, bzf_compliance, de_phraseology, manager,
 Daten-Loader, traffic_context-Struct, traffic_geometry,
-traffic_phase_classifier, logging, cross_country_log, xplane_context-Struct,
+traffic_phase_classifier, openair_db, logging, cross_country_log, xplane_context-Struct,
 model_manifest, models_catalog, ui_strings). Sowohl das Plugin-Modul als
 auch das headless
 `atc_repl`-Tool nutzen sie wieder. Das Plugin-Modul ergänzt die

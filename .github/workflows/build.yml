@@ -216,13 +216,14 @@ jobs:
         run: |
           set -euo pipefail
           STAGE=dist/xp_wellys_devfr_atc
-          mkdir -p "$STAGE/win_x64" "$STAGE/data/atc_profiles/de" "$STAGE/data/vrps"
+          mkdir -p "$STAGE/win_x64" "$STAGE/data/atc_profiles/de" "$STAGE/data/vrps" "$STAGE/data/airspaces"
           cp build-win/xp_wellys_devfr_atc.xpl "$STAGE/win_x64/"
           cp data/atc_prompt_templates.json "$STAGE/data/"
           cp data/models_catalog.json       "$STAGE/data/"
           cp data/settings.json             "$STAGE/data/"
           cp data/atc_profiles/de/*.json    "$STAGE/data/atc_profiles/de/"
           cp data/vrps/airport_vrps.json    "$STAGE/data/vrps/"
+          cp data/airspaces/de_airspace.txt "$STAGE/data/airspaces/"
           cp -r docs "$STAGE/docs"
 
       - name: Upload Windows artifact
@@ -273,6 +274,7 @@ jobs:
           mkdir -p "$STAGE/Resources/models"
           mkdir -p "$STAGE/data/atc_profiles/de"
           mkdir -p "$STAGE/data/vrps"
+          mkdir -p "$STAGE/data/airspaces"
 
           # Windows slice (cloud-only, self-contained DLL — no extra libs).
           cp win-dist/win_x64/xp_wellys_devfr_atc.xpl "$STAGE/win_x64/"
@@ -306,6 +308,7 @@ jobs:
           cp data/atc_profiles/de/phraseology_hints.json "$STAGE/data/atc_profiles/de/"
           cp data/atc_profiles/de/ui_strings.json        "$STAGE/data/atc_profiles/de/"
           cp data/vrps/airport_vrps.json                 "$STAGE/data/vrps/"
+          cp data/airspaces/de_airspace.txt              "$STAGE/data/airspaces/"
 
           cp -r docs "$STAGE/docs"
 
