@@ -45,6 +45,7 @@ add_executable(xp_wellys_devfr_atc_tests
     test_begin_fresh_flight.cpp
     test_phraseology_hints.cpp
     test_airport_vrps.cpp
+    test_openair_db.cpp
     test_traffic_geometry.cpp
     test_traffic_context.cpp
     test_traffic_advisor.cpp

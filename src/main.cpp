@@ -42,6 +42,7 @@
 #include "core/xplane_context.hpp"
 #include "data/airport_vrps.hpp"
 #include "data/airspace_db.hpp"
+#include "data/openair_db.hpp"
 #include "data/traffic_context.hpp"
 #include "persistence/model_paths.hpp"
 #include "persistence/settings.hpp"
@@ -173,6 +174,11 @@ PLUGIN_API int XPluginStart(char *name, char *sig, char *desc) {
       sys += '/';
     airspace_db::init(sys + "Custom Data/1200 atc data/Earth nav data/atc.dat");
   }
+  // Real 3-D airspace DB (openair_db): bundled DE starter set + optional
+  // user override (a full openaip.net Germany OpenAir export dropped at
+  // <prefs>/airspace.txt). Detection only for now — see issue #29.
+  openair_db::init(settings::airspaces_data_path(),
+                   settings::user_prefs_dir() + "/airspace.txt");
   xplane_context::init();
   traffic_context::init();
   flight_phase::init();
@@ -250,6 +256,7 @@ PLUGIN_API void XPluginStop() {
   flight_phase::stop();
   traffic_context::stop();
   xplane_context::stop();
+  openair_db::stop();
   airspace_db::stop();
   airport_vrps::stop();
   ui_strings::stop();

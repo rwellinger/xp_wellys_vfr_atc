@@ -423,6 +423,9 @@ install:
 	@mkdir -p "$(PLUGIN_DIR)/data/vrps"
 	@cp data/vrps/airport_vrps.json "$(PLUGIN_DIR)/data/vrps/"
 	@echo "Installed: $(PLUGIN_DIR)/data/vrps/airport_vrps.json"
+	@mkdir -p "$(PLUGIN_DIR)/data/airspaces"
+	@cp data/airspaces/de_airspace.txt "$(PLUGIN_DIR)/data/airspaces/"
+	@echo "Installed: $(PLUGIN_DIR)/data/airspaces/de_airspace.txt"
 	@# Cleanup of legacy paths from pre-Phase-B installs (region-scoped
 	@# data + top-level JSONs from the era before the regions folder).
 	@rm -f "$(PLUGIN_DIR)/data/atc_templates.json" \

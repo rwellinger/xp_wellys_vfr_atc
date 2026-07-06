@@ -41,6 +41,11 @@ std::string atc_profile_data_dir();
 // is training.
 std::string vrps_data_path();
 
+// Bundled OpenAir airspace file (<data>/airspaces/de_airspace.txt). Starter
+// set for the 3-D airspace DB (openair_db); a full openaip.net Germany
+// export can be dropped into user_prefs_dir()/airspace.txt as an override.
+std::string airspaces_data_path();
+
 // User preferences directory — under
 // <X-Plane>/Output/preferences/xp_wellys_devfr_atc/. Survives plugin
 // re-installs. Used for optional per-user data overrides (e.g.
