@@ -343,3 +343,148 @@ TEST_CASE("readback_covers_core: callsign-only clearance accepts callsign",
     REQUIRE(missing.empty());
     REQUIRE(readback_covers_core(comp.required, missing));
 }
+
+// ── diff_readback: per-field Missing vs Wrong verdict ──────────────
+
+using bzf_compliance::diff_readback;
+using bzf_compliance::FieldDiff;
+using bzf_compliance::ReadbackStatus;
+
+namespace {
+// Find the diff entry for a given element (tests assert on specific fields).
+const FieldDiff *find_diff(const std::vector<FieldDiff> &d, Element e) {
+    for (const auto &f : d)
+        if (f.element == e)
+            return &f;
+    return nullptr;
+}
+} // namespace
+
+TEST_CASE("diff_readback: fully correct readback is all Ok",
+          "[bzf_compliance][diff]") {
+    ClearanceComponents comp;
+    comp.callsign = "D-EXYZ";
+    comp.runway = "25";
+    comp.qnh = "1013";
+    comp.required = {Element::Callsign, Element::Runway, Element::QNH};
+    auto d = diff_readback(comp, "Piste 25, QNH 1013, D-EXYZ");
+    REQUIRE(d.size() == 3);
+    for (const auto &f : d)
+        REQUIRE(f.status == ReadbackStatus::Ok);
+}
+
+TEST_CASE("diff_readback: omitted QNH is Missing (no value stated)",
+          "[bzf_compliance][diff]") {
+    ClearanceComponents comp;
+    comp.callsign = "D-EXYZ";
+    comp.runway = "25";
+    comp.qnh = "1013";
+    comp.required = {Element::Callsign, Element::Runway, Element::QNH};
+    auto d = diff_readback(comp, "Piste 25, D-EXYZ");
+    const FieldDiff *q = find_diff(d, Element::QNH);
+    REQUIRE(q != nullptr);
+    REQUIRE(q->status == ReadbackStatus::Missing);
+    REQUIRE(q->expected == "1013");
+    REQUIRE(q->stated.empty());
+}
+
+TEST_CASE("diff_readback: wrong QNH value is Wrong with expected+stated",
+          "[bzf_compliance][diff]") {
+    ClearanceComponents comp;
+    comp.callsign = "D-EXYZ";
+    comp.runway = "25";
+    comp.qnh = "1013";
+    comp.required = {Element::Callsign, Element::Runway, Element::QNH};
+    auto d = diff_readback(comp, "Piste 25, QNH 1030, D-EXYZ");
+    const FieldDiff *q = find_diff(d, Element::QNH);
+    REQUIRE(q != nullptr);
+    REQUIRE(q->status == ReadbackStatus::Wrong);
+    REQUIRE(q->expected == "1013");
+    REQUIRE(q->stated == "1030");
+    // The runway and callsign were correct.
+    REQUIRE(find_diff(d, Element::Runway)->status == ReadbackStatus::Ok);
+    REQUIRE(find_diff(d, Element::Callsign)->status == ReadbackStatus::Ok);
+}
+
+TEST_CASE("diff_readback: wrong runway is Wrong, spoken digits normalised",
+          "[bzf_compliance][diff]") {
+    ClearanceComponents comp;
+    comp.callsign = "D-EXYZ";
+    comp.runway = "25";
+    comp.required = {Element::Callsign, Element::Runway};
+    // Pilot read back runway "zwo drei" (23) instead of 25.
+    auto d = diff_readback(comp, "Piste zwo drei, D-EXYZ");
+    const FieldDiff *r = find_diff(d, Element::Runway);
+    REQUIRE(r != nullptr);
+    REQUIRE(r->status == ReadbackStatus::Wrong);
+    REQUIRE(r->expected == "25");
+    REQUIRE(r->stated == "23");
+}
+
+TEST_CASE("diff_readback: missing callsign is Missing, never Wrong",
+          "[bzf_compliance][diff]") {
+    ClearanceComponents comp;
+    comp.callsign = "D-EXYZ";
+    comp.runway = "25";
+    comp.required = {Element::Callsign, Element::Runway};
+    auto d = diff_readback(comp, "Piste 25");
+    const FieldDiff *c = find_diff(d, Element::Callsign);
+    REQUIRE(c != nullptr);
+    REQUIRE(c->status == ReadbackStatus::Missing);
+}
+
+// ── build_correction_response(comp, diff): NfL wording ─────────────
+// atc_templates is NOT loaded in these unit tests, so lookup_bzf_strict
+// returns the hard-coded NfL defaults. Assertions target that wording.
+
+TEST_CASE("build_correction_response(diff): all-Ok yields empty string",
+          "[bzf_compliance][correction]") {
+    ClearanceComponents comp;
+    comp.callsign = "D-EXYZ";
+    comp.runway = "25";
+    comp.required = {Element::Callsign, Element::Runway};
+    auto d = diff_readback(comp, "Piste 25, D-EXYZ");
+    REQUIRE(build_correction_response("D-EXYZ", comp, d).empty());
+}
+
+TEST_CASE("build_correction_response(diff): missing-only -> READ BACK, no value",
+          "[bzf_compliance][correction]") {
+    ClearanceComponents comp;
+    comp.callsign = "D-EXYZ";
+    comp.runway = "25";
+    comp.qnh = "1013";
+    comp.required = {Element::Callsign, Element::Runway, Element::QNH};
+    auto d = diff_readback(comp, "Piste 25, D-EXYZ"); // QNH omitted
+    auto resp = build_correction_response("D-EXYZ", comp, d);
+    REQUIRE(resp == "D-EXYZ, WIEDERHOLEN SIE WOERTLICH.");
+    // The tower must NOT hand over the omitted value.
+    REQUIRE(resp.find("1013") == std::string::npos);
+}
+
+TEST_CASE("build_correction_response(diff): wrong value -> NEGATIV + soll",
+          "[bzf_compliance][correction]") {
+    ClearanceComponents comp;
+    comp.callsign = "D-EXYZ";
+    comp.runway = "25";
+    comp.qnh = "1013";
+    comp.required = {Element::Callsign, Element::Runway, Element::QNH};
+    auto d = diff_readback(comp, "Piste 25, QNH 1030, D-EXYZ"); // wrong QNH
+    auto resp = build_correction_response("D-EXYZ", comp, d);
+    REQUIRE(resp == "D-EXYZ, NEGATIV, QNH 1013, WIEDERHOLEN SIE WOERTLICH.");
+}
+
+TEST_CASE("build_correction_response(diff): multiple wrong values all named",
+          "[bzf_compliance][correction]") {
+    ClearanceComponents comp;
+    comp.callsign = "D-EXYZ";
+    comp.runway = "25";
+    comp.qnh = "1013";
+    comp.required = {Element::Callsign, Element::Runway, Element::QNH};
+    // Both runway and QNH read back wrong.
+    auto d = diff_readback(comp, "Piste 07, QNH 1030, D-EXYZ");
+    auto resp = build_correction_response("D-EXYZ", comp, d);
+    REQUIRE(resp.find("NEGATIV") != std::string::npos);
+    REQUIRE(resp.find("Piste 25") != std::string::npos);
+    REQUIRE(resp.find("QNH 1013") != std::string::npos);
+    REQUIRE(resp.find("WIEDERHOLEN SIE WOERTLICH.") != std::string::npos);
+}

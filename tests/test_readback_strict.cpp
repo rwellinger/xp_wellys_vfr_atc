@@ -86,7 +86,49 @@ TEST_CASE("BZF strict: incomplete readback fires a targeted correction "
     REQUIRE_FALSE(corr.text.empty()); // a correction was issued, not silent
     REQUIRE(corr.requires_readback);  // still owes a readback
     REQUIRE(atc_state_machine::is_readback_pending());
+    // Incomplete (nothing wrong, only omitted) -> NfL READ BACK wording,
+    // and the tower must NOT re-state the runway value.
+    REQUIRE(corr.text.find("WIEDERHOLEN SIE WOERTLICH") != std::string::npos);
+    REQUIRE(corr.text.find("NEGATIV") == std::string::npos);
     // State must not advance on a non-conformant readback.
+    REQUIRE(atc_state_machine::get_state() ==
+            atc_state_machine::state_from_name("Pattern/DEPARTURE_CLEARED"));
+}
+
+TEST_CASE("BZF strict: wrong readback value fires NEGATIV correction naming "
+          "the soll value (NfL §25 b) Nr. 3)",
+          "[readback][bzf_strict]") {
+    load_de_profile();
+    settings::set_bzf_strict_mode(true);
+
+    auto ctx = primed_ctx();
+    atc_state_machine::set_state(atc_state_machine::ATCState::TOWER_CONTACT);
+
+    // Arm the departure clearance for runway 06.
+    intent_parser::PilotMessage ready;
+    ready.intent = intent_parser::PilotIntent::READY_FOR_DEPARTURE;
+    ready.confidence = 0.9f;
+    ready.callsign = "Hotel Bravo Whiskey Romeo Oscar";
+    ready.runway = "06";
+    ready.raw_transcript =
+        "Hotel Bravo Whiskey Romeo Oscar Piste 06 abflugbereit";
+    REQUIRE(atc_state_machine::process(ready, ctx, 100.0).requires_readback);
+
+    // Pilot reads back the WRONG runway (25 instead of 06). This is a
+    // discrepancy the controller must actively berichtigen with the soll.
+    intent_parser::PilotMessage wrong;
+    wrong.intent = intent_parser::PilotIntent::READBACK;
+    wrong.confidence = 0.9f;
+    wrong.callsign = "Hotel Bravo Whiskey Romeo Oscar";
+    wrong.raw_transcript = "Piste 25 Start frei Hotel Bravo Whiskey Romeo Oscar";
+    auto corr = atc_state_machine::process(wrong, ctx, 101.0);
+
+    REQUIRE_FALSE(corr.text.empty());
+    REQUIRE(corr.text.find("NEGATIV") != std::string::npos);
+    REQUIRE(corr.text.find("Piste 06") != std::string::npos);       // soll named
+    REQUIRE(corr.text.find("WIEDERHOLEN SIE WOERTLICH") != std::string::npos);
+    REQUIRE(corr.requires_readback);
+    REQUIRE(atc_state_machine::is_readback_pending());
     REQUIRE(atc_state_machine::get_state() ==
             atc_state_machine::state_from_name("Pattern/DEPARTURE_CLEARED"));
 }

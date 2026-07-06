@@ -104,6 +104,42 @@ std::vector<Element> check_pilot_readback(const std::string &pilot_transcript,
 std::vector<Element> missing_readback_elements(const ClearanceComponents &comp,
                                                const std::string &pilot_transcript);
 
+// Per-element verdict of a readback against the stored clearance. Unlike
+// missing_readback_elements (which only says "not covered"), this
+// distinguishes an OMITTED element (pilot said nothing of that type) from
+// a WRONG one (pilot read back a value of the right type but the wrong
+// digits — e.g. "QNH 1030" against a cleared "QNH 1013"). The distinction
+// drives NfL-correct correction phraseology: §25 b) Nr. 3 obliges the
+// controller to actively correct a discrepancy (Unstimmigkeit), whereas a
+// merely incomplete readback is met with the standard "WIEDERHOLEN SIE
+// WOERTLICH" (READ BACK) without naming the value.
+enum class ReadbackStatus {
+  Ok,      // element was read back correctly (value covered)
+  Missing, // no value of this element type was stated at all
+  Wrong,   // a value of this type was stated, but it differs from the soll
+};
+
+// One per element in comp.required. `expected` is the soll raw-digit form
+// ("1013" / "25" / "118.300" / "7000"; empty for Callsign). `stated` is the
+// pilot's raw-digit value for this element type, captured from the
+// transcript — empty when status is Missing (or for Callsign, which has no
+// Wrong verdict — a partial callsign is treated as Missing).
+struct FieldDiff {
+  Element element;
+  ReadbackStatus status;
+  std::string expected;
+  std::string stated;
+};
+
+// Full per-field diff of the pilot transcript against the stored clearance.
+// Ok is decided exactly as in missing_readback_elements (value_covered), so
+// the completeness semantics are unchanged; the added value is the
+// Missing-vs-Wrong split on the non-Ok elements. Callsign is only ever Ok or
+// Missing. missing_readback_elements() is a thin wrapper returning every
+// element whose status != Ok.
+std::vector<FieldDiff> diff_readback(const ClearanceComponents &comp,
+                                     const std::string &pilot_transcript);
+
 // Recognition threshold (deliberately lenient, distinct from the strict
 // completeness obligation). Returns true when the utterance is a readback
 // ATTEMPT: the callsign AND at least one fact element (Runway/QNH/
@@ -121,5 +157,18 @@ bool readback_covers_core(const std::vector<Element> &required,
 // from the `callsign` argument.
 std::string build_correction_response(const std::string &callsign,
                                       const std::vector<Element> &missing);
+
+// NfL-grounded correction from a full per-field diff. Wording is pulled from
+// atc_templates.json :: bzf_strict (hot-reloadable, ASCII):
+//   - only Missing element(s), no Wrong ones -> the standard READ BACK
+//     instruction ("{callsign}, WIEDERHOLEN SIE WOERTLICH.") — the tower
+//     does NOT re-state the value (NfL Prüfungsfrage 65 / glossary READ BACK).
+//   - at least one Wrong element -> the tower berichtigt the discrepancy and
+//     names each correct soll value (NfL §25 b) Nr. 3), e.g.
+//     "{callsign}, NEGATIV, QNH 1013, WIEDERHOLEN SIE WOERTLICH."
+// Returns "" when every element is Ok (nothing to correct).
+std::string build_correction_response(const std::string &callsign,
+                                      const ClearanceComponents &comp,
+                                      const std::vector<FieldDiff> &diff);
 
 } // namespace bzf_compliance
