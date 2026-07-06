@@ -202,6 +202,105 @@ bool value_covered(const std::string &haystack_canon, const std::string &value) 
   return haystack_canon.find(v) != std::string::npos;
 }
 
+// Spoken-number-normalised, lowercase text WITH whitespace preserved (unlike
+// canon_stripped, which welds everything). Needed so the value-capturing
+// regexes below can anchor on "qnh 1013" / "piste 06" tokens.
+std::string normalize_spoken(const std::string &s) {
+  std::string out = to_lower(s);
+  out = de_phraseology::parse_spoken_number(out);
+  out = to_lower(out); // parse_spoken_number may re-introduce casing
+  return out;
+}
+
+// Capture the value the pilot actually stated for a given element type from
+// the normalised transcript, or "" if no value of that type is present. The
+// patterns mirror the tower_has_* detectors but with a capture group. Used
+// only to tell Missing (no value stated) from Wrong (a value stated, but the
+// wrong digits) — the correctness verdict itself is value_covered's job.
+std::string stated_value(Element e, const std::string &norm) {
+  std::smatch m;
+  switch (e) {
+  case Element::QNH: {
+    static const std::regex re(R"(qnh\s+(\d{3,4}))");
+    if (std::regex_search(norm, m, re))
+      return m[1].str();
+    return "";
+  }
+  case Element::Runway: {
+    static const std::regex re(R"((?:piste|runway)\s+(\d{1,2}[lrc]?))");
+    if (std::regex_search(norm, m, re))
+      return m[1].str();
+    return "";
+  }
+  case Element::Frequency: {
+    static const std::regex re(R"((\d{3}\.\d{1,3}))");
+    if (std::regex_search(norm, m, re))
+      return m[1].str();
+    static const std::regex re2(R"(frequenz\s+(\d+))");
+    if (std::regex_search(norm, m, re2))
+      return m[1].str();
+    return "";
+  }
+  case Element::Squawk: {
+    static const std::regex re(R"(squawk\s+(\d{4}))");
+    if (std::regex_search(norm, m, re))
+      return m[1].str();
+    return "";
+  }
+  case Element::Callsign:
+    // A callsign has no Wrong verdict — a partial one is Missing, handled by
+    // pilot_has_callsign in diff_readback. Never captured here.
+    return "";
+  }
+  return "";
+}
+
+// The soll (cleared) value stored in the structured clearance for an element.
+std::string expected_value(const ClearanceComponents &comp, Element e) {
+  switch (e) {
+  case Element::Runway:
+    return comp.runway;
+  case Element::QNH:
+    return comp.qnh;
+  case Element::Frequency:
+    return comp.frequency;
+  case Element::Squawk:
+    return comp.squawk;
+  case Element::Callsign:
+    return comp.callsign;
+  }
+  return "";
+}
+
+// German label for an element in a spoken correction ("QNH", "Piste", ...).
+// Overridable via atc_templates.json :: bzf_strict for i18n / hot-reload.
+std::string element_label(Element e) {
+  switch (e) {
+  case Element::Runway:
+    return atc_templates::lookup_bzf_strict("label_runway", "Piste");
+  case Element::QNH:
+    return atc_templates::lookup_bzf_strict("label_qnh", "QNH");
+  case Element::Frequency:
+    return atc_templates::lookup_bzf_strict("label_frequency", "Frequenz");
+  case Element::Squawk:
+    return atc_templates::lookup_bzf_strict("label_squawk", "Squawk");
+  case Element::Callsign:
+    return "";
+  }
+  return "";
+}
+
+// Replace every {callsign} slot in a template with the given callsign.
+std::string substitute_callsign(std::string tmpl, const std::string &callsign) {
+  const std::string slot = "{callsign}";
+  std::size_t pos = tmpl.find(slot);
+  while (pos != std::string::npos) {
+    tmpl.replace(pos, slot.size(), callsign);
+    pos = tmpl.find(slot, pos + callsign.size());
+  }
+  return tmpl;
+}
+
 } // namespace
 
 const char *element_name(Element e) {
@@ -285,33 +384,51 @@ std::vector<Element> check_pilot_readback(const std::string &pilot_transcript,
   return missing;
 }
 
-std::vector<Element> missing_readback_elements(const ClearanceComponents &comp,
-                                               const std::string &pilot_transcript) {
-  std::vector<Element> missing;
+std::vector<FieldDiff> diff_readback(const ClearanceComponents &comp,
+                                     const std::string &pilot_transcript) {
+  std::vector<FieldDiff> out;
   const std::string pilot_lc = to_lower(pilot_transcript);
   const std::string pilot_canon = canon_stripped(pilot_transcript);
+  const std::string pilot_norm = normalize_spoken(pilot_transcript);
   for (Element e : comp.required) {
-    bool ok = true;
-    switch (e) {
-    case Element::Callsign:
-      ok = pilot_has_callsign(pilot_lc, to_lower(comp.callsign));
-      break;
-    case Element::Runway:
-      ok = value_covered(pilot_canon, comp.runway);
-      break;
-    case Element::QNH:
-      ok = value_covered(pilot_canon, comp.qnh);
-      break;
-    case Element::Frequency:
-      ok = value_covered(pilot_canon, comp.frequency);
-      break;
-    case Element::Squawk:
-      ok = value_covered(pilot_canon, comp.squawk);
-      break;
+    FieldDiff d;
+    d.element = e;
+    if (e == Element::Callsign) {
+      // Callsign has no Wrong verdict — either the (possibly BZF-shortened)
+      // callsign is present or it is Missing.
+      d.status = pilot_has_callsign(pilot_lc, to_lower(comp.callsign))
+                     ? ReadbackStatus::Ok
+                     : ReadbackStatus::Missing;
+      out.push_back(d);
+      continue;
     }
-    if (!ok)
-      missing.push_back(e);
+    d.expected = expected_value(comp, e);
+    if (value_covered(pilot_canon, d.expected)) {
+      d.status = ReadbackStatus::Ok; // covered — semantics unchanged
+    } else {
+      // Not covered: distinguish an omitted element from a wrong value.
+      std::string stated = stated_value(e, pilot_norm);
+      if (stated.empty()) {
+        d.status = ReadbackStatus::Missing;
+      } else {
+        d.status = ReadbackStatus::Wrong;
+        d.stated = stated;
+      }
+    }
+    out.push_back(d);
   }
+  return out;
+}
+
+std::vector<Element> missing_readback_elements(const ClearanceComponents &comp,
+                                               const std::string &pilot_transcript) {
+  // Thin wrapper over diff_readback: every element that is not Ok (Missing or
+  // Wrong) is "not read back" for the completeness gate. Ok is decided by
+  // value_covered exactly as before, so behaviour is unchanged.
+  std::vector<Element> missing;
+  for (const auto &d : diff_readback(comp, pilot_transcript))
+    if (d.status != ReadbackStatus::Ok)
+      missing.push_back(d.element);
   return missing;
 }
 
@@ -359,6 +476,47 @@ std::string build_correction_response(const std::string &callsign,
     pos = tmpl.find(slot, pos + callsign.size());
   }
   return tmpl;
+}
+
+std::string build_correction_response(const std::string &callsign,
+                                      const ClearanceComponents &,
+                                      const std::vector<FieldDiff> &diff) {
+  const bool any_wrong = std::any_of(diff.begin(), diff.end(), [](const FieldDiff &d) {
+    return d.status == ReadbackStatus::Wrong;
+  });
+  const bool any_bad = std::any_of(diff.begin(), diff.end(), [](const FieldDiff &d) {
+    return d.status != ReadbackStatus::Ok;
+  });
+  if (!any_bad)
+    return "";
+
+  // Incomplete-only readback (no wrong values): NfL standard READ BACK
+  // instruction — the tower does NOT re-state the value (Prüfungsfrage 65 /
+  // glossary READ BACK = "WIEDERHOLEN SIE WOERTLICH").
+  if (!any_wrong) {
+    std::string tmpl = atc_templates::lookup_bzf_strict(
+        "read_back", "{callsign}, WIEDERHOLEN SIE WOERTLICH.");
+    return substitute_callsign(tmpl, callsign);
+  }
+
+  // At least one wrong value: the tower actively corrects the discrepancy
+  // (NfL §25 b) Nr. 3) and names each correct soll value, then demands a
+  // verbatim readback:
+  //   "{callsign}, NEGATIV, QNH 1013, Piste 25, WIEDERHOLEN SIE WOERTLICH."
+  const std::string lead = substitute_callsign(
+      atc_templates::lookup_bzf_strict("negativ_lead", "{callsign}, NEGATIV,"),
+      callsign);
+  const std::string tail = atc_templates::lookup_bzf_strict(
+      "read_back_tail", "WIEDERHOLEN SIE WOERTLICH.");
+  std::string body;
+  for (const FieldDiff &d : diff) {
+    if (d.status != ReadbackStatus::Wrong)
+      continue;
+    if (!body.empty())
+      body += ", ";
+    body += element_label(d.element) + " " + d.expected;
+  }
+  return lead + " " + body + ", " + tail;
 }
 
 } // namespace bzf_compliance

@@ -30,6 +30,7 @@
 #include "data/traffic_geometry.hpp"
 #include "persistence/settings.hpp"
 
+#include <algorithm>
 #include <atomic>
 #include <cassert>
 #include <deque>
@@ -676,13 +677,20 @@ static bool apply_bzf_strict_check(const intent_parser::PilotMessage &msg,
   if (g_state.last_clearance_text_.empty())
     return false;
 
-  // Value-precise, weld-robust completeness check against the stored
-  // structured clearance. This is the STRICT threshold: every actually
-  // issued Kat-1 element must be read back (vs. the lenient recognition
-  // threshold in the engine, which only needs callsign + one element).
-  const auto missing = bzf_compliance::missing_readback_elements(
+  // Value-precise, weld-robust per-field diff against the stored structured
+  // clearance. This is the STRICT threshold: every actually issued Kat-1
+  // element must be read back (vs. the lenient recognition threshold in the
+  // engine, which only needs callsign + one element). The diff additionally
+  // splits each non-conformant element into Missing vs Wrong so the tower can
+  // issue the NfL-correct correction (§25 b) Nr. 3: actively berichtigen a
+  // wrong value; plain READ BACK for a merely incomplete readback).
+  const auto diff = bzf_compliance::diff_readback(
       g_state.last_clearance_components_, msg.raw_transcript);
-  if (missing.empty())
+  const bool conformant =
+      std::none_of(diff.begin(), diff.end(), [](const bzf_compliance::FieldDiff &d) {
+        return d.status != bzf_compliance::ReadbackStatus::Ok;
+      });
+  if (conformant)
     return false;
 
   std::string callsign;
@@ -692,17 +700,23 @@ static bool apply_bzf_strict_check(const intent_parser::PilotMessage &msg,
     callsign = msg.callsign;
   else
     callsign = settings::pilot_callsign();
-  resp.text = bzf_compliance::build_correction_response(callsign, missing);
+  resp.text = bzf_compliance::build_correction_response(
+      callsign, g_state.last_clearance_components_, diff);
   resp.next_state = g_state.state_;
   resp.requires_readback = true;
 
   std::string element_list;
-  for (auto e : missing) {
+  for (const auto &d : diff) {
+    if (d.status == bzf_compliance::ReadbackStatus::Ok)
+      continue;
     if (!element_list.empty())
       element_list += ",";
-    element_list += bzf_compliance::element_name(e);
+    element_list += bzf_compliance::element_name(d.element);
+    element_list += (d.status == bzf_compliance::ReadbackStatus::Wrong)
+                        ? ":wrong"
+                        : ":missing";
   }
-  logging::info("BZF strict: readback missing %s", element_list.c_str());
+  logging::info("BZF strict: readback non-conformant %s", element_list.c_str());
   return true;
 }
 

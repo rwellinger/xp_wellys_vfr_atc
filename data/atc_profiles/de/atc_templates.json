@@ -7,7 +7,14 @@
     "say_again_use_standard_phraseology": "wiederholen Sie, Standardphraseologie verwenden."
   },
   "bzf_strict": {
-    "_comment": "BZF-Strict-Mode korrektive Tower-Responses. Aktiv nur wenn settings::bzf_strict_mode() == true UND atc_profile() == 'DE'. Tower prueft jeden READBACK gegen die Pflicht-Readback-Elemente aus dem vorigen Tower-Response (NfL Sprechfunk 2024 §25 b) Nr. 1: Betriebspiste, Hoehenmessereinstellung QNH, SSR-Code, Funkkanal, etc.). Fehlt ein Pflichtelement, antwortet der Tower korrektiv statt das Readback silent zu absorbieren. Gerendert via atc_templates::lookup_bzf_strict() mit {callsign}-Substitution.",
+    "_comment": "BZF-Strict-Mode korrektive Tower-Responses. Aktiv nur wenn settings::bzf_strict_mode() == true UND atc_profile() == 'DE'. Tower prueft jeden READBACK gegen die Pflicht-Readback-Elemente aus dem vorigen Tower-Response (NfL Sprechfunk 2024 §25 b) Nr. 1: Betriebspiste, Hoehenmessereinstellung QNH, SSR-Code, Funkkanal, etc.). NfL-Wortlaut: unvollstaendiges Readback -> 'WIEDERHOLEN SIE WOERTLICH' (Glossar READ BACK, Pruefungsfrage 65) ohne den Wert zu nennen (Key 'read_back'); falscher Wert -> Lotse berichtigt die Unstimmigkeit aktiv (§25 b) Nr. 3) und nennt den Sollwert je Element ('negativ_lead' + '<label> <soll>' + 'read_back_tail'). Die 'label_*' liefern die gesprochene Elementbezeichnung. Gerendert via atc_templates::lookup_bzf_strict() mit {callsign}-Substitution. ASCII-only. Die 'missing_*'-Keys bedienen die aeltere build_correction_response(missing)-Overload und bleiben aus Kompatibilitaet erhalten.",
+    "read_back": "{callsign}, WIEDERHOLEN SIE WOERTLICH.",
+    "negativ_lead": "{callsign}, NEGATIV,",
+    "read_back_tail": "WIEDERHOLEN SIE WOERTLICH.",
+    "label_runway": "Piste",
+    "label_qnh": "QNH",
+    "label_frequency": "Frequenz",
+    "label_squawk": "Squawk",
     "missing_qnh": "{callsign}, wiederholen Sie vollstaendig mit QNH.",
     "missing_runway": "{callsign}, wiederholen Sie vollstaendig mit Pistennummer.",
     "missing_frequency": "{callsign}, wiederholen Sie vollstaendig mit Frequenz.",

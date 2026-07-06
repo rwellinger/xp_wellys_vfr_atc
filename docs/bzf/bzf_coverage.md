@@ -167,8 +167,8 @@ VATSIM Germany PHR02-Modul, bzf-kurs.de, bzf-lehrgang.de, Wikipedia ICAO-Alphabe
 
 | # | Pflichtelement | NfL-Wortlaut (Anker) | Im DE-Profil? | Wo (file:line) | Bucket / Prio |
 |---|---|---|---|---|---|
-| 11.1 | Pflicht-Liste: i) Streckenfreigaben; ii) Freigaben/Anweisungen für Aufrollen, Landen auf, Start von, Anhalten vor, Kreuzen von, Rollen auf, Zurückrollen auf Pisten; iii) **Betriebspiste**, **Höhenmessereinstellungen**, **SSR-Codes**, **neu zugeteilte Funkkanäle**, **Anweisungen zur Flughöhe**, **Kurs- und Geschwindigkeitsanweisungen**; iv) Übergangsflächen | §25 b) Nr. 1 i)–iv) | ◐ | `intent_rules.json:98` READBACK — als Intent erkannt, aber Pflichtinhalts-Check nicht implementiert | **A** / K — Kernfunktion Bucket A |
-| 11.2 | Lotsen-Hörpflicht: Lotse muss Unstimmigkeiten erkennen und berichtigen | §25 b) Nr. 3 | ◐ | im Plugin durch deterministischen State-Machine-Fluss faktisch gegeben | — |
+| 11.1 | Pflicht-Liste: i) Streckenfreigaben; ii) Freigaben/Anweisungen für Aufrollen, Landen auf, Start von, Anhalten vor, Kreuzen von, Rollen auf, Zurückrollen auf Pisten; iii) **Betriebspiste**, **Höhenmessereinstellungen**, **SSR-Codes**, **neu zugeteilte Funkkanäle**, **Anweisungen zur Flughöhe**, **Kurs- und Geschwindigkeitsanweisungen**; iv) Übergangsflächen | §25 b) Nr. 1 i)–iv) | ◐ | `intent_rules.json:98` READBACK-Intent; Pflichtinhalts-Check im BZF-Strict-Mode über `bzf_compliance.cpp::diff_readback` (Piste/QNH/Frequenz/Squawk + Rufzeichen), noch nicht für alle Freigabetypen verdrahtet | **A** / K — Kernfunktion Bucket A |
+| 11.2 | Lotsen-Hörpflicht: Lotse muss Unstimmigkeiten erkennen und berichtigen | §25 b) Nr. 3 | ✓ | `bzf_compliance.cpp::diff_readback` unterscheidet fehlend/falsch; `apply_bzf_strict_check` (`atc_state_machine.cpp`) berichtigt falschen Wert aktiv mit Sollwert (Issue #28) |  — |
 | 11.3 | Konditionelle Freigaben: vollständige Wiederholung der Bedingung Pflicht | §25 b) Nr. 2 + §25 d) | ✗ | — | **A** / K — siehe 3.4, 4.3 |
 
 ## 12. Korrektur, Standard-Tokens & Transponder
@@ -180,7 +180,7 @@ VATSIM Germany PHR02-Modul, bzf-kurs.de, bzf-lehrgang.de, Wikipedia ICAO-Alphabe
 | 12.3 | „WILCO" — will comply (bleibt englisch im DE-Funk) | §12 c) | ◐ | nicht als eigener Token modelliert, aber READBACK absorbiert | **B** / N |
 | 12.4 | „NEGATIV" / „NEGATIVE" — „Nein" / „Erlaubnis nicht erteilt" / „Nicht in der Lage" | §12 c) | ✓ | `intent_rules.json:62` UNABLE | — |
 | 12.5 | „NICHT MÖGLICH" / „UNABLE" — mit Begründung | §12 c); NfL Teil B 2010 | ✓ | `intent_rules.json:62` UNABLE | — |
-| 12.6 | „WIEDERHOLEN SIE" / „SAY AGAIN" (NICHT „Sagen Sie nochmals" — umgangssprachlich) | §12 c); §18 c) Nr. 4 | ◐ | Fallback `atc_templates.json:5–7`: `"sagen Sie nochmals."` | **B** / M — Wortlaut auf „Wiederholen Sie" umstellen für Strict-Mode |
+| 12.6 | „WIEDERHOLEN SIE" / „SAY AGAIN" (NICHT „Sagen Sie nochmals" — umgangssprachlich); „WIEDERHOLEN SIE WÖRTLICH" / READ BACK bei unvollständigem Readback | §12 c); §18 c) Nr. 4; Glossar READ BACK (dfs 2024 :808); PF65 | ◐ | BZF-Strict-Korrektur nutzt NfL-Wortlaut „WIEDERHOLEN SIE WOERTLICH" (`atc_templates.json` `bzf_strict.read_back`/`negativ_lead`/`read_back_tail`, Issue #28); allgemeiner `fallbacks.say_again` weiterhin `"wiederholen Sie."` | **B** / N — Rest-Fallback-Wortlaut optional angleichen |
 | 12.7 | „SQUAWK (Code)" — Transponder-Code-Anweisung | ANLAGE 2.3.3 a)/b) | ✗ | — | **B** / M — Squawk-Token im Template fehlt |
 | 12.8 | „SQUAWK IDENT" | ANLAGE 2.3.7 a) | ✗ | — | **B** / M |
 | 12.9 | „SQUAWK STANDBY" / „SQUAWK NORMAL" / „SQUAWK LOW" | ANLAGE 2.3.7/2.3.8; §12 c) STANDBY | ✗ | — | **B** / N |
