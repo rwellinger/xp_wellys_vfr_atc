@@ -2,23 +2,27 @@
 
 ![Welly's ATC Panel mit ATIS-Ansage in LSZB Bern-Belp](images/atc-atis-example.jpg)
 
-> **Sprich per Push-to-Talk mit dem Tower — KI-gestützter, deutscher
-> VFR-Sprechfunk für X-Plane 12, lokal auf dem Mac oder über die Cloud.**
+> **Sprich per Push-to-Talk mit dem Tower — KI-gestützter VFR-Sprechfunk in
+> Deutsch oder Englisch für X-Plane 12, lokal auf dem Mac oder über die Cloud.**
 
 Welly's ATC verwandelt deine VFR-Flüge in X-Plane 12 in ein echtes
 Funkgespräch: Du drückst die Push-to-Talk-Taste, sprichst deinen Funkspruch
-ins Mikrofon, und der Tower antwortet dir gesprochen zurück — in
-**deutscher VFR-Phraseologie**, mit realistischen Reaktionen auch auf
-Pilotenfehler.
+ins Mikrofon, und der Tower antwortet dir gesprochen zurück — wahlweise in
+**deutscher (NfL/BZF)** oder **englischer (ICAO)** VFR-Phraseologie, mit
+realistischen Reaktionen auch auf Pilotenfehler.
 
 ---
 
 ## Was das Plugin abdeckt
 
-- **🇩🇪 BZF · NfL · DACH · VFR** — modelliert ausschliesslich **deutsche
-  VFR-Sprechfunk-Phraseologie** nach **NfL Sprechfunk 2024** (DACH-Raum).
-  Optionaler **BZF-Strict-Mode** prüft deine Readbacks auf
-  Vollständigkeit, wie es ein Prüfer täte.
+- **🇩🇪 🇬🇧 Zwei Sprachprofile — DE (NfL/BZF) & EN (ICAO)** — zur Laufzeit in
+  den Einstellungen umschaltbar; **Deutsch** bleibt der Standard.
+  **Deutsch** modelliert die VFR-Sprechfunk-Phraseologie nach **NfL
+  Sprechfunk 2024** (DACH-Raum) mit optionalem **BZF-Strict-Mode**, der
+  deine Readbacks auf Vollständigkeit prüft, wie es ein Prüfer täte.
+  **Englisch** folgt der eigenständigen **ICAO-VFR-Phraseologie** (ICAO
+  Annex 10 Vol II / Doc 4444 / EASA SERA) — keine Übersetzung des deutschen
+  Profils, sondern eigene Standardwortlaute, Zahlen- und Rufzeichen-Aussprache.
 - **🛬 Platzrunde** — vollständiger Platzrunden-Ablauf an kontrollierten
   und unkontrollierten Flugplätzen: Anflug, Gegenanflug, Queranflug,
   Endteil, Landung, Touch-and-Go, Durchstart — inklusive
@@ -63,10 +67,11 @@ Pilotenfehler.
 ## Wofür Welly's ATC gedacht ist
 
 > **Dieses Plugin ist in erster Linie an der REALITÄT orientiert.** Das Ziel
-> ist, die deutschen VFR-Funkverfahren so echt wie möglich nachzubilden,
-> damit du **für künftige Examen und Prüfungen — etwa das BZF — trainieren
-> und üben** kannst. Wir arbeiten kontinuierlich darauf hin, die
-> Phraseologie und die ATC-Abläufe noch näher an die Praxis zu bringen.
+> ist, die VFR-Funkverfahren so echt wie möglich nachzubilden — auf Deutsch
+> nach NfL/BZF, auf Englisch nach ICAO —, damit du **für künftige Examen und
+> Prüfungen — etwa das BZF — trainieren und üben** kannst. Wir arbeiten
+> kontinuierlich darauf hin, die Phraseologie und die ATC-Abläufe noch näher
+> an die Praxis zu bringen.
 
 **Haftungsausschluss.** Welly's ATC ist ein Übungs- und Trainingswerkzeug
 für die Flugsimulation. Es ist **keine offizielle Zertifizierung, kein
@@ -81,8 +86,10 @@ BZF-Inhabern sind ausdrücklich willkommen.
 
 - **Kein IFR** — kein Instrumentenflug, keine IFR-Freigaben, keine
   Flugplanung, kein FMS-/Routing.
-- **Nur Deutsch** — modelliert ausschliesslich NfL-DACH-VFR-Phraseologie;
-  andere Sprachen oder Profile sind nicht vorgesehen.
+- **Deutsch & Englisch, kein FR/IT** — die VFR-Phraseologie gibt es als
+  deutsches (NfL/BZF, Standard) und englisches (ICAO) Profil. Weitere
+  Sprachen — etwa Französisch oder Italienisch für die Westschweiz oder das
+  Tessin — sind nicht vorgesehen.
 - **Lokaler Modus nur auf Apple Silicon** — Intel-Macs können das Plugin
   nutzen, aber nur im Cloud-Modus (OpenAI oder Mistral, API-Key nötig).
 - **Keine lokale Offline-KI unter Windows** — der Windows-Build ist voll
