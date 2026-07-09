@@ -269,15 +269,30 @@ std::map<std::string, std::string> build_vars(const PilotMessage &msg,
           : (settings::atc_profile() == "EN"
                  ? en_phraseology::expand_callsign_phonetic(vfr_dest)
                  : de_phraseology::expand_callsign_phonetic(vfr_dest));
+  // Connective words are language-specific: the DE profile speaks NfL
+  // "VFR Platzrunde / VFR nach <dest>", the EN profile ICAO "VFR pattern /
+  // VFR to <dest>". dest_spoken is already phonetically expanded per
+  // profile above. Keeping this region-aware ensures the EN initial-call /
+  // taxi hint reads in English (H2 invariant: the rendered hint must carry
+  // an {intention} word listed in en/conformance.json element_keywords).
   std::string intention;
-  if (cross_country)
-    intention =
-        dest_spoken.empty() ? "VFR Ueberlandflug" : "VFR nach " + dest_spoken;
-  else
-    intention = "VFR Platzrunde";
+  if (region_de) {
+    if (cross_country)
+      intention = dest_spoken.empty() ? "VFR Ueberlandflug"
+                                      : "VFR nach " + dest_spoken;
+    else
+      intention = "VFR Platzrunde";
+  } else {
+    if (cross_country)
+      intention =
+          dest_spoken.empty() ? "VFR cross country" : "VFR to " + dest_spoken;
+    else
+      intention = "VFR pattern";
+  }
   std::string vfr_course_phrase;
   if (cross_country && !dest_spoken.empty())
-    vfr_course_phrase = ", Kurs nach " + dest_spoken;
+    vfr_course_phrase =
+        region_de ? ", Kurs nach " + dest_spoken : ", course to " + dest_spoken;
 
   return {
       {"callsign", get_callsign(msg)},
