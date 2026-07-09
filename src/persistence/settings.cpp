@@ -19,6 +19,7 @@
 #include "persistence/settings.hpp"
 
 #include "atc/de_phraseology.hpp"
+#include "atc/en_phraseology.hpp"
 #include "persistence/keychain.hpp"
 #include "persistence/models_catalog.hpp"
 
@@ -300,18 +301,29 @@ void save() {
 
 // --- Getters ---
 
+// Expand a raw callsign phonetically using the active profile's tables:
+// ICAO ("November one two tree Alfa Bravo") for EN, BZF-German
+// ("November eins zwo drei Alfa Bravo") for DE. Single dispatch point so
+// getter and setter stay in lock-step (Issue #41).
+static std::string expand_callsign(const std::string &raw) {
+  return atc_language() == "en"
+             ? en_phraseology::expand_callsign_phonetic(raw)
+             : de_phraseology::expand_callsign_phonetic(raw);
+}
+
 std::string pilot_callsign_raw() {
   return cfg.value("pilot_callsign_raw", std::string(""));
 }
 std::string pilot_callsign() {
-  // Profile-aware: compute on the fly so an ATC-profile switch flips
-  // English-NATO ("Alpha Bravo One") to BZF-German ("Alfa Bravo eins")
-  // without needing to re-save the callsign. Falls back to the cached
-  // value only when no raw callsign is present (legacy settings.json).
+  // Profile-aware: compute on the fly so an ATC-language switch flips
+  // ICAO-NATO ("November one two tree Alfa Bravo") to BZF-German
+  // ("November eins zwo drei Alfa Bravo") without needing to re-save the
+  // callsign. Falls back to the cached value only when no raw callsign is
+  // present (legacy settings.json).
   std::string raw = cfg.value("pilot_callsign_raw", std::string(""));
   if (raw.empty())
     return cfg.value("pilot_callsign", std::string(""));
-  return de_phraseology::expand_callsign_phonetic(raw);
+  return expand_callsign(raw);
 }
 int active_com() { return cfg.value("active_com", 1); }
 float volume() { return cfg.value("volume", 1.0f); }
@@ -444,7 +456,7 @@ std::string to_icao_phonetic(const std::string &raw) {
 
 void set_pilot_callsign_raw(const std::string &raw) {
   cfg["pilot_callsign_raw"] = raw;
-  cfg["pilot_callsign"] = de_phraseology::expand_callsign_phonetic(raw);
+  cfg["pilot_callsign"] = expand_callsign(raw);
 }
 void set_volume(float v) { cfg["volume"] = v; }
 void set_debug_logging(bool v) { cfg["debug_logging"] = v; }

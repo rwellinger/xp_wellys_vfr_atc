@@ -21,6 +21,7 @@
 #include "atc/atc_templates.hpp"
 #include "atc/atis_generator.hpp"
 #include "atc/de_phraseology.hpp"
+#include "atc/en_phraseology.hpp"
 #include "atc/flight_phase.hpp"
 #include "atc/flows/state_storage.hpp"
 #include "atc/initial_call_conformance.hpp"
@@ -263,7 +264,11 @@ std::map<std::string, std::string> build_vars(const PilotMessage &msg,
     vfr_dest = settings::vfr_destination();
   }
   const std::string dest_spoken =
-      vfr_dest.empty() ? "" : de_phraseology::expand_callsign_phonetic(vfr_dest);
+      vfr_dest.empty()
+          ? ""
+          : (settings::atc_profile() == "EN"
+                 ? en_phraseology::expand_callsign_phonetic(vfr_dest)
+                 : de_phraseology::expand_callsign_phonetic(vfr_dest));
   std::string intention;
   if (cross_country)
     intention =

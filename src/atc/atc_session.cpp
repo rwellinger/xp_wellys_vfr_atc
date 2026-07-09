@@ -20,6 +20,7 @@
 #include "atc/atc_state_machine.hpp"
 #include "atc/atis_generator.hpp"
 #include "atc/de_phraseology.hpp"
+#include "atc/en_phraseology.hpp"
 #include "atc/engine.hpp"
 #include "atc/flight_phase.hpp"
 #include "atc/intent_parser.hpp"
@@ -151,9 +152,12 @@ speak_response(const std::string &text, model_manifest::VoiceRole role,
   // BZF-Phraseology-Normalizer: in DE region, expand numeric aviation
   // patterns to ziffernweise spoken form before TTS. Other regions
   // pass through unchanged.
-  std::string final_text = (settings::atc_profile() == "DE")
-                               ? de_phraseology::normalize_for_speech(text)
-                               : text;
+  std::string final_text =
+      (settings::atc_profile() == "DE")
+          ? de_phraseology::normalize_for_speech(text)
+          : (settings::atc_profile() == "EN"
+                 ? en_phraseology::normalize_for_speech(text)
+                 : text);
 
   backends::tts::synthesize_async(
       final_text, role, length_scale,
@@ -215,9 +219,12 @@ static void speak_response_guarded(const std::string &text,
   tts_pending_ = true;
   ++total_inferences_;
 
-  std::string final_text = (settings::atc_profile() == "DE")
-                               ? de_phraseology::normalize_for_speech(text)
-                               : text;
+  std::string final_text =
+      (settings::atc_profile() == "DE")
+          ? de_phraseology::normalize_for_speech(text)
+          : (settings::atc_profile() == "EN"
+                 ? en_phraseology::normalize_for_speech(text)
+                 : text);
 
   backends::tts::synthesize_async(
       final_text, role, length_scale,

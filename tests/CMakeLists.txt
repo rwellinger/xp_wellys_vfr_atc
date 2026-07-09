@@ -34,6 +34,7 @@ add_executable(xp_wellys_devfr_atc_tests
     test_prompt_whitelist_drift.cpp
     test_atis_generator_de.cpp
     test_de_phraseology.cpp
+    test_en_phraseology.cpp
     test_bzf_compliance.cpp
     test_readback_strict.cpp
     test_initial_call_conformance.cpp
