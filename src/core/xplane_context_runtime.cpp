@@ -63,6 +63,8 @@ static int frame_counter = 0;
 
 static XPLMDataRef dr_com1_standby = nullptr;
 static XPLMDataRef dr_com2_standby = nullptr;
+static XPLMDataRef dr_transponder_code = nullptr;
+static XPLMDataRef dr_transponder_mode = nullptr;
 
 // ── Airport frequency + runway cache (built from apt.dat) ───────
 static std::unordered_map<std::string, AirportFrequencies> freq_cache_;
@@ -525,6 +527,10 @@ void init() {
       "sim/cockpit2/radios/actuators/com1_standby_frequency_hz_833");
   dr_com2_standby = XPLMFindDataRef(
       "sim/cockpit2/radios/actuators/com2_standby_frequency_hz_833");
+  dr_transponder_code =
+      XPLMFindDataRef("sim/cockpit2/radios/actuators/transponder_code");
+  dr_transponder_mode =
+      XPLMFindDataRef("sim/cockpit2/radios/actuators/transponder_mode");
   // X-Plane 12 "region" weather DataRefs (replacements for deprecated ones)
   dr_barometer =
       XPLMFindDataRef("sim/weather/region/sealevel_pressure_pas"); // Pascals
@@ -629,6 +635,11 @@ void update() {
   if (dr_com2_standby)
     ctx.com2_standby_mhz =
         static_cast<float>(XPLMGetDatai(dr_com2_standby)) / 1000.0f;
+  // Transponder: SSR squawk code + actuator mode (0=off,1=standby,2=on/alt).
+  if (dr_transponder_code)
+    ctx.transponder_code = XPLMGetDatai(dr_transponder_code);
+  if (dr_transponder_mode)
+    ctx.transponder_mode = XPLMGetDatai(dr_transponder_mode);
   // Barometer: region DataRef returns Pascals, convert to inHg
   if (dr_barometer)
     ctx.qnh_inhg = XPLMGetDataf(dr_barometer) / 3386.39f;
