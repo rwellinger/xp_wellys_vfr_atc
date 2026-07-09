@@ -120,6 +120,14 @@ struct XPlaneContext {
   float com1_standby_mhz = 0.0f;
   float com2_standby_mhz = 0.0f;
   int active_com = 1;
+  // Transponder (SSR). `transponder_code` is the 4-digit squawk (BCD, e.g.
+  // 7000 VFR conspicuity — the German VFR default); `transponder_mode`
+  // follows the X-Plane actuator: 0=off, 1=standby, 2=on/alt. Read per frame
+  // from DataRefs; only observed today (squawk readback is value-matched from
+  // the issued clearance, not from this field). Assignment on controlled entry
+  // (Class D / RMZ) is a follow-up once the airspace base is in place.
+  int transponder_code = 7000;
+  int transponder_mode = 0;
   std::string aircraft_icao;
   std::string nearest_airport_id;   // active airport (may be frequency-tuned)
   std::string geometric_nearest_id; // raw geographic nearest from XPLM
