@@ -1736,8 +1736,12 @@ static void draw_settings_tab() {
   }
 
   // BZF-Strict-Mode toggle. The corrective tower behaviour is anchored
-  // in NfL Sprechfunk 2024 §25 b) Nr. 1 (mandatory readback elements).
-  {
+  // in NfL Sprechfunk 2024 §25 b) Nr. 1 (mandatory readback elements) —
+  // German BZF exam didactics with no ICAO 1:1 counterpart. Both engine
+  // hooks (apply_bzf_strict_check / apply_initial_call_conformance) gate on
+  // atc_profile()=="DE", so the toggle is inert under the EN/ICAO profile;
+  // hide it there rather than offer a dead control (#42, Option A).
+  if (settings::atc_profile() == "DE") {
     bool strict = settings::bzf_strict_mode();
     if (ImGui::Checkbox(ui_strings::tr("settings.bzf_strict_mode"), &strict)) {
       settings::set_bzf_strict_mode(strict);
