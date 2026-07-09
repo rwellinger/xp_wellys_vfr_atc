@@ -647,8 +647,16 @@ void process_transcript(Input in, Done done) {
     valid_list += v;
   }
 
-  // German-VFR-only build: always use the German classifier prompt.
-  std::string sys_prompt = atc_templates::get_prompt("gpt_classify_prompt_de");
+  // Pick the classifier prompt by profile language:
+  // gpt_classify_prompt_<lang> (_en for ICAO-VFR, _de for NfL DACH-VFR).
+  // Fall back to the German prompt if the language-specific one is absent,
+  // then to a minimal inline prompt — so an unknown language never leaves
+  // the classifier promptless. The LMs are language-neutral; the language
+  // lives entirely in this prompt.
+  std::string sys_prompt = atc_templates::get_prompt(
+      "gpt_classify_prompt_" + settings::backend_language());
+  if (sys_prompt.empty())
+    sys_prompt = atc_templates::get_prompt("gpt_classify_prompt_de");
   if (sys_prompt.empty()) {
     sys_prompt = "You are an ATC intent classifier. State: {state}. "
                  "Valid intents: {valid_intents}. Hint: {hint_intent}. "
