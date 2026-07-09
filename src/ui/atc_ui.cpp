@@ -1094,8 +1094,13 @@ static void draw_transcript_tab() {
   // Without the reserved height, BeginChild(ImVec2(0,0)) would consume
   // the whole remaining area and push the input row off-screen.
   const bool text_input_active = settings::debug_text_input();
-  const float input_row_h =
+  float input_row_h =
       text_input_active ? (ImGui::GetFrameHeightWithSpacing() + 6.0f) : 0.0f;
+  // Also reserve space for the network-error notice + retry button so it
+  // is never pushed off-screen below the transcript (Issue #46).
+  if (atc_session::tts_network_error())
+    input_row_h += ImGui::GetTextLineHeightWithSpacing() +
+                   ImGui::GetFrameHeightWithSpacing() + 8.0f;
   // No HorizontalScrollbar flag — long Tower / VRP-rich responses wrap
   // at the window edge instead (see PushTextWrapPos below). Same idiom
   // as the VRP list (line ~2050) and the phraseology hints panel.
@@ -1144,6 +1149,21 @@ static void draw_transcript_tab() {
   }
 
   ImGui::EndChild();
+
+  // Network-error notice + manual retry (Issue #46). Shown when the
+  // interactive TTS exchange gave up after its auto-retries — the pilot
+  // otherwise waits silently for a reply that never comes.
+  if (atc_session::tts_network_error()) {
+    ImGui::Separator();
+    ImGui::TextColored(ImVec4(1.0f, 0.35f, 0.35f, 1.0f), "%s",
+                       ui_strings::tr("transcript.network_error"));
+    const bool can_retry =
+        atc_session::ptt_state() == atc_session::PTTState::IDLE;
+    ImGui::BeginDisabled(!can_retry);
+    if (ImGui::Button(ui_strings::tr("btn.retry")))
+      atc_session::retry_last_transmission();
+    ImGui::EndDisabled();
+  }
 
   // Debug-Texteingabe: typed pilot transmission injected directly into
   // engine::process_transcript via atc_session::submit_text — bypasses
