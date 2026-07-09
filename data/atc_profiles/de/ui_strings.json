@@ -37,6 +37,8 @@
   "btn.new_flight": "Neuer Flug",
   "btn.disregard": "Verwerfen",
   "btn.send": "Senden",
+  "btn.retry": "Nochmal versuchen",
+  "transcript.network_error": "Netzwerkfehler - ATC-Antwort konnte nach 3 Versuchen nicht uebertragen werden. Verbindung/Backend pruefen, dann erneut versuchen.",
 
   "status.ready": "Bereit",
   "status.not_loaded": "Nicht geladen",

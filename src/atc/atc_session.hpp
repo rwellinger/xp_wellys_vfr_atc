@@ -92,6 +92,16 @@ std::string last_atc_response();
 // not be silently swallowed by the prior pipeline's 120 s cooldown.
 void reset_atis_cooldown();
 
+// True after an interactive TTS exchange gave up (all auto-retries
+// failed). The UI shows a "Netzwerkfehler" notice + retry button while
+// set; cleared on the next transmission or a successful retry.
+bool tts_network_error();
+
+// Manually re-send the last pilot transmission through the full pipeline
+// (voice-quality preserved). No-op unless a network error is pending and
+// the pipeline is idle. Wired to the transcript-window retry button.
+void retry_last_transmission();
+
 } // namespace atc_session
 
 #endif // ATC_SESSION_HPP

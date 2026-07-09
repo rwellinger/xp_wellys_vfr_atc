@@ -93,6 +93,40 @@ static constexpr int kAtisMaxTtsTries = 3;        // attempts before giving up
 static constexpr float kAtisRetryDelaySec = 15.0f; // gap between failed tries
 static int atis_tts_failures_ = 0;                 // consecutive TTS failures
 
+// Dialog (tower/ground) TTS retry — mirrors the ATIS retry above but for
+// the interactive pilot<->controller exchange (Issue #46). A transient
+// cloud-TTS timeout (15 s curl limit) used to give up after ONE attempt,
+// leaving the pilot waiting silently with only a transcript line. Instead
+// we re-dispatch the SAME utterance a few times with a short gap through
+// the flight-loop poller (PTT stays blocked between tries), then surface a
+// UI-queryable network-error state with a manual "retry" button.
+static constexpr int kDialogMaxTtsTries = 3;       // attempts before giving up
+static constexpr float kDialogRetryDelaySec = 3.0f; // gap between failed tries
+static int dialog_tts_failures_ = 0;               // consecutive TTS failures
+static float dialog_retry_timer_ = 0.0f;           // >0 = auto-retry scheduled
+static bool tts_network_error_ = false;            // UI give-up flag
+
+// Full parameters of the last guarded TTS dispatch, retained so the
+// flight-loop poller can re-send the identical utterance without re-running
+// the engine pipeline (state stays at post-process between auto-retries).
+struct GuardedTtsRequest {
+  std::string final_text;                  // already normalized for speech
+  model_manifest::VoiceRole role = model_manifest::VoiceRole::Tower;
+  float length_scale = 1.0f;
+  atc_state_machine::AtcStateSnapshot pre_snap;
+  uint64_t expected_gen = 0;
+  bool valid = false;
+};
+static GuardedTtsRequest last_guarded_req_;
+
+// Last pilot transcript + quality, retained for the manual retry button.
+// After a give-up the ATC state was reverted to pre_snap, so re-running the
+// whole pipeline from that transcript reproduces the identical controller
+// reply AND re-applies the state transition — keeping the generation-guard
+// semantics intact (no state desync from replaying TTS alone).
+static std::string last_pilot_transcript_;
+static float last_pilot_quality_ = 1.0f;
+
 // Map the pilot's currently-tuned frequency to a logical voice role.
 // The transmitting controller is whichever one owns the freq the pilot
 // is listening to — *not* the state machine's next_state. Without this,
@@ -204,34 +238,34 @@ speak_response(const std::string &text, model_manifest::VoiceRole role,
 //                  AFTER that process() call.
 //
 // On success: nothing else happens — the response plays, state stays.
-// On TTS failure: a squelch burst is played on the active COM, then
-//   either (a) restore — state rolled back, system entry suggests
-//   re-issuing the request, OR (b) stale — a later mutation already
-//   bumped gen past expected_gen, the unsent clearance text still
-//   lives in last_tower_response_text_, system entry steers the pilot
-//   toward "Wiederholen Sie" so REQUEST_REPEAT replays it.
-static void speak_response_guarded(const std::string &text,
-                                   model_manifest::VoiceRole role,
-                                   float length_scale,
-                                   atc_state_machine::AtcStateSnapshot pre_snap,
-                                   uint64_t expected_gen) {
+// On the FINAL TTS failure (after kDialogMaxTtsTries auto-retries): a
+//   squelch burst is played on the active COM, then either (a) restore —
+//   state rolled back, system entry suggests re-issuing the request, OR
+//   (b) stale — a later mutation already bumped gen past expected_gen, the
+//   unsent clearance text still lives in last_tower_response_text_, system
+//   entry steers the pilot toward "Wiederholen Sie" so REQUEST_REPEAT
+//   replays it. In both cases tts_network_error_ is raised so the UI can
+//   show the manual retry button.
+//
+// Reads its parameters from last_guarded_req_ so the flight-loop poller can
+// re-invoke it for the delayed auto-retries without touching the pipeline.
+static void dispatch_guarded_tts() {
+  if (!last_guarded_req_.valid)
+    return;
+
   state_ = PTTState::PLAYING;
   tts_pending_ = true;
   ++total_inferences_;
 
-  std::string final_text =
-      (settings::atc_profile() == "DE")
-          ? de_phraseology::normalize_for_speech(text)
-          : (settings::atc_profile() == "EN"
-                 ? en_phraseology::normalize_for_speech(text)
-                 : text);
-
   backends::tts::synthesize_async(
-      final_text, role, length_scale,
-      [pre_snap = std::move(pre_snap), expected_gen](backends::tts::Audio audio,
-                                                     bool success) mutable {
+      last_guarded_req_.final_text, last_guarded_req_.role,
+      last_guarded_req_.length_scale,
+      [](backends::tts::Audio audio, bool success) {
         tts_pending_ = false;
         if (success && !audio.pcm16.empty()) {
+          dialog_tts_failures_ = 0;
+          tts_network_error_ = false;
+          last_guarded_req_.valid = false;
           if (settings::debug_logging()) {
             char dbg[160];
             std::snprintf(
@@ -247,27 +281,85 @@ static void speak_response_guarded(const std::string &text,
                                         settings::volume());
           return;
         }
-        // TTS failed — engage the revert guard.
+        // TTS failed. Auto-retry a few times through the flight-loop poller
+        // (state stays PLAYING so PTT is blocked; no squelch/revert between
+        // tries) before engaging the revert guard.
+        ++dialog_tts_failures_;
+        if (dialog_tts_failures_ < kDialogMaxTtsTries) {
+          dialog_retry_timer_ = kDialogRetryDelaySec;
+          char dbg[128];
+          std::snprintf(dbg, sizeof(dbg),
+                        "[xp_wellys_devfr_atc] TTS failed (%d/%d), dialog "
+                        "retry scheduled in %.0fs\n",
+                        dialog_tts_failures_, kDialogMaxTtsTries,
+                        kDialogRetryDelaySec);
+          XPLMDebugString(dbg);
+          return;
+        }
+
+        // Gave up — engage the revert guard and raise the network-error
+        // flag so the UI surfaces the manual retry button.
         XPLMDebugString(
-            "[xp_wellys_devfr_atc][ERROR] TTS failed, applying revert "
-            "guard (squelch + state check)\n");
+            "[xp_wellys_devfr_atc][ERROR] TTS failed after retries, applying "
+            "revert guard (squelch + state check)\n");
         const int com = settings::active_com();
         audio_player::play_squelch_burst(com);
 
-        const bool restored =
-            atc_state_machine::restore_snapshot_if_gen(pre_snap, expected_gen);
+        const bool restored = atc_state_machine::restore_snapshot_if_gen(
+            last_guarded_req_.pre_snap, last_guarded_req_.expected_gen);
         const char *sys_text =
-            restored ? "Funkstoerung — bitte den Funkspruch wiederholen"
-                     : "Funkstoerung — sagen Sie 'Wiederholen Sie' fuer die "
-                       "verpasste Anweisung";
+            restored ? "Netzwerkfehler - Funkspruch nicht uebertragen. "
+                       "'Nochmal versuchen' druecken oder wiederholen."
+                     : "Netzwerkfehler - Anweisung nicht uebertragen. 'Nochmal "
+                       "versuchen' druecken oder 'Wiederholen Sie' sagen.";
         transcript_.push_back(TranscriptEntry{
             static_cast<double>(XPLMGetElapsedTime()),
             TranscriptKind::System,
             sys_text,
             "",
         });
+        tts_network_error_ = true;
+        dialog_tts_failures_ = 0;
+        dialog_retry_timer_ = 0.0f;
+        last_guarded_req_.valid = false;
         state_ = PTTState::IDLE;
       });
+}
+
+// Speak a tower response with the state-revert guard active. Used for
+// engine output that committed a semantic state transition — if the
+// TTS playback fails (after auto-retries), the pilot never heard the
+// clearance, so the state must be rolled back (or, when a later mutation
+// makes the rollback unsafe, the clearance text must remain available for
+// REQUEST_REPEAT replay).
+//
+//   pre_snap     = atc_state_machine::capture_snapshot() taken BEFORE
+//                  the process() call that produced `text`.
+//   expected_gen = atc_state_machine::current_gen() taken IMMEDIATELY
+//                  AFTER that process() call.
+//
+// Stashes the fully-normalized utterance into last_guarded_req_ and hands
+// off to dispatch_guarded_tts(), which owns the retry/give-up logic.
+static void speak_response_guarded(const std::string &text,
+                                   model_manifest::VoiceRole role,
+                                   float length_scale,
+                                   atc_state_machine::AtcStateSnapshot pre_snap,
+                                   uint64_t expected_gen) {
+  std::string final_text =
+      (settings::atc_profile() == "DE")
+          ? de_phraseology::normalize_for_speech(text)
+          : (settings::atc_profile() == "EN"
+                 ? en_phraseology::normalize_for_speech(text)
+                 : text);
+
+  last_guarded_req_ = GuardedTtsRequest{
+      std::move(final_text), role, length_scale, std::move(pre_snap),
+      expected_gen,          true,
+  };
+  dialog_tts_failures_ = 0;
+  dialog_retry_timer_ = 0.0f;
+  tts_network_error_ = false;
+  dispatch_guarded_tts();
 }
 
 // Shared "got a pilot transcript, run it through the engine and speak the
@@ -281,6 +373,13 @@ static void speak_response_guarded(const std::string &text,
 // has been incremented by the caller.
 static void dispatch_pilot_transcript(const std::string &text, float quality) {
   ++total_inferences_;
+
+  // Retain the transmission for the manual retry button and clear any prior
+  // network-error state — a fresh exchange starts here (voice PTT,
+  // submit_text, or the retry button itself all funnel through this path).
+  last_pilot_transcript_ = text;
+  last_pilot_quality_ = quality;
+  tts_network_error_ = false;
 
   const auto &ctx = xplane_context::get();
   float active_freq =
@@ -370,12 +469,22 @@ void init() {
   atis_cooldown_ = 0.0f;
   atis_tuned_timer_ = 0.0f;
   atis_tts_failures_ = 0;
+  dialog_tts_failures_ = 0;
+  dialog_retry_timer_ = 0.0f;
+  tts_network_error_ = false;
+  last_guarded_req_.valid = false;
+  last_pilot_transcript_.clear();
+  last_pilot_quality_ = 1.0f;
 }
 
 void stop() {
   state_ = PTTState::IDLE;
   tts_pending_ = false;
   atis_tts_failures_ = 0; // mirror init(): drop the cross-flight TTS-retry counter
+  dialog_tts_failures_ = 0;
+  dialog_retry_timer_ = 0.0f;
+  tts_network_error_ = false;
+  last_guarded_req_.valid = false;
 }
 
 void on_ptt_pressed() {
@@ -603,8 +712,11 @@ void submit_text(const std::string &text) {
 }
 
 void update() {
+  // Hold PLAYING while a dialog auto-retry is pending (dialog_retry_timer_ >
+  // 0) so PTT stays blocked between the silent retry attempts — otherwise
+  // the state would flip to IDLE the instant synthesis returned empty.
   if (state_ == PTTState::PLAYING && !tts_pending_ &&
-      !audio_player::is_playing()) {
+      !audio_player::is_playing() && dialog_retry_timer_ <= 0.0f) {
     if (atis_playing_) {
       atis_playing_ = false;
       if (settings::debug_logging())
@@ -622,6 +734,21 @@ void update() {
   float dt = 1.0f / 60.0f; // approximate per-frame at ~60fps
   if (atis_cooldown_ > 0.0f)
     atis_cooldown_ -= dt;
+
+  // Dialog TTS auto-retry timer — re-dispatch the same guarded utterance
+  // once the short gap elapses (Issue #46). The revert guard only fires
+  // after kDialogMaxTtsTries attempts, inside dispatch_guarded_tts().
+  if (dialog_retry_timer_ > 0.0f) {
+    dialog_retry_timer_ -= dt;
+    if (dialog_retry_timer_ <= 0.0f) {
+      dialog_retry_timer_ = 0.0f;
+      if (last_guarded_req_.valid) {
+        XPLMDebugString(
+            "[xp_wellys_devfr_atc] Dialog TTS auto-retry firing\n");
+        dispatch_guarded_tts();
+      }
+    }
+  }
 
   // Flight-phase auto-correction of ATC state
   double now_secs_for_state = static_cast<double>(XPLMGetElapsedTime());
@@ -790,6 +917,25 @@ void reset_atis_cooldown() {
   atis_cooldown_ = 0.0f;
   atis_tuned_timer_ = 0.0f;
   atis_tts_failures_ = 0;
+}
+
+bool tts_network_error() { return tts_network_error_; }
+
+void retry_last_transmission() {
+  // Re-run the last pilot transmission through the full pipeline. After a
+  // give-up the ATC state was reverted to pre_snap, so this reproduces the
+  // identical controller reply, re-applies the state transition, and starts
+  // a fresh kDialogMaxTtsTries auto-retry chain. No-op unless idle, a
+  // network error is pending, we have a stored transmission, and TTS is up.
+  if (state_ != PTTState::IDLE || !tts_network_error_ ||
+      last_pilot_transcript_.empty() || !backends::tts_ready())
+    return;
+
+  XPLMDebugString(
+      "[xp_wellys_devfr_atc] Manual retry: replaying last transmission\n");
+  state_ = PTTState::PROCESSING;
+  ++total_transcriptions_;
+  dispatch_pilot_transcript(last_pilot_transcript_, last_pilot_quality_);
 }
 
 PTTState ptt_state() { return state_; }

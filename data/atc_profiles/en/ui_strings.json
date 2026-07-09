@@ -37,6 +37,8 @@
   "btn.new_flight": "New flight",
   "btn.disregard": "Disregard",
   "btn.send": "Send",
+  "btn.retry": "Retry",
+  "transcript.network_error": "Network error - the ATC reply could not be transmitted after 3 attempts. Check your connection/backend, then retry.",
 
   "status.ready": "Ready",
   "status.not_loaded": "Not loaded",
