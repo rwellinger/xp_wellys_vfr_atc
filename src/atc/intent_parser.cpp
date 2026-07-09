@@ -18,6 +18,7 @@
 
 #include "atc/intent_parser.hpp"
 #include "atc/de_phraseology.hpp"
+#include "atc/en_phraseology.hpp"
 #include "atc/intent_rules.hpp"
 #include "core/logging.hpp"
 #include "data/airport_vrps.hpp"
@@ -247,12 +248,20 @@ static std::string extract_runway(const std::string &text) {
 // (de_phraseology::parse_spoken_icao); spoken place names ("nach Augsburg")
 // are intentionally NOT matched and fall back to the user's pre-flight field.
 static std::string extract_destination(const std::string &text) {
-  static const std::vector<std::string> kAnchors = {"nach ", "richtung "};
-  for (const std::string &anchor : kAnchors) {
+  // Language-specific lead-in anchors: German "nach/richtung", English
+  // "to/for". parse_spoken_icao requires a valid 3..4 NATO letter run
+  // right after the anchor, so a short anchor like "to " cannot false-hit
+  // on ordinary prose ("go to the tower" -> "the tower" is not NATO).
+  const bool en = settings::atc_profile() == "EN";
+  static const std::vector<std::string> kAnchorsDe = {"nach ", "richtung "};
+  static const std::vector<std::string> kAnchorsEn = {"to ", "for "};
+  const std::vector<std::string> &anchors = en ? kAnchorsEn : kAnchorsDe;
+  for (const std::string &anchor : anchors) {
     std::size_t pos = text.find(anchor);
     while (pos != std::string::npos) {
       const std::string tail = text.substr(pos + anchor.size());
-      std::string icao = de_phraseology::parse_spoken_icao(tail);
+      std::string icao = en ? en_phraseology::parse_spoken_icao(tail)
+                            : de_phraseology::parse_spoken_icao(tail);
       if (!icao.empty())
         return icao;
       pos = text.find(anchor, pos + 1);
@@ -637,6 +646,8 @@ PilotMessage parse(const std::string &transcript,
   //     forward normalizer used pre-TTS.
   if (settings::atc_profile() == "DE")
     text = de_phraseology::parse_spoken_number(text);
+  else if (settings::atc_profile() == "EN")
+    text = en_phraseology::parse_spoken_number(text);
 
   // 2. Apply Whisper-normalize from JSON (currently empty in EU/US — the
   //    individual rules already have explicit "take of"/"clear for" patterns,

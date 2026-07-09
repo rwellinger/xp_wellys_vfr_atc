@@ -22,6 +22,7 @@
 #include "atc/atc_templates.hpp"
 #include "atc/atis_generator.hpp"
 #include "atc/de_phraseology.hpp"
+#include "atc/en_phraseology.hpp"
 #include "atc/flight_phase.hpp"
 #include "atc/flows/ground_operations.hpp"
 #include "atc/intent_parser.hpp"
@@ -2414,7 +2415,11 @@ static void draw_flightprep_tab(const xplane_context::XPlaneContext &ctx) {
     preview = preview_dest.empty()
                   ? "VFR Ueberlandflug"
                   : "VFR nach " +
-                        de_phraseology::expand_callsign_phonetic(preview_dest);
+                        (settings::atc_profile() == "EN"
+                             ? en_phraseology::expand_callsign_phonetic(
+                                   preview_dest)
+                             : de_phraseology::expand_callsign_phonetic(
+                                   preview_dest));
   } else {
     preview = "VFR Platzrunde";
   }
@@ -2653,7 +2658,11 @@ static void draw_atc_panel() {
                            ui_strings::tr("panel.destination_format"),
                            dest.c_str());
         ImGui::TextDisabled(
-            "  %s", de_phraseology::expand_callsign_phonetic(dest).c_str());
+            "  %s",
+            (settings::atc_profile() == "EN"
+                 ? en_phraseology::expand_callsign_phonetic(dest)
+                 : de_phraseology::expand_callsign_phonetic(dest))
+                .c_str());
       }
     }
 
