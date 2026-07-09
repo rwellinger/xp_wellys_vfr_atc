@@ -629,6 +629,14 @@ oder den Konformitätsprüfungen
 gegen `dfs_nfl_sprechfunk_2024.txt` zu belegen (Sekundär: BNetzA-
 Prüfungsfragen und NfL Teil B).
 
+**Englisch (ICAO-VFR):** Das geplante englische Profil (Epic #35) hat sein
+eigenes Quellen-Fundament unter [`docs/icao/`](icao/README.md) — ICAO Doc 4444
+Kap. 12, Annex 10 Vol II §5.2 und EASA SERA (CAP 413 nur illustrativ). Die
+[`icao_coverage.md`](icao/icao_coverage.md) mappt jeden Intent auf die
+englische Standardphrase. Englischer VFR-Funk ist **keine Übersetzung** des
+NfL, sondern eine eigenständige Phraseologie. Das `en`-Profil ist noch nicht
+ausgeliefert; siehe [`docs/icao/README.md`](icao/README.md).
+
 ## Bekannte Einschränkungen
 
 ### DE-Profil & BZF-Phraseologie
