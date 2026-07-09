@@ -134,6 +134,11 @@ void ensure_defaults_locked() {
        4819ULL,
        "974adee790533adb273a1ac88f49027d2a1b8f0f2cf4905954a4791e79264e85",
        false, "de"},
+      {"en_GB-alan-medium", "en/en_GB/alan/medium", 63201294ULL,
+       "0a309668932205e762801f1efc2736cd4b0120329622adf62be09e56339d3330",
+       4888ULL,
+       "c0f0d124e5895c00e7c03b35dcc8287f319a6998a365b182deb5c8e752ee8c1e",
+       false, "en"},
   };
   g_cat.piper_base = "https://huggingface.co/rhasspy/piper-voices/resolve/main";
 

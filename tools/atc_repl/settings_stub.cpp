@@ -47,22 +47,32 @@ std::string vfr_destination() { return g_vfr_destination; }
 void set_vfr_flight_type(const std::string &v) { g_vfr_flight_type = v; }
 void set_vfr_destination(const std::string &v) { g_vfr_destination = v; }
 
-// German-VFR-only build: there is exactly one ATC profile ("DE").
-std::string atc_profile() { return "DE"; }
+// ATC phraseology language ("de" | "en"). Mutable so scenarios / tests
+// can flip the profile; env override for the REPL. Mirrors the production
+// atc_language seam (Issue #36).
+static std::string g_atc_language = env_or("XP_ATC_LANGUAGE", "de");
+static std::string valid_lang(const std::string &v) {
+  return v == "en" ? "en" : "de";
+}
 
-std::string backend_language() { return "de"; }
+std::string atc_language() { return g_atc_language; }
+void set_atc_language(const std::string &v) { g_atc_language = valid_lang(v); }
+
+// Derived from atc_language(): "de" -> "DE", "en" -> "EN".
+std::string atc_profile() { return g_atc_language == "en" ? "EN" : "DE"; }
+
+std::string backend_language() { return g_atc_language; }
 
 void set_atc_profile(const std::string &v) {
-  // Kept for API compatibility (scenario loader / REPL call it); always
-  // resolves to "DE".
-  (void)v;
+  // Legacy entry point (scenario loader / REPL): translate the uppercase
+  // profile back to a language code.
+  set_atc_language(v == "EN" ? "en" : "de");
 }
 
 std::string get_data_dir() { return env_or("XP_ATC_DATA_DIR", "./data"); }
 
 std::string atc_profile_data_dir() {
-  // German-VFR-only build: single profile bundle.
-  return get_data_dir() + "/atc_profiles/de";
+  return get_data_dir() + "/atc_profiles/" + g_atc_language;
 }
 
 std::string vrps_data_path() {
@@ -98,6 +108,7 @@ void set_bzf_strict_mode(bool v) { g_bzf_strict_mode = v; }
 // Catch2 module-reset listener calls this before every test case so a
 // flipped setting cannot leak across tests under --order rand (Issue #3).
 void reset_for_test() {
+  g_atc_language = env_or("XP_ATC_LANGUAGE", "de");
   g_bzf_strict_mode = false;
   g_vfr_flight_type = env_or("XP_ATC_VFR_FLIGHT_TYPE", "pattern");
   g_vfr_destination = env_or("XP_ATC_VFR_DESTINATION", "");

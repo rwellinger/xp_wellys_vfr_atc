@@ -32,8 +32,9 @@ void save();
 // Data directory path (plugin-relative <plugin>/data)
 std::string get_data_dir();
 
-// ATC-profile-scoped data directory. German-VFR-only build: always
-// <data>/atc_profiles/de (NfL DACH-VFR phraseology bundle).
+// ATC-profile-scoped data directory, derived from atc_language():
+// <data>/atc_profiles/de (NfL DACH-VFR) or <data>/atc_profiles/en
+// (ICAO-VFR). The six profile-bundle loaders resolve through here.
 std::string atc_profile_data_dir();
 
 // Global, profile-independent VRP file path (<data>/vrps/airport_vrps.json).
@@ -79,15 +80,20 @@ bool skip_radio_power_check();
 bool show_phraseology_hints();
 float auto_correction_factor();
 
-// Active ATC training profile. German-VFR-only build: always returns
-// "DE" (NfL DACH-VFR phraseology). Kept as a function for API
-// stability across the codebase.
+// ATC phraseology language: "de" (NfL DACH-VFR, default) or "en"
+// (ICAO-VFR). The single authoritative language switch (Issue #36);
+// atc_profile() / backend_language() / atc_profile_data_dir() all derive
+// from it.
+std::string atc_language();
+
+// Active ATC training profile, derived from atc_language(): "DE" for
+// German, "EN" for English. The region gates across the engine compare
+// against these uppercase strings.
 std::string atc_profile();
 
-// ISO-639-1 language code. German-VFR-only build: always "de". Used by
-// the cloud STT backends as the Whisper/Voxtral `language` parameter
-// and as the suffix that selects the German LM prompts in
-// atc_prompt_templates.json.
+// ISO-639-1 language code, equal to atc_language() ("de" | "en"). Used by
+// the cloud STT backends as the Whisper/Voxtral `language` parameter and
+// as the suffix that selects the LM prompts in atc_prompt_templates.json.
 std::string backend_language();
 // Cockpit start state assumed at plugin boot. Drives the initial
 // ATCState the state machine adopts. One of:
@@ -213,10 +219,15 @@ void set_skip_radio_power_check(bool v);
 void set_show_phraseology_hints(bool v);
 void set_auto_correction_factor(float v);
 
-// Set the ATC training profile. German-VFR-only build: there is exactly
-// one profile, so this always resolves to "DE" regardless of the
-// argument. Kept for API stability (tests and the headless REPL call
-// it).
+// Set the ATC phraseology language: "en" selects ICAO-VFR, anything else
+// falls back to "de" (NfL DACH-VFR). Keeps the derived atc_profile mirror
+// in sync. A restart is required for the profile bundles / voices to
+// reload.
+void set_atc_language(const std::string &v);
+
+// Legacy entry point kept for API stability (scenario loader / headless
+// REPL call it): translates an uppercase profile ("DE"/"EN") to the
+// language and forwards to set_atc_language().
 void set_atc_profile(const std::string &v);
 
 void set_debug_traffic(bool v);
@@ -224,8 +235,8 @@ void set_debug_text_input(bool v);
 void set_bzf_strict_mode(bool v);
 void set_start_mode(const std::string &v);
 
-// Reset the test-mutable settings (bzf_strict_mode, vfr intention, pilot
-// callsign) back to their defaults. Used by the Catch2 module-reset
+// Reset the test-mutable settings (atc_language, bzf_strict_mode, vfr
+// intention, pilot callsign) back to their defaults. Used by the module-reset
 // listener so a test that flips a setting cannot leak it into the next
 // test under --order rand. See tests/module_reset_listener.cpp and
 // Issue #3.

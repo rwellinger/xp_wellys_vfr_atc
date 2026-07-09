@@ -236,11 +236,15 @@ std::string default_voice_for(VoiceRole role) {
 }
 
 std::string default_voice_for(VoiceRole role, const std::string &language) {
-  if (language == "de") {
-    for (const auto &row : models_catalog::local_piper_voices()) {
-      if (row.language == "de")
-        return row.voice_id;
-    }
+  // Return the first catalog voice tagged with the requested language and
+  // assign it to every role — the same role-agnostic default the DE build
+  // has always used (all roles -> Thorsten). Generalising it to any
+  // language keeps the DE path bit-identical while giving EN its own
+  // default voice with no cross-language fallback. Only when the language
+  // has no voice at all do we fall back to the language-agnostic overload.
+  for (const auto &row : models_catalog::local_piper_voices()) {
+    if (row.language == language)
+      return row.voice_id;
   }
   return default_voice_for(role);
 }

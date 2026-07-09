@@ -112,6 +112,12 @@ static const char *start_mode_labels[] = {"Cold and Dark", "Engines Running",
                                           "Ready for Takeoff"};
 static int start_mode_selection = 1; // default: engines_running
 
+// ATC phraseology language — "de" (NfL DACH-VFR) or "en" (ICAO-VFR).
+// Keys match settings::atc_language(); labels are shown in the combo.
+// A restart is required for the profile bundles / voices to reload.
+static const char *language_keys[] = {"de", "en"};
+static int language_selection = 0; // default: de
+
 // AI backend selection — local (whisper.cpp + llama.cpp + Piper), the
 // OpenAI cloud pipeline, or the Mistral cloud pipeline. The arm64
 // slice offers all three; the x86_64 slice has no local backends
@@ -1333,6 +1339,17 @@ static void draw_settings_tab() {
         }
       }
     }
+    {
+      std::string lang = settings::atc_language();
+      language_selection = 0; // de default
+      for (size_t i = 0; i < sizeof(language_keys) / sizeof(language_keys[0]);
+           ++i) {
+        if (lang == language_keys[i]) {
+          language_selection = static_cast<int>(i);
+          break;
+        }
+      }
+    }
     // Mistral model slugs no longer live in InputText buffers — the
     // Combo widgets pull current values straight from settings each
     // frame. Nothing to seed here.
@@ -1613,9 +1630,21 @@ static void draw_settings_tab() {
   // ATC Commands Panel (see draw_flightprep_tab) so it sits with the operative
   // flow rather than buried in Settings.
 
-  // German-VFR-only build: the ATC phraseology is fixed to NfL
-  // DACH-VFR (DE/BZF). No profile selector — there is exactly one
-  // phraseology standard.
+  // ATC phraseology language — DE (NfL DACH-VFR) or EN (ICAO-VFR).
+  // Applies on the next plugin start: the profile bundle and the local
+  // TTS voice are loaded during init.
+  const char *language_labels_tr[2] = {
+      ui_strings::tr("settings.language_de"),
+      ui_strings::tr("settings.language_en"),
+  };
+  if (ImGui::Combo(ui_strings::tr("settings.language_label"),
+                   &language_selection, language_labels_tr, 2)) {
+    settings::set_atc_language(language_keys[language_selection]);
+    settings::save();
+  }
+  if (ImGui::IsItemHovered()) {
+    ImGui::SetTooltip("%s", ui_strings::tr("tooltip.language"));
+  }
 
   // Cockpit start mode — applies on next plugin enable / sim start.
   const char *start_mode_labels_tr[3] = {

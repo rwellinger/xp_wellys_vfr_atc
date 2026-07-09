@@ -135,7 +135,23 @@
        "json_size": 4159,
        "json_sha256": "3b2095adbfeede316f22007a0a09d4bfc25514b7189850740b06800a6cfb9838",
        "optional": true,
-       "language": "de"}
+       "language": "de"},
+      {"voice_id": "en_GB-alan-medium",
+       "url_subpath": "en/en_GB/alan/medium",
+       "onnx_size": 63201294,
+       "onnx_sha256": "0a309668932205e762801f1efc2736cd4b0120329622adf62be09e56339d3330",
+       "json_size": 4888,
+       "json_sha256": "c0f0d124e5895c00e7c03b35dcc8287f319a6998a365b182deb5c8e752ee8c1e",
+       "optional": false,
+       "language": "en"},
+      {"voice_id": "en_US-lessac-medium",
+       "url_subpath": "en/en_US/lessac/medium",
+       "onnx_size": 63201294,
+       "onnx_sha256": "5efe09e69902187827af646e1a6e9d269dee769f9877d17b16b1b46eeaaf019f",
+       "json_size": 4885,
+       "json_sha256": "efe19c417bed055f2d69908248c6ba650fa135bc868b0e6abb3da181dab690a0",
+       "optional": true,
+       "language": "en"}
     ]
   }
 }

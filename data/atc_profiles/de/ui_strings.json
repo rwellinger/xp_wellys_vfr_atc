@@ -177,6 +177,9 @@
   "flightprep.header": "VFR-Flugvorbereitung",
   "flightprep.dest_hint": "  (ICAO eingeben, z. B. EDMA; Enter speichert. Alternativ sprechen: 'VFR nach Echo Delta Mike Alfa')",
   "flightprep.preview_label": "Erster Funkspruch enthaelt:",
+  "settings.language_label": "Sprache",
+  "settings.language_de": "Deutsch (NfL DACH-VFR)",
+  "settings.language_en": "Englisch (ICAO-VFR)",
   "settings.start_mode_label": "Start-Modus",
   "settings.debug_log": "Debug-Logging",
   "settings.debug_text_input": "Debug: Texteingabe statt Mikrofon",
@@ -205,6 +208,7 @@
   "startmode.ready_takeoff": "Startbereit",
 
   "tooltip.backend": "Lokal: laeuft auf diesem Mac (Apple Silicon, ~2 GB Modelle).\nOpenAI Cloud: Audio + Transkripte werden an api.openai.com gesendet.\nUmschalten laedt die Inferenz-Pipeline neu.",
+  "tooltip.language": "Deutsch: NfL-DACH-VFR-Phraseologie (BZF).\nEnglisch: ICAO-VFR-Phraseologie.\nGilt ab dem naechsten Plugin-Start (Profil und lokale TTS-Stimme werden beim Init geladen).",
   "tooltip.start_mode": "Kalt und dunkel: stromloses Cockpit am Parkplatz.\nMotoren laufen: warmes Cockpit am Parkplatz, bereit fuer Ground-Anruf.\nStartbereit: am Haltepunkt, wartet auf Tower-Freigabe.\nGilt ab dem naechsten Sim-Start.",
   "tooltip.skip_radio_power": "Aktivieren, falls Ihr Luftfahrzeug den Funk-Strom nicht korrekt meldet.\nFunk-Tasten und PTT funktionieren ohne Bordstrom.",
   "tooltip.recovery": "Wenn Sie eine ATC-Meldung vergessen (z. B. 'Bahn frei' nach der Landung),\nsetzt das System sich nach dieser Zeit automatisch zurueck.\n\nAnfaenger: 50-60 Sek. (mehr Zeit zum Nachdenken)\nErfahrene: 15-20 Sek. (haelt den Fluss eng)",
