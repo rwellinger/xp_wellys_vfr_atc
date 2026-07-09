@@ -68,10 +68,13 @@ static json default_config() {
       {"skip_radio_power_check", false},
       {"show_phraseology_hints", true},
       {"auto_correction_factor", 1.0},
-      // German-VFR-only build: the ATC profile is hardwired to "DE"
-      // (NfL DACH-VFR phraseology). The key is kept so an existing
-      // settings.json stays schema-stable, but it has no other valid
-      // value.
+      // ATC phraseology language. "de" = NfL DACH-VFR (default), "en" =
+      // ICAO-VFR. Drives atc_profile() / backend_language() /
+      // atc_profile_data_dir(); everything language-specific derives from
+      // this single key (Epic #35 / Issue #36).
+      {"atc_language", "de"},
+      // Legacy mirror kept for schema stability: derived from
+      // atc_language ("de"->"DE", "en"->"EN"). Not authoritative.
       {"atc_profile", "DE"},
       {"debug_traffic", false},
       {"debug_text_input", false},
@@ -198,16 +201,27 @@ void init() {
     }
   }
 
-  // German-VFR-only build: drop any legacy "flow_region" mirror and
-  // force the profile to "DE". A settings.json carried over from a
-  // multi-profile build (EU/US) is normalised here on first load.
+  // Drop any legacy "flow_region" mirror from a multi-profile build.
   if (cfg.contains("flow_region")) {
     cfg.erase("flow_region");
     needs_save = true;
   }
-  if (cfg.value("atc_profile", std::string{}) != "DE") {
-    cfg["atc_profile"] = "DE";
-    needs_save = true;
+  // Validate the ATC language (Issue #36). Unknown values fall back to
+  // "de"; a valid user selection ("de" | "en") is preserved. The legacy
+  // atc_profile key is kept in sync as a derived mirror ("de" -> "DE",
+  // "en" -> "EN") so a settings.json inspected by hand stays consistent.
+  {
+    std::string lang = cfg.value("atc_language", std::string("de"));
+    if (lang != "de" && lang != "en") {
+      lang = "de";
+      cfg["atc_language"] = lang;
+      needs_save = true;
+    }
+    std::string derived_profile = lang == "en" ? "EN" : "DE";
+    if (cfg.value("atc_profile", std::string{}) != derived_profile) {
+      cfg["atc_profile"] = derived_profile;
+      needs_save = true;
+    }
   }
 
   // Mistral-default bump (v3.1): users on the previous hardcoded
@@ -235,9 +249,11 @@ void stop() {}
 std::string get_data_dir() { return data_dir_path; }
 
 std::string atc_profile_data_dir() {
-  // German-VFR-only build: the single shipped profile bundle lives in
-  // data/atc_profiles/de.
-  return data_dir_path + "/atc_profiles/de";
+  // Profile bundle directory derived from atc_language: data/atc_profiles/de
+  // or data/atc_profiles/en. The six asset loaders (templates, flight_rules,
+  // intent_rules, phraseology_hints, ui_strings, conformance) resolve through
+  // here, so a language switch repoints all of them at once.
+  return data_dir_path + "/atc_profiles/" + atc_language();
 }
 
 std::string vrps_data_path() {
@@ -319,11 +335,19 @@ bool show_phraseology_hints() {
 float auto_correction_factor() {
   return cfg.value("auto_correction_factor", 1.0f);
 }
-std::string atc_profile() {
-  // German-VFR-only build: the ATC profile is hardwired to "DE".
-  return "DE";
+std::string atc_language() {
+  std::string v = cfg.value("atc_language", std::string("de"));
+  if (v != "de" && v != "en")
+    v = "de";
+  return v;
 }
-std::string backend_language() { return "de"; }
+std::string atc_profile() {
+  // Derived from atc_language: "de" -> "DE" (NfL DACH-VFR), "en" -> "EN"
+  // (ICAO-VFR). The region gates across the engine compare against these
+  // uppercase strings.
+  return atc_language() == "en" ? "EN" : "DE";
+}
+std::string backend_language() { return atc_language(); }
 bool debug_traffic() { return cfg.value("debug_traffic", false); }
 bool debug_text_input() { return cfg.value("debug_text_input", false); }
 bool bzf_strict_mode() { return cfg.value("bzf_strict_mode", false); }
@@ -440,12 +464,18 @@ void set_auto_correction_factor(float v) {
     v = 2.0f;
   cfg["auto_correction_factor"] = v;
 }
+void set_atc_language(const std::string &v) {
+  std::string lang = (v == "en") ? "en" : "de";
+  cfg["atc_language"] = lang;
+  // Keep the derived legacy mirror in sync.
+  cfg["atc_profile"] = (lang == "en") ? "EN" : "DE";
+}
 void set_atc_profile(const std::string &v) {
-  // German-VFR-only build: there is exactly one profile. The setter is
-  // kept for API stability (tests and the headless REPL toggle it), but
-  // it always resolves to "DE".
-  (void)v;
-  cfg["atc_profile"] = "DE";
+  // Legacy entry point kept for API stability (scenario loader / REPL
+  // still call it). The language is now authoritative via
+  // set_atc_language(); translate the uppercase profile back to a
+  // language code so old callers keep working.
+  set_atc_language(v == "EN" ? "en" : "de");
 }
 void set_debug_traffic(bool v) { cfg["debug_traffic"] = v; }
 void set_debug_text_input(bool v) { cfg["debug_text_input"] = v; }
@@ -458,6 +488,8 @@ void set_bzf_strict_mode(bool v) { cfg["bzf_strict_mode"] = v; }
 // that links the real settings.cpp. See Issue #3.
 void reset_for_test() {
   const json d = default_config();
+  cfg["atc_language"] = d["atc_language"];
+  cfg["atc_profile"] = d["atc_profile"];
   cfg["bzf_strict_mode"] = d["bzf_strict_mode"];
   cfg["vfr_flight_type"] = d["vfr_flight_type"];
   cfg["vfr_destination"] = d["vfr_destination"];
@@ -663,7 +695,12 @@ std::string voice_for_role(model_manifest::VoiceRole role) {
     }
   }
   std::string id = cfg.value(voice_key(role), std::string{});
-  if (id.empty() || !voice_id_is_known(id))
+  // Fall back to the language default when no voice is stored, the stored
+  // voice is unknown, or it belongs to a different language than the active
+  // profile (e.g. a persisted German voice while running the EN profile) —
+  // otherwise a language switch would keep speaking the old language.
+  if (id.empty() || !voice_id_is_known(id) ||
+      model_manifest::voice_language(id) != backend_language())
     id = model_manifest::default_voice_for(role, backend_language());
   return id;
 }

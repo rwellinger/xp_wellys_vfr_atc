@@ -55,6 +55,27 @@ TEST_CASE("German default voice covers every role", "[model_manifest][m6]") {
   }
 }
 
+// ── English default voice (Issue #40) ────────────────────────────────
+
+TEST_CASE("English default voice covers every role with an EN voice",
+          "[model_manifest][en]") {
+  // The EN profile ships en_GB-alan-medium as the primary (non-optional)
+  // voice; the language default resolves to it for every role, with no
+  // fall-back to a German voice.
+  for (auto role : model_manifest::all_roles()) {
+    const std::string v = model_manifest::default_voice_for(role, "en");
+    REQUIRE(v == "en_GB-alan-medium");
+    REQUIRE(model_manifest::voice_language(v) == "en");
+  }
+}
+
+TEST_CASE("EN primary Piper voice is tagged 'en'", "[model_manifest][en]") {
+  // Only the non-optional voice ships in the built-in fallback catalog the
+  // unit tests exercise (the optional en_US-lessac-medium, like the optional
+  // German voices, lives only in the full data/models_catalog.json).
+  REQUIRE(model_manifest::voice_language("en_GB-alan-medium") == "en");
+}
+
 // ── SHA256 round-trip (issue #19) ────────────────────────────────────
 // Known-answer tests pin the digest so the CommonCrypto (macOS) and CNG
 // (Windows) backends stay bit-identical, and exercise the shared 1 MB
