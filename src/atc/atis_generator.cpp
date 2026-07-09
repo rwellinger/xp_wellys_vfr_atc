@@ -141,6 +141,67 @@ static std::string format_qnh(float inhg) {
   return std::to_string(hpa);
 }
 
+// ── EN/ICAO-ATIS formatters ─────────────────────────────────────────
+// English counterparts of the DE builders above. The digits stay raw so
+// en_phraseology::normalize_for_speech (applied on the TTS path in
+// atc_session) speaks them ziffernweise via its "Runway"/"QNH"/
+// "degrees...knots"/"feet" anchors, exactly as the DE normalizer does.
+
+static std::string format_visibility_en(float vis_m) {
+  // ICAO ATIS caps at 10 km; km down to 1 km, else meters.
+  if (vis_m >= 10000.0f)
+    return "more than 10 kilometers";
+  if (vis_m >= 1000.0f) {
+    int km = static_cast<int>(vis_m / 1000.0f);
+    return std::to_string(km) + " kilometers";
+  }
+  int m = static_cast<int>(vis_m);
+  return std::to_string(m) + " meters";
+}
+
+static std::string format_clouds_en(int cloud_type, float cloud_base_ft) {
+  // Same sensor-quirk guard as the DE builder: a non-zero cloud_type with
+  // a ~0 ft base is effectively clear sky.
+  const bool effectively_clear = cloud_type <= 0 || cloud_base_ft < 100.0f;
+  if (effectively_clear)
+    return "Sky clear.";
+  const char *coverage = "few clouds";
+  switch (cloud_type) {
+  case 1:
+    coverage = "few clouds";
+    break;
+  case 2:
+    coverage = "scattered clouds";
+    break;
+  case 3:
+    coverage = "broken clouds";
+    break;
+  case 4:
+    coverage = "overcast";
+    break;
+  default:
+    break;
+  }
+  // VFR cloud base in feet, rounded to 100 ft. normalize_for_speech's
+  // expand_altitudes renders "3500 feet" as "tree thousand fife hundred
+  // feet".
+  int base = static_cast<int>(std::round(cloud_base_ft / 100.0f)) * 100;
+  char buf[64];
+  std::snprintf(buf, sizeof(buf), "%s at %d feet.", coverage, base);
+  return buf;
+}
+
+static std::string format_wind_en(float dir, float spd) {
+  if (spd < 3.0f)
+    return "calm";
+  char buf[64];
+  // Zero-padded to the ICAO 3-digit direction / 2-digit speed form. The
+  // "degrees ... knots" anchor pair drives expand_wind, which spells both
+  // numbers ziffernweise.
+  std::snprintf(buf, sizeof(buf), "%03.0f degrees %02.0f knots", dir, spd);
+  return buf;
+}
+
 void init() {
   letter_ = 'A';
   last_runway_.clear();
@@ -253,9 +314,46 @@ generate_atis_text_de(const xplane_context::XPlaneContext &ctx) {
   return text;
 }
 
+static std::string
+generate_atis_text_en(const xplane_context::XPlaneContext &ctx) {
+  std::string airport =
+      !ctx.nearest_airport_name.empty()
+          ? ctx.nearest_airport_name
+          : (!ctx.nearest_airport_id.empty() ? ctx.nearest_airport_id
+                                             : "Airport");
+  // ICAO/EN spelling ("Alpha", "Juliet", "X-ray") — matches the atis_letter
+  // the tower speaks via ground_ops::build_vars, so ATIS and first-contact
+  // response agree. The EN normalizer has no Alpha->Alfa swap.
+  const char *letter_name = kLetterNames[letter_ - 'A'];
+  std::string eff = atc_state_machine::effective_runway(ctx);
+  std::string runway = eff.empty() ? "unknown" : eff;
+
+  std::string text;
+  text += airport + " Information " + letter_name + ". ";
+  text += "Runway " + runway + " in use. ";
+  text +=
+      "Wind " + format_wind_en(ctx.wind_direction_deg, ctx.wind_speed_kt) + ". ";
+  text += "Visibility " + format_visibility_en(ctx.visibility_m) + ". ";
+  text += format_clouds_en(ctx.cloud_type, ctx.cloud_base_ft_msl) + " ";
+  // Temperature/dew point as raw ints; the EN TTS voice reads 18 / 12 as
+  // words natively (no ziffernweise pass for temperatures).
+  text += "Temperature " + std::to_string(static_cast<int>(ctx.temperature_c)) +
+          ", dew point " + std::to_string(static_cast<int>(ctx.dewpoint_c)) +
+          ". ";
+  // QNH stays bare (hPa integer); normalize_for_speech's expand_keyword_digits
+  // spells "QNH 1013" as "QNH one zero one tree".
+  text += "QNH " + format_qnh(ctx.qnh_inhg) + ". ";
+  text += "On initial contact advise you have information " +
+          std::string(letter_name) + ".";
+  return text;
+}
+
 std::string generate_atis_text(const xplane_context::XPlaneContext &ctx) {
-  // German-VFR-only build: ATIS is always the German NfL broadcast.
-  return generate_atis_text_de(ctx);
+  // ATIS broadcast follows the active profile: ICAO-VFR English (EN) or
+  // NfL DACH-VFR German (DE). The TTS-side normalizer is likewise
+  // profile-dispatched (atc_session), so each path speaks its own numbers.
+  return settings::atc_profile() == "EN" ? generate_atis_text_en(ctx)
+                                         : generate_atis_text_de(ctx);
 }
 
 // Out-of-range check: ~60 NM realistic for ground-level ATIS VHF.

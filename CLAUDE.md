@@ -541,8 +541,10 @@ Phraseologie-Hinweise, Transkript-Historie mit optionaler
 **Settings-Tab** (Backend-Mode-Switcher mit separaten `[Paste]` /
 `Save Key` / `Delete Key`-Buttons für OpenAI- und Mistral-Key — Cmd+V
 wird von X-Plane-Befehlsbindungen abgefangen; Per-Backend-STT/LM/TTS/
-Voice-Combos aus `models_catalog`; der BZF-Strict-Mode-Toggle ist immer
-sichtbar), **Models-Tab** (Download / Re-Verify / Fortschritt; relevant
+Voice-Combos aus `models_catalog`; der BZF-Strict-Mode-Toggle ist nur im
+DE-Profil sichtbar — im EN-/ICAO-Profil ist er ausgeblendet, weil die
+Strict-/Conformance-Hooks auf `atc_profile()=="DE"` gaten und dort inert
+wären), **Models-Tab** (Download / Re-Verify / Fortschritt; relevant
 im Local-Modus, in allen Modi sichtbar) und ein optionaler
 **Traffic-Tab** (Debug, gegated durch `settings.debug_traffic`, listet
 die 10 nächsten Flugzeuge). Alle Strings werden über `ui_strings` gegen

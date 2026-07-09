@@ -33,6 +33,7 @@ add_executable(xp_wellys_devfr_atc_tests
     test_post_landing_idle.cpp
     test_prompt_whitelist_drift.cpp
     test_atis_generator_de.cpp
+    test_atis_generator_en.cpp
     test_de_phraseology.cpp
     test_en_phraseology.cpp
     test_bzf_compliance.cpp
