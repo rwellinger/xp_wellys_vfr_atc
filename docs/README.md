@@ -328,13 +328,14 @@ Implementierung:
 ## Aus Quellcode bauen
 
 ```sh
-git clone --recurse-submodules <repo-url>
+git clone <repo-url>
 cd xp_wellys_vfr_atc
-make setup     # X-Plane SDK, Dear ImGui, nlohmann/json, Catch2, Spike-Submodule
+make setup     # Lädt das vorgebaute xp_wellys_libs-Bundle (arm64 local-inference
+               # Libs, SHA256-verifiziert) + X-Plane SDK, Dear ImGui,
+               # nlohmann/json, Catch2. Keine Submodule mehr.
 make build     # Universal-Release-Build → build/xp_wellys_vfr_atc.xpl (arm64
                # mit allen drei Backends + x86_64 cloud-only, zu einem
-               # .xpl lipo'd). Das ist das einzige Build-Target — es gibt
-               # keinen arm64-only-Schnellpfad mehr.
+               # .xpl lipo'd). Das ist das einzige Build-Target.
 make install   # Code-Signing + Installation ins X-Plane-Plugins-Verzeichnis
 ```
 
@@ -348,11 +349,17 @@ Tag-getriebene Release-Builds übergibst du `RELEASE_FLAG=-DRELEASE=ON`
 (`make release-build` erledigt das für dich — bettet die Version aus
 `VERSION.txt` ein).
 
-Der Build lädt beim ersten Konfigurieren onnxruntimes vorgebautes
-arm64-dylib (≈ 33 MB) nach
-`spikes/spike_piper/third_party/piper1-gpl/libpiper/lib/`. Danach ist
-alles lokal. Der x86_64-Slice hat keinerlei onnxruntime- / Piper- /
-whisper- / llama-Abhängigkeit; er linkt nur gegen libcurl + die
+Die schweren lokalen Inferenz-Libraries (whisper.cpp, llama.cpp, ggml mit
+Metal, Piper, espeak-ng, onnxruntime) werden **nicht mehr aus Quellcode
+gebaut**. Sie kommen als vorgebautes arm64-Bundle aus dem separaten Repo
+[`xp_wellys_libs`](https://github.com/rwellinger/xp_wellys_libs), das
+`make setup` von dessen GitHub-Release lädt — Version gepinnt in
+`PREBUILT_LIBS_VERSION`, gegen das Bundle-`manifest.txt` SHA256-verifiziert
+— und nach `vendor/prebuilt/xp_wellys_libs/` entpackt (inklusive
+onnxruntime-dylib + espeak-ng-data). Dadurch entfällt der ~50-min-
+Cold-Compile: der Release-Build kompiliert nur noch die eigenen ~40 TUs
+(~5–8 min, deterministisch). Der x86_64-Slice hat keinerlei onnxruntime- /
+Piper- / whisper- / llama-Abhängigkeit; er linkt nur gegen libcurl + die
 System-Frameworks (Security, AudioToolbox usw.) und die Cloud-Clients.
 
 **Windows-Build.** Der `win_x64/xp_wellys_vfr_atc.xpl` wird mit **MSVC via
@@ -365,6 +372,55 @@ Drop-in-Ordner. Die Mic-Capture nutzt **miniaudio** (WASAPI) statt Core
 Audio; der API-Key liegt im Windows Credential Manager statt im Keychain.
 Auf Windows 11 (Shadow-Cloud-PC, NVIDIA-GPU) mit einem VFR-Rundflug ab
 Friedrichshafen (EDNY) end-to-end verifiziert.
+
+### Prebuilt-Libs (`xp_wellys_libs`) aktualisieren
+
+Die lokalen Inferenz-Libraries leben im separaten Repo
+[`xp_wellys_libs`](https://github.com/rwellinger/xp_wellys_libs) und werden
+dort **einmal pro Upstream-Pin-Bump** kompiliert und als versioniertes
+Bundle released. So bringst du eine neue Version ins Plugin:
+
+**1. In `xp_wellys_libs` — neues Bundle releasen**
+
+```sh
+# optional: neuere whisper.cpp/llama.cpp/piper1-gpl Pins setzen
+#   cd third_party/<repo> && git checkout <sha> && cd -
+echo "0.2.0" > VERSION.txt                  # MUSS zum Tag passen
+git commit -am "bump to 0.2.0 (+ pins)"
+git push                                     # CI baut + smoke-testet (Vorab-Sicherheit)
+git tag v0.2.0 && git push origin v0.2.0     # CI publiziert das Bundle-Tarball
+```
+
+**2. Im Plugin — die neue Version ziehen**
+
+```sh
+echo "0.2.0" > PREBUILT_LIBS_VERSION
+rm -rf vendor/prebuilt/xp_wellys_libs        # altes Bundle entfernen (s. u.)
+make setup                                   # lädt + SHA256-verifiziert 0.2.0
+make build && make test                      # gegen die neuen Libs prüfen
+# danach: PREBUILT_LIBS_VERSION committen, PR, merge
+```
+
+**Zwei Regeln, die zwingend einzuhalten sind:**
+
+- **Version an drei Stellen identisch:** `VERSION.txt` (libs) = Tag
+  `vX.Y.Z` = `PREBUILT_LIBS_VERSION` (plugin). Der Tarball-Name wird aus
+  `VERSION.txt` gebaut, der Plugin-Download erwartet exakt
+  `xp_wellys_libs-arm64-macos-<PREBUILT_LIBS_VERSION>.tar.gz` — passt es
+  nicht zusammen, schlägt `make setup` mit einem 404 fehl.
+- **`rm -rf vendor/prebuilt/xp_wellys_libs` vor `make setup`:** der
+  Makefile-Sentinel (`.../lib/libwhisper.a`) überspringt den Download
+  sonst, solange das alte Bundle noch liegt — du hättest still die alte
+  Version gelinkt. In CI ist das irrelevant (jeder Runner startet frisch),
+  nur lokal.
+
+Vor dem Plugin-Release-Tag lässt sich der volle Release-Build als
+Trockenlauf prüfen (baut beide Slices + lädt Artefakte hoch, publiziert
+aber nichts):
+
+```sh
+gh workflow run build.yml --ref main
+```
 
 ## Lokale Inferenz-Modelle
 
@@ -895,15 +951,23 @@ vendored sind.
 
 ### CI-Pipeline
 
-Die GitHub-Actions-Pipeline läuft nur in zwei Situationen:
+Die GitHub-Actions-Pipeline (`.github/workflows/build.yml`):
 
-- **Pull Request gegen `main`** — validiert die Änderung (Build +
-  Szenario-Tests), bevor sie gemergt werden kann
-- **Push eines Versions-Tags `v*`** — baut das Release-Artefakt und
-  veröffentlicht ein GitHub-Release mit dem gepackten ZIP
-
-Direkte Pushes auf `main` lösen keinen Build mehr aus. Alle
-Code-Änderungen müssen über einen Pull Request laufen.
+- **Push / PR-Merge auf `main`** — schneller cloud-only Sanity-Build +
+  Unit-/Szenario-Tests (`build-macos-fast`, ~4 min). Da die lokalen
+  Inferenz-Libs vorgebaut sind (Bundle), gibt es auf `main` keinen
+  schweren Compile mehr — der frühere `warm-deps`-Cache-Warmer entfällt.
+- **Push eines Versions-Tags `v*`** — voller Universal-Release-Build
+  (`build-macos-universal`, ~5–8 min, gegen das Prebuilt-Bundle) +
+  Windows-Slice, dann Veröffentlichung eines GitHub-Releases mit dem
+  gepackten ZIP + Force-Push des SkunkCrafts-Update-Trees.
+- **Manueller `workflow_dispatch`** — Pre-Release-Trockenlauf: baut beide
+  Slices und lädt die Artefakte hoch, **publiziert aber nichts** (der
+  `release`-Job bleibt tag-only). Damit prüfst du vor einem Tag, dass der
+  Release-Build durchläuft:
+  ```sh
+  gh workflow run build.yml --ref main
+  ```
 
 ### Merge nach `main`
 
