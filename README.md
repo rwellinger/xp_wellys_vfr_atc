@@ -1,11 +1,11 @@
-# Welly's ATC — AI Voice ATC for X-Plane 12
+# Welly's VFR ATC — AI Voice ATC for X-Plane 12
 
-![Welly's ATC panel with ATIS broadcast at LSZB Bern-Belp](images/atc-atis-example.jpg)
+![Welly's VFR ATC panel with ATIS broadcast at LSZB Bern-Belp](images/atc-atis-example.jpg)
 
 > **Talk to the tower via push-to-talk — AI-powered VFR radio in German or
 > English for X-Plane 12, running locally on your Mac or through the cloud.**
 
-Welly's ATC turns your VFR flights in X-Plane 12 into a real radio
+Welly's VFR ATC turns your VFR flights in X-Plane 12 into a real radio
 conversation: you press the push-to-talk key, speak your call into the
 microphone, and the tower answers you back by voice — in either **German
 (NfL/BZF)** or **English (ICAO)** VFR phraseology, with realistic reactions
