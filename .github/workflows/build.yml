@@ -56,7 +56,11 @@ jobs:
     # Every non-tag push (main, windows_support) + workflow_dispatch. On main
     # this is the merge's ~4 min green check; the deps cache-warm runs in the
     # separate `warm-deps` job. Release tags take build-macos-universal.
-    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && !startsWith(github.ref, 'refs/tags/v')
+    # SKIPPED for the `make release` version-bump commit ("release X.Y.Z"): that
+    # commit is pushed to main seconds before its tag, and the tag run's
+    # build-macos-universal already tests the identical tree via `make test`, so
+    # re-running this on the release commit is pure redundancy (see warm-deps).
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && !startsWith(github.ref, 'refs/tags/v') && !startsWith(github.event.head_commit.message, 'release ')
     steps:
       - uses: actions/checkout@v5
 
@@ -201,7 +205,11 @@ jobs:
   warm-deps:
     runs-on: macos-15 # pinned — see build-macos-fast (matches test system)
     timeout-minutes: 60 # bounds a cold submodule-bump rebuild; warm runs ~10-15 min
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # SKIPPED for the `make release` version-bump commit ("release X.Y.Z"): its
+    # tag is pushed seconds later and its build-macos-universal runs concurrently,
+    # so this cache-warm couldn't warm THAT release anyway (ccache uploads only at
+    # job end). Regular dev merges to main (non-"release " messages) still warm it.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && !startsWith(github.event.head_commit.message, 'release ')
     steps:
       - uses: actions/checkout@v5
         with:
