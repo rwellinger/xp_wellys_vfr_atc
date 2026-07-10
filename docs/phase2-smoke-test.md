@@ -28,7 +28,7 @@ pilot acknowledges, state restores.
    on first call (e.g. *"Zurich Tower, Hotel Bravo X-ray Yankee Zulu, transit
    from south."*).
 4. Wait for LiveTraffic to inject a target inbound from the north. Watch the
-   `xp_wellys_devfr_atc` log lines:
+   `xp_wellys_vfr_atc` log lines:
    - `traffic_context update: <N> targets`
    - on trigger: `Engine emitted traffic advisory (target_id=...)`
 5. Expected speech (TTS): something like *"X-ray Yankee Zulu, traffic, 12

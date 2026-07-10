@@ -1,127 +1,125 @@
-# Welly's ATC — KI-Sprechfunk-ATC für X-Plane 12
+# Welly's ATC — AI Voice ATC for X-Plane 12
 
-![Welly's ATC Panel mit ATIS-Ansage in LSZB Bern-Belp](images/atc-atis-example.jpg)
+![Welly's ATC panel with ATIS broadcast at LSZB Bern-Belp](images/atc-atis-example.jpg)
 
-> **Sprich per Push-to-Talk mit dem Tower — KI-gestützter VFR-Sprechfunk in
-> Deutsch oder Englisch für X-Plane 12, lokal auf dem Mac oder über die Cloud.**
+> **Talk to the tower via push-to-talk — AI-powered VFR radio in German or
+> English for X-Plane 12, running locally on your Mac or through the cloud.**
 
-Welly's ATC verwandelt deine VFR-Flüge in X-Plane 12 in ein echtes
-Funkgespräch: Du drückst die Push-to-Talk-Taste, sprichst deinen Funkspruch
-ins Mikrofon, und der Tower antwortet dir gesprochen zurück — wahlweise in
-**deutscher (NfL/BZF)** oder **englischer (ICAO)** VFR-Phraseologie, mit
-realistischen Reaktionen auch auf Pilotenfehler.
+Welly's ATC turns your VFR flights in X-Plane 12 into a real radio
+conversation: you press the push-to-talk key, speak your call into the
+microphone, and the tower answers you back by voice — in either **German
+(NfL/BZF)** or **English (ICAO)** VFR phraseology, with realistic reactions
+even to pilot mistakes.
 
 ---
 
-## Was das Plugin abdeckt
+## What the plugin covers
 
-- **🇩🇪 🇬🇧 Zwei Sprachprofile — DE (NfL/BZF) & EN (ICAO)** — zur Laufzeit in
-  den Einstellungen umschaltbar; **Deutsch** bleibt der Standard.
-  **Deutsch** modelliert die VFR-Sprechfunk-Phraseologie nach **NfL
-  Sprechfunk 2024** (DACH-Raum) mit optionalem **BZF-Strict-Mode**, der
-  deine Readbacks auf Vollständigkeit prüft, wie es ein Prüfer täte.
-  **Englisch** folgt der eigenständigen **ICAO-VFR-Phraseologie** (ICAO
-  Annex 10 Vol II / Doc 4444 / EASA SERA) — keine Übersetzung des deutschen
-  Profils, sondern eigene Standardwortlaute, Zahlen- und Rufzeichen-Aussprache.
-- **🛬 Platzrunde** — vollständiger Platzrunden-Ablauf an kontrollierten
-  und unkontrollierten Flugplätzen: Anflug, Gegenanflug, Queranflug,
-  Endteil, Landung, Touch-and-Go, Durchstart — inklusive
-  Lande-Sequenzierung („Sie sind Nummer zwei, folgen Sie dem Verkehr").
-- **🗺️ Cross Country** — kompletter Überlandflug: Abflugfreigabe,
-  En-route-Frequenzwechsel und Anflug-Ablauf zwischen Flugplätzen. Der
-  Anflug-Lotse übergibt dich proaktiv mit der Zielfrequenz an den Tower.
-- **🗼 Flugplatztypen** — das Plugin erkennt automatisch die Art der
-  Flugverkehrsdienste am jeweiligen Flugplatz und passt Phraseologie und
-  Ablauf entsprechend an:
-  - **Ohne Flugverkehrskontrolle** — Selbstinformation über UNICOM/CTAF
-    (Selbstansagen, keine Freigaben).
-  - **Mit Tower** — kontrollierter Platz mit Freigaben über die
-    Turm-Frequenz.
-  - **Mit Tower und Ground** — zusätzlich getrennte Rollkontrolle
-    (Ground) für Rollfreigaben.
-  - **Mit AFIS** — Flugplatz mit Fluginformationsdienst (Information
-    statt Kontrolle): Verkehrs- und Platzinformationen ohne
-    verbindliche Freigaben.
-- **🎙️ Funksprache** — natürliche Sprache per Push-to-Talk (Tastatur oder
-  Joystick). Kontextbewusste **Phraseologie-Hinweise** zeigen dir, was zu
-  sagen ist, und der Tower coacht höflich bei unpassender Funkdisziplin.
-- **🤖 KI-Unterstützung** — Spracherkennung → Absichtsverständnis →
-  Sprachausgabe, dazu automatische **ATIS-Ansagen** aus dem Live-Wetter und
-  **Verkehrshinweise** zu umgebenden Flugzeugen.
-- **💻 Lokale KI & ☁️ Cloud-KI** — wähle deinen Modus zur Laufzeit:
-  - **Local** (Apple Silicon) — läuft nach einem einmaligen Modell-Download
-    **100 % offline**. Kein Abo, kein API-Key, kein dauerndes Internet.
-  - **OpenAI Cloud** (jeder Mac) — mit eigenem API-Key.
-  - **Mistral Cloud** (jeder Mac) — mit eigenem API-Key; spricht Deutsch
-    ohne US-Akzent.
-- **🪟 Windows (Cloud-only, voll unterstützt)** — ein reiner Cloud-Build für
-  X-Plane 12 unter Windows ist enthalten (`win_x64/xp_wellys_devfr_atc.xpl`,
-  OpenAI **oder** Mistral, API-Key im Windows Credential Manager). **Auf echter
-  Windows-11-Hardware end-to-end verifiziert** (Shadow-Cloud-PC, Windows 11,
-  NVIDIA-GPU): kompletter VFR-Rundflug ab **Friedrichshafen (EDNY)** —
-  Plugin-Laden, Mikrofon/PTT, die volle STT→ATC→TTS-Pipeline und der API-Key
-  im Credential Manager laufen einwandfrei. Lokale Offline-KI gibt es unter
-  Windows **nicht** (kein Apple Silicon / kein Metal); die Cloud (OpenAI oder
-  Mistral, API-Key nötig) ist die einzige Backend-Option.
+- **🇩🇪 🇬🇧 Two language profiles — DE (NfL/BZF) & EN (ICAO)** — switchable
+  at runtime in the settings; **German** stays the default. **German**
+  models VFR radio phraseology per **NfL Sprechfunk 2024** (DACH region)
+  with an optional **BZF strict mode** that checks your readbacks for
+  completeness the way an examiner would. **English** follows the
+  self-contained **ICAO VFR phraseology** (ICAO Annex 10 Vol II / Doc 4444 /
+  EASA SERA) — not a translation of the German profile, but its own standard
+  wording and number/callsign pronunciation.
+- **🛬 Traffic pattern** — the full pattern flow at controlled and
+  uncontrolled airfields: entry, downwind, base, final, landing,
+  touch-and-go, go-around — including landing sequencing ("you are number
+  two, follow the traffic").
+- **🗺️ Cross country** — the complete cross-country flight: departure
+  clearance, en-route frequency changes and the approach flow between
+  airfields. The approach controller proactively hands you off to the tower
+  with the destination frequency.
+- **🗼 Airfield types** — the plugin automatically detects the kind of air
+  traffic service at each airfield and adapts phraseology and flow
+  accordingly:
+  - **Uncontrolled** — self-information via UNICOM/CTAF (self-announcements,
+    no clearances).
+  - **With tower** — controlled field with clearances over the tower
+    frequency.
+  - **With tower and ground** — additionally a separate ground control for
+    taxi clearances.
+  - **With AFIS** — airfield with a flight information service (information
+    rather than control): traffic and airfield information without binding
+    clearances.
+- **🎙️ Voice radio** — natural speech via push-to-talk (keyboard or
+  joystick). Context-aware **phraseology hints** show you what to say, and
+  the tower politely coaches you on poor radio discipline.
+- **🤖 AI support** — speech recognition → intent understanding → speech
+  synthesis, plus automatic **ATIS broadcasts** from live weather and
+  **traffic advisories** about surrounding aircraft.
+- **💻 Local AI & ☁️ Cloud AI** — choose your mode at runtime:
+  - **Local** (Apple Silicon) — runs **100% offline** after a one-time model
+    download. No subscription, no API key, no constant internet.
+  - **OpenAI Cloud** (any Mac) — with your own API key.
+  - **Mistral Cloud** (any Mac) — with your own API key; speaks German
+    without a US accent.
+- **🪟 Windows (cloud-only, fully supported)** — a pure cloud build for
+  X-Plane 12 on Windows is included (`win_x64/xp_wellys_vfr_atc.xpl`, OpenAI
+  **or** Mistral, API key in the Windows Credential Manager). **Verified
+  end-to-end on real Windows 11 hardware** (Shadow cloud PC, Windows 11,
+  NVIDIA GPU): a complete VFR round trip out of **Friedrichshafen (EDNY)** —
+  plugin loading, microphone/PTT, the full STT→ATC→TTS pipeline and the API
+  key in the Credential Manager all work flawlessly. Local offline AI is
+  **not** available on Windows (no Apple Silicon / no Metal); the cloud
+  (OpenAI or Mistral, API key required) is the only backend option.
 
-## Wofür Welly's ATC gedacht ist
+## What Welly's ATC is for
 
-> **Dieses Plugin ist in erster Linie an der REALITÄT orientiert.** Das Ziel
-> ist, die VFR-Funkverfahren so echt wie möglich nachzubilden — auf Deutsch
-> nach NfL/BZF, auf Englisch nach ICAO —, damit du **für künftige Examen und
-> Prüfungen — etwa das BZF — trainieren und üben** kannst. Wir arbeiten
-> kontinuierlich darauf hin, die Phraseologie und die ATC-Abläufe noch näher
-> an die Praxis zu bringen.
+> **This plugin is first and foremost oriented toward REALITY.** The goal is
+> to reproduce VFR radio procedures as authentically as possible — in German
+> per NfL/BZF, in English per ICAO — so that you can **train and practice for
+> future exams and tests, such as the BZF**. We work continuously toward
+> bringing the phraseology and the ATC flows even closer to real practice.
 
-**Haftungsausschluss.** Welly's ATC ist ein Übungs- und Trainingswerkzeug
-für die Flugsimulation. Es ist **keine offizielle Zertifizierung, kein
-Lehrmittel im Sinne einer anerkannten Ausbildung und kein Ersatz für eine
-echte Prüfungsvorbereitung**. Wir übernehmen **keine Verantwortung und geben
-keinerlei Garantie auf das Bestehen einer Prüfung oder eines Examens**. Die
-Nutzung erfolgt auf eigene Verantwortung; für die Korrektheit der
-abgebildeten Phraseologie wird keine Gewähr übernommen. Korrekturen von
-BZF-Inhabern sind ausdrücklich willkommen.
+**Disclaimer.** Welly's ATC is a practice and training tool for flight
+simulation. It is **not an official certification, not an educational
+resource in the sense of accredited training, and not a substitute for real
+exam preparation**. We accept **no responsibility and give no guarantee
+whatsoever regarding passing any test or exam**. Use is at your own risk; no
+warranty is given for the correctness of the phraseology shown. Corrections
+from BZF holders are expressly welcome.
 
-## Was es (noch) nicht kann
+## What it can't do (yet)
 
-- **Kein IFR** — kein Instrumentenflug, keine IFR-Freigaben, keine
-  Flugplanung, kein FMS-/Routing.
-- **Deutsch & Englisch, kein FR/IT** — die VFR-Phraseologie gibt es als
-  deutsches (NfL/BZF, Standard) und englisches (ICAO) Profil. Weitere
-  Sprachen — etwa Französisch oder Italienisch für die Westschweiz oder das
-  Tessin — sind nicht vorgesehen.
-- **Lokaler Modus nur auf Apple Silicon** — Intel-Macs können das Plugin
-  nutzen, aber nur im Cloud-Modus (OpenAI oder Mistral, API-Key nötig).
-- **Keine lokale Offline-KI unter Windows** — der Windows-Build ist voll
-  unterstützt und auf echter Windows-11-Hardware verifiziert, läuft aber
-  ausschliesslich im Cloud-Modus (OpenAI oder Mistral, API-Key nötig);
-  lokale Modelle brauchen Apple Silicon / Metal.
-- **Noch nicht modelliert** — Wirbelschleppen-Staffelung, frei wählbare
-  Rollwege (aktuell immer „via Alpha"), grosse Hub-Flugplätze (LSZH, LSGG …)
-  mit Delivery-Workflow, sowie ein virtueller Co-Pilot / Checklisten-Reader.
+- **No IFR** — no instrument flight, no IFR clearances, no flight planning,
+  no FMS/routing.
+- **German & English, no FR/IT** — VFR phraseology comes as a German
+  (NfL/BZF, default) and an English (ICAO) profile. Further languages — such
+  as French or Italian for western Switzerland or Ticino — are not planned.
+- **Local mode on Apple Silicon only** — Intel Macs can use the plugin, but
+  only in cloud mode (OpenAI or Mistral, API key required).
+- **No local offline AI on Windows** — the Windows build is fully supported
+  and verified on real Windows 11 hardware, but runs exclusively in cloud
+  mode (OpenAI or Mistral, API key required); local models need Apple
+  Silicon / Metal.
+- **Not modeled yet** — wake-turbulence separation, freely selectable taxi
+  routes (currently always "via Alpha"), large hub airports (LSZH, LSGG …)
+  with a delivery workflow, and a virtual co-pilot / checklist reader.
 
-> Eine ausführliche Aufstellung der Einschränkungen samt Aufwandsschätzung
-> steht in der [technischen Dokumentation](docs/README.md#bekannte-einschränkungen).
+> A detailed breakdown of the limitations including effort estimates is in
+> the [technical documentation](docs/README.md#bekannte-einschränkungen).
 
-## Companion-Plugin: Welly's VFR Trainer
+## Companion plugin: Welly's VFR Trainer
 
-**[Welly's VFR Trainer](https://github.com/rwellinger/xp_wellys_vfr_trainer)** ist
-ein optionaler Gamification-Aufsatz für Welly's ATC: Er schlägt VFR-Flüge im
-DACH-Raum nach Flugplatz-Schwierigkeit vor und bewertet nach der Landung deinen
-Flug, indem er die ATC-Funksprüche dieses Plugins mit den Flugdaten
-zeitkorreliert und vom LLM beurteilen lässt. Welly's ATC funktioniert vollständig
-eigenständig — der Trainer ist rein optional.
+**[Welly's VFR Trainer](https://github.com/rwellinger/xp_wellys_vfr_trainer)** is
+an optional gamification layer on top of Welly's ATC: it suggests VFR flights
+in the DACH region by airfield difficulty and, after landing, rates your
+flight by time-correlating this plugin's ATC radio calls with the flight data
+and having the LLM judge them. Welly's ATC works fully on its own — the
+trainer is purely optional.
 
-## 📖 Technische Dokumentation
+## 📖 Technical documentation
 
-Installation, Schnellstart, Backend-Modi, Build aus Quellcode, lokale
-Inferenz-Modelle, Konfiguration, Architektur und Entwicklungs-Workflow:
+Installation, quick start, backend modes, building from source, local
+inference models, configuration, architecture and development workflow:
 
 **→ [docs/README.md](docs/README.md)**
 
-## Lizenz
+## License
 
 [GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0.html)
-— Details und die Aufschlüsselung der Drittanbieter-Abhängigkeiten in der
-[technischen Dokumentation](docs/README.md#lizenz) bzw. in
+— details and the breakdown of third-party dependencies are in the
+[technical documentation](docs/README.md#lizenz) and in
 [`THIRD_PARTY.md`](THIRD_PARTY.md).

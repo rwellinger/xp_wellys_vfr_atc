@@ -1,5 +1,5 @@
 /*
- * xp_wellys_devfr_atc - headless CLI
+ * xp_wellys_vfr_atc - headless CLI
  *
  * Minimal settings::* implementations so the engine OBJECT library
  * links in the CLI without pulling in the plugin-only settings.cpp

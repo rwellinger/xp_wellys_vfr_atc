@@ -1,5 +1,5 @@
 /*
- * xp_wellys_devfr_atc - AI-powered ATC voice communication for X-Plane 12
+ * xp_wellys_vfr_atc - AI-powered ATC voice communication for X-Plane 12
  * Copyright (C) 2026 thWelly & Claude (Anthropic)
  *
  * Licensed under the GNU GPL-3.0-or-later. See LICENSE.
@@ -167,7 +167,7 @@ void init() {
     // a user with manually-dropped models bypasses the downloader).
     char buf[160];
     std::snprintf(buf, sizeof(buf),
-                  "[xp_wellys_devfr_atc][ERROR] curl_global_init failed: %s\n",
+                  "[xp_wellys_vfr_atc][ERROR] curl_global_init failed: %s\n",
                   curl_easy_strerror(rc));
     // logging::set_sink may not be wired yet at this exact call site
     // depending on init order; fall back to fprintf which the plugin

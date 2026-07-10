@@ -1,5 +1,5 @@
 /*
- * xp_wellys_devfr_atc - AI-powered ATC voice communication for X-Plane 12
+ * xp_wellys_vfr_atc - AI-powered ATC voice communication for X-Plane 12
  * Copyright (C) 2026 thWelly & Claude (Anthropic)
  *
  * Licensed under the GNU GPL-3.0-or-later. See LICENSE.

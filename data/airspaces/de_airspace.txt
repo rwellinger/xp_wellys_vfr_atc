@@ -1,4 +1,4 @@
-* xp_wellys_devfr_atc — bundled German VFR airspace starter set (OpenAir)
+* xp_wellys_vfr_atc — bundled German VFR airspace starter set (OpenAir)
 * =======================================================================
 * SAMPLE DATA. This is a small, representative set of German airspaces so
 * the 3-D airspace DB (openair_db) is functional out of the box. It is NOT

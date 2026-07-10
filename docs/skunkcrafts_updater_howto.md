@@ -1,7 +1,7 @@
 # SkunkCrafts Updater — Integrations-HOWTO
 
 Wie man ein X-Plane-Addon für den **SkunkCrafts Updater** updatefähig macht.
-Diese Anleitung dokumentiert jeden Schritt, der in `xp_wellys_devfr_atc`
+Diese Anleitung dokumentiert jeden Schritt, der in `xp_wellys_vfr_atc`
 gemacht wurde, so dass sie sich 1:1 auf weitere Projekte übertragen lässt.
 **Projekt-spezifische Stellen sind mit 🔧 markiert** — das sind die einzigen
 Dinge, die du pro Projekt anpassen musst.

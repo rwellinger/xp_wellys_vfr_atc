@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SkunkCrafts Updater control-file generator for xp_wellys_devfr_atc.
+SkunkCrafts Updater control-file generator for xp_wellys_vfr_atc.
 
 Walks an installed plugin tree and emits the three server-side control files
 the updater compares against:
@@ -26,7 +26,7 @@ also stay out of the blacklist, which DELETES.
 
 Usage:
     python3 tools/skunkcrafts/generate.py \
-        --tree  "<X-Plane>/Resources/available plugins/xp_wellys_devfr_atc" \
+        --tree  "<X-Plane>/Resources/available plugins/xp_wellys_vfr_atc" \
         --version 0.4.0
 
 Run it against the *release* tree you are about to publish (the same layout

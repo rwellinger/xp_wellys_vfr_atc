@@ -138,7 +138,7 @@ sind typischerweise langsamer: 2–3 s warm, dominiert von der API-Latenz.
 
 Auf **macOS** wird das Plugin als **Universal Binary** ausgeliefert — ein
 `.xpl`, zwei Slices. X-Plane lädt automatisch den passenden. Für **Windows**
-gibt es einen separaten, reinen Cloud-Build (`win_x64/xp_wellys_devfr_atc.xpl`).
+gibt es einen separaten, reinen Cloud-Build (`win_x64/xp_wellys_vfr_atc.xpl`).
 
 | Plattform | Geladener Slice / Build | Verfügbare Backends |
 |---|---|---|
@@ -181,26 +181,26 @@ lokaler Inferenz.
 
 ## Schnellstart (vorgefertigtes Release)
 
-1. Lade `xp_wellys_devfr_atc-vX.Y.Z.zip` von der GitHub-Releases-Seite. Der
+1. Lade `xp_wellys_vfr_atc-vX.Y.Z.zip` von der GitHub-Releases-Seite. Der
    macOS-`.xpl` darin ist ein Universal Binary für arm64 und x86_64; der
    Windows-`.xpl` liegt im `win_x64/`-Ordner (cloud-only).
 2. Entpacke nach `X-Plane 12/Resources/plugins/`. Ergebnis:
    ```
-   X-Plane 12/Resources/plugins/xp_wellys_devfr_atc/
+   X-Plane 12/Resources/plugins/xp_wellys_vfr_atc/
      ├── mac_x64/
-     │     ├── xp_wellys_devfr_atc.xpl       (universal: arm64 + x86_64)
+     │     ├── xp_wellys_vfr_atc.xpl       (universal: arm64 + x86_64)
      │     ├── libpiper.dylib          (nur vom arm64-Slice genutzt)
      │     ├── libonnxruntime.1.22.0.dylib
      │     └── libonnxruntime.dylib
      ├── win_x64/
-     │     └── xp_wellys_devfr_atc.xpl       (Windows x64, cloud-only, keine Extra-DLLs)
+     │     └── xp_wellys_vfr_atc.xpl       (Windows x64, cloud-only, keine Extra-DLLs)
      ├── Resources/
      │     └── espeak-ng-data/   (~19 MB, nur vom arm64-Slice genutzt)
      └── data/
            └── (ATC-Profil-Bundle, Prompt-Templates, VRP-Datenbank, etc.)
    ```
    Unter **Windows** lädt X-Plane 12 den `win_x64/`-Ordner. Der Ordnername
-   und der Dateiname `xp_wellys_devfr_atc.xpl` müssen exakt so bleiben —
+   und der Dateiname `xp_wellys_vfr_atc.xpl` müssen exakt so bleiben —
    eine generisch benannte `win.xpl` wird von X-Plane 12 unter Windows
    **still nicht** geladen.
 3. Starte X-Plane. Öffne das Plugin-Fenster über *Plugins → Welly's ATC*.
@@ -254,9 +254,9 @@ Nachvollziehen, welcher Modus eine Anfrage bedient hat: `Log.txt` grepen.
 
 | Tag in `Log.txt` | Bedeutung |
 |---|---|
-| `[xp_wellys_devfr_atc] BACKEND MODE: LOCAL ...` | Der Loader hat die lokale Pipeline hochgefahren. |
-| `[xp_wellys_devfr_atc] BACKEND MODE: OPENAI (api.openai.com) ...` | Der Loader hat die OpenAI-Cloud-Pipeline hochgefahren. |
-| `[xp_wellys_devfr_atc] BACKEND MODE: MISTRAL (api.mistral.ai) ...` | Der Loader hat die Mistral-Cloud-Pipeline hochgefahren. |
+| `[xp_wellys_vfr_atc] BACKEND MODE: LOCAL ...` | Der Loader hat die lokale Pipeline hochgefahren. |
+| `[xp_wellys_vfr_atc] BACKEND MODE: OPENAI (api.openai.com) ...` | Der Loader hat die OpenAI-Cloud-Pipeline hochgefahren. |
+| `[xp_wellys_vfr_atc] BACKEND MODE: MISTRAL (api.mistral.ai) ...` | Der Loader hat die Mistral-Cloud-Pipeline hochgefahren. |
 | `[STT-LOCAL] / [LM-LOCAL] / [TTS-LOCAL]` | Per-Aufruf-Audit für jede lokale Inferenz. |
 | `[STT-OPENAI] / [LM-OPENAI] / [TTS-OPENAI]` | Per-Aufruf-Audit für jede OpenAI-Cloud-Inferenz. Der API-Key wird auf seine letzten 4 Zeichen gekürzt (`sk-...ABCD`). |
 | `[STT-MISTRAL] / [LM-MISTRAL] / [TTS-MISTRAL]` | Per-Aufruf-Audit für jede Mistral-Cloud-Inferenz. Der API-Key wird auf seine letzten 4 Zeichen gekürzt (`...ABCD`; kein `sk-`-Präfix — Mistral-Keys sind nicht OpenAI-formatiert). |
@@ -329,9 +329,9 @@ Implementierung:
 
 ```sh
 git clone --recurse-submodules <repo-url>
-cd xp_wellys_devfr_atc
+cd xp_wellys_vfr_atc
 make setup     # X-Plane SDK, Dear ImGui, nlohmann/json, Catch2, Spike-Submodule
-make build     # Universal-Release-Build → build/xp_wellys_devfr_atc.xpl (arm64
+make build     # Universal-Release-Build → build/xp_wellys_vfr_atc.xpl (arm64
                # mit allen drei Backends + x86_64 cloud-only, zu einem
                # .xpl lipo'd). Das ist das einzige Build-Target — es gibt
                # keinen arm64-only-Schnellpfad mehr.
@@ -355,7 +355,7 @@ alles lokal. Der x86_64-Slice hat keinerlei onnxruntime- / Piper- /
 whisper- / llama-Abhängigkeit; er linkt nur gegen libcurl + die
 System-Frameworks (Security, AudioToolbox usw.) und die Cloud-Clients.
 
-**Windows-Build.** Der `win_x64/xp_wellys_devfr_atc.xpl` wird mit **MSVC via
+**Windows-Build.** Der `win_x64/xp_wellys_vfr_atc.xpl` wird mit **MSVC via
 CMake auf `windows-latest` in CI** gebaut (nicht lokal auf dem Mac). Er ist
 cloud-only (`XPWELLYS_USE_LOCAL_INFERENCE=OFF`, kein whisper.cpp/llama.cpp/
 Piper/onnxruntime/Metal) und funktional identisch zum Intel-`x86_64`-Slice:
@@ -441,6 +441,15 @@ und Mistral-API-Keys sind die einzigen Geheimnisse — beide liegen im
 macOS Keychain unter separaten Service-Einträgen
 (`com.xp_wellys_devfr_atc.openai`, `com.xp_wellys_devfr_atc.mistral`), nie in dieser
 Datei.
+
+> **Hinweis:** Die Keychain-Service-Namen, die Plugin-Signature
+> (`ch.thWelly.wellys_devfr_atc`), die PTT-Befehle
+> (`xp_wellys_devfr_atc/ptt` usw.) und die User-Verzeichnisse unter
+> `Output/preferences/xp_wellys_devfr_atc` / `Output/xp_wellys_devfr_atc`
+> tragen weiterhin den alten `devfr`-Namen. Das ist Absicht: So behalten
+> Bestandsinstallationen ihre gespeicherten API-Keys, Tastenbelegungen und
+> lokalen Overrides nach der Umbenennung des Projekts auf
+> `xp_wellys_vfr_atc`.
 
 Das Plugin ist fest auf das **DE-Profil** (NfL DACH-VFR) eingestellt; es
 gibt keine Profilauswahl mehr (`atc_profile` ist konstant `DE`, die

@@ -1,5 +1,5 @@
 /*
- * xp_wellys_devfr_atc - headless CLI
+ * xp_wellys_vfr_atc - headless CLI
  *
  * REPL command dispatcher. Context lives in xplane_context::g_cli_ctx
  * (same as the scenario runner); every command reads/writes it directly

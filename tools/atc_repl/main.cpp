@@ -1,5 +1,5 @@
 /*
- * xp_wellys_devfr_atc — headless CLI
+ * xp_wellys_vfr_atc — headless CLI
  *
  * Three modes:
  *   atc_repl run <file.json> [<file.json> ...]   scenario batch (M3)

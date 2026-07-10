@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 
 XPLANE_ROOT := /Users/robertw/X-Plane 12
-PLUGIN_DIR  := $(XPLANE_ROOT)/Resources/available plugins/xp_wellys_devfr_atc
+PLUGIN_DIR  := $(XPLANE_ROOT)/Resources/available plugins/xp_wellys_vfr_atc
 
 SDK_SENTINEL    := sdk/XPLM/XPLMPlugin.h
 IMGUI_SENTINEL  := vendor/imgui/imgui.h
@@ -47,17 +47,17 @@ all: clean format build lint test
 
 # ── Help ──────────────────────────────────────────────────────────────────────
 help:
-	@echo "xp_wellys_devfr_atc - Makefile targets"
+	@echo "xp_wellys_vfr_atc - Makefile targets"
 	@echo ""
 	@echo "  make                   Show this help (default)"
 	@echo "  make all               clean + format + build + lint"
 	@echo "  make setup             Sync submodules to pinned commits + download X-Plane SDK, Dear ImGui, nlohmann/json, Catch2"
 	@echo "  make setup-cloud       Cloud-only deps (SDK, ImGui, json, Catch2) WITHOUT submodules — for the fast CI sanity build"
 	@echo "  make submodules        Force-sync git submodules (whisper.cpp, llama.cpp, Piper) to pinned commits"
-	@echo "  make build             Build universal plugin (arm64 local+cloud, x86_64 cloud-only) -> build/xp_wellys_devfr_atc.xpl"
+	@echo "  make build             Build universal plugin (arm64 local+cloud, x86_64 cloud-only) -> build/xp_wellys_vfr_atc.xpl"
 	@echo "  make ci-fast           Fast cloud-only arm64 sanity build + unit/scenario tests (no submodules, no local backends)"
 	@echo "  make ci-remote         Trigger the GitHub CI (fast macOS + Windows slice) on the current branch via gh (builds the PUSHED state)"
-	@echo "  make win-artifact      Download the newest Windows CI artifact (xp_wellys_devfr_atc-win) via gh -> dist-win/"
+	@echo "  make win-artifact      Download the newest Windows CI artifact (xp_wellys_vfr_atc-win) via gh -> dist-win/"
 	@echo "  make repl              Build headless CLI -> build/atc_repl"
 	@echo "  make run-repl          Build + run the CLI (stdin transcripts)"
 	@echo "  make test              Run unit tests + scenario tests"
@@ -189,19 +189,19 @@ $(CATCH2_SENTINEL):
 	@echo "Catch2 installed."
 
 # ── Build ─────────────────────────────────────────────────────────────────────
-# Always produces a universal xp_wellys_devfr_atc.xpl that contains both an
+# Always produces a universal xp_wellys_vfr_atc.xpl that contains both an
 # arm64 slice (whisper.cpp + llama.cpp + Piper + OpenAI) and an x86_64
 # slice (OpenAI only — Metal + the onnxruntime prebuilt are Apple
 # Silicon only). The two slices share src/ and CMakeLists.txt but
 # differ via -DXPWELLYS_USE_LOCAL_INFERENCE.
 #
 # Strategy: two separate CMake configures (build-arm64/, build-x86_64/),
-# each producing its own .xpl, then lipo-merged into build/xp_wellys_devfr_atc.xpl.
+# each producing its own .xpl, then lipo-merged into build/xp_wellys_vfr_atc.xpl.
 # The arm64 slice ships libpiper.dylib + libonnxruntime.dylib next to the
 # .xpl so they're picked up by @loader_path; the x86_64 slice has no
 # such dylibs to ship.
 #
-# `make install` copies build/xp_wellys_devfr_atc.xpl into the plugin dir
+# `make install` copies build/xp_wellys_vfr_atc.xpl into the plugin dir
 # together with the staged dylibs.
 # `RELEASE_FLAG` is passed through to both CMake configure calls so the
 # GitHub Actions workflow can flip `-DRELEASE=ON` for tag-driven
@@ -210,7 +210,7 @@ $(CATCH2_SENTINEL):
 RELEASE_FLAG ?=
 
 build: $(SUBMODULES_SENTINEL) $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $(CATCH2_SENTINEL)
-	@echo "=== Building universal xp_wellys_devfr_atc (arm64 local+cloud, x86_64 cloud-only) ==="
+	@echo "=== Building universal xp_wellys_vfr_atc (arm64 local+cloud, x86_64 cloud-only) ==="
 	@echo ""
 	@echo "--- arm64 slice (local + cloud) ---"
 	cmake -B build-arm64 -DCMAKE_BUILD_TYPE=Release $(RELEASE_FLAG) \
@@ -231,9 +231,9 @@ build: $(SUBMODULES_SENTINEL) $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL)
 	@echo "--- lipo merge ---"
 	@mkdir -p build
 	lipo -create \
-	    build-arm64/xp_wellys_devfr_atc.xpl \
-	    build-x86_64/xp_wellys_devfr_atc.xpl \
-	    -output build/xp_wellys_devfr_atc.xpl
+	    build-arm64/xp_wellys_vfr_atc.xpl \
+	    build-x86_64/xp_wellys_vfr_atc.xpl \
+	    -output build/xp_wellys_vfr_atc.xpl
 	@# Stage the arm64 slice's dylibs next to the merged binary so
 	@# `make install` finds them where it expects. The x86_64 slice
 	@# has no dylib dependencies (cloud-only build).
@@ -242,8 +242,8 @@ build: $(SUBMODULES_SENTINEL) $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL)
 	@cp build-arm64/libonnxruntime.dylib        build/
 	@cp -R build-arm64/espeak_ng-install        build/ 2>/dev/null || true
 	@echo ""
-	@file build/xp_wellys_devfr_atc.xpl
-	@lipo -info build/xp_wellys_devfr_atc.xpl
+	@file build/xp_wellys_vfr_atc.xpl
+	@lipo -info build/xp_wellys_vfr_atc.xpl
 	@echo "Done. Run 'make install' to deploy the universal .xpl."
 
 # ── CI fast sanity build ──────────────────────────────────────────────────────
@@ -263,16 +263,16 @@ ci-fast: $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $(CATCH2_SENTINEL)
 	    -DXPWELLYS_USE_LOCAL_INFERENCE=OFF \
 	    -DBUILD_TESTS=ON \
 	    -Wno-dev
-	cmake --build build-ci --target xp_wellys_devfr_atc_tests atc_repl xp_wellys_devfr_atc --parallel
+	cmake --build build-ci --target xp_wellys_vfr_atc_tests atc_repl xp_wellys_vfr_atc --parallel
 	@echo ""
 	@echo "=== Running unit tests ==="
 	@# Same rand+fixed-seed regime as `make test` (see Issue #3).
-	@./build-ci/xp_wellys_devfr_atc_tests --order rand --rng-seed 42
+	@./build-ci/xp_wellys_vfr_atc_tests --order rand --rng-seed 42
 	@echo ""
 	@echo "=== Running scenario tests ==="
 	./build-ci/atc_repl run testscripts/*.json
 	@echo ""
-	@file build-ci/xp_wellys_devfr_atc.xpl
+	@file build-ci/xp_wellys_vfr_atc.xpl
 	@echo "Fast sanity build clean."
 
 # ── Remote CI trigger (GitHub Actions) ────────────────────────────────────────
@@ -307,14 +307,14 @@ ci-remote:
 	echo "Then fetch the Windows drop-in with: make win-artifact"
 
 # Download the freshest Windows CI artifact into dist-win/ (drop-in tree:
-# win_x64/xp_wellys_devfr_atc.xpl + data/). Pulls from the most recent run
+# win_x64/xp_wellys_vfr_atc.xpl + data/). Pulls from the most recent run
 # that produced the artifact.
 win-artifact:
 	@command -v gh >/dev/null 2>&1 || { \
 	    echo "gh not found. Install with: brew install gh (then: gh auth login)"; exit 1; }
 	@rm -rf dist-win && mkdir -p dist-win
-	@echo "Downloading newest xp_wellys_devfr_atc-win artifact -> dist-win/ ..."
-	@gh run download -n xp_wellys_devfr_atc-win -D dist-win
+	@echo "Downloading newest xp_wellys_vfr_atc-win artifact -> dist-win/ ..."
+	@gh run download -n xp_wellys_vfr_atc-win -D dist-win
 	@echo "Done. Windows drop-in tree:"
 	@find dist-win -name '*.xpl' -print
 
@@ -334,9 +334,9 @@ run-repl: repl
 test: test-unit test-scenarios
 
 test-unit: $(SUBMODULES_SENTINEL) $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $(CATCH2_SENTINEL)
-	@echo "=== Building xp_wellys_devfr_atc unit tests ==="
+	@echo "=== Building xp_wellys_vfr_atc unit tests ==="
 	cmake -B build -DCMAKE_BUILD_TYPE=Release -Wno-dev
-	cmake --build build --target xp_wellys_devfr_atc_tests --parallel
+	cmake --build build --target xp_wellys_vfr_atc_tests --parallel
 	@echo ""
 	@echo "=== Running unit tests ==="
 	@# --order rand with a FIXED seed: reproducible in CI AND keeps Catch2's
@@ -345,8 +345,8 @@ test-unit: $(SUBMODULES_SENTINEL) $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTI
 	@# module-reset listener (tests/module_reset_listener.cpp), which resets
 	@# the engine module globals before every case. See Issue #3. Override
 	@# the seed locally to hunt new leaks, e.g.:
-	@#   ./build/xp_wellys_devfr_atc_tests --order rand --rng-seed 7
-	@./build/xp_wellys_devfr_atc_tests --order rand --rng-seed 42
+	@#   ./build/xp_wellys_vfr_atc_tests --order rand --rng-seed 7
+	@./build/xp_wellys_vfr_atc_tests --order rand --rng-seed 42
 
 test-scenarios: repl
 	@echo "=== Running scenario tests ==="
@@ -354,32 +354,32 @@ test-scenarios: repl
 
 # ── Install ───────────────────────────────────────────────────────────────────
 install:
-	@if [ ! -f "build/xp_wellys_devfr_atc.xpl" ]; then \
+	@if [ ! -f "build/xp_wellys_vfr_atc.xpl" ]; then \
 	    echo "Plugin not built yet. Run 'make build' first."; exit 1; \
 	fi
 	@if [ ! -f "build/libpiper.dylib" ] || [ ! -f "build/libonnxruntime.1.22.0.dylib" ]; then \
 	    echo "Runtime dylibs missing in build/. Did 'make build' succeed?"; exit 1; \
 	fi
-	@echo "=== Installing xp_wellys_devfr_atc ==="
+	@echo "=== Installing xp_wellys_vfr_atc ==="
 	@mkdir -p "$(PLUGIN_DIR)/mac_x64"
-	@cp build/xp_wellys_devfr_atc.xpl "$(PLUGIN_DIR)/mac_x64/"
+	@cp build/xp_wellys_vfr_atc.xpl "$(PLUGIN_DIR)/mac_x64/"
 	@cp build/libpiper.dylib "$(PLUGIN_DIR)/mac_x64/"
 	@cp build/libonnxruntime.1.22.0.dylib "$(PLUGIN_DIR)/mac_x64/"
 	@cp build/libonnxruntime.dylib "$(PLUGIN_DIR)/mac_x64/"
-	@xattr -dr com.apple.quarantine "$(PLUGIN_DIR)/mac_x64/xp_wellys_devfr_atc.xpl" 2>/dev/null || true
+	@xattr -dr com.apple.quarantine "$(PLUGIN_DIR)/mac_x64/xp_wellys_vfr_atc.xpl" 2>/dev/null || true
 	@xattr -dr com.apple.quarantine "$(PLUGIN_DIR)/mac_x64/libpiper.dylib" 2>/dev/null || true
 	@xattr -dr com.apple.quarantine "$(PLUGIN_DIR)/mac_x64/libonnxruntime.1.22.0.dylib" 2>/dev/null || true
 	@# Strip the dev-time rpaths (build/, source-tree onnxruntime path)
 	@# baked in by CMake and replace with @loader_path so the .xpl finds
 	@# the dylibs we just copied next to it.
-	@for rp in $$(otool -l "$(PLUGIN_DIR)/mac_x64/xp_wellys_devfr_atc.xpl" \
+	@for rp in $$(otool -l "$(PLUGIN_DIR)/mac_x64/xp_wellys_vfr_atc.xpl" \
 	    | awk '/LC_RPATH/{flag=1; next} flag && /path/ {print $$2; flag=0}'); do \
-	    install_name_tool -delete_rpath "$$rp" "$(PLUGIN_DIR)/mac_x64/xp_wellys_devfr_atc.xpl" 2>/dev/null || true; \
+	    install_name_tool -delete_rpath "$$rp" "$(PLUGIN_DIR)/mac_x64/xp_wellys_vfr_atc.xpl" 2>/dev/null || true; \
 	done
-	@install_name_tool -add_rpath "@loader_path" "$(PLUGIN_DIR)/mac_x64/xp_wellys_devfr_atc.xpl"
+	@install_name_tool -add_rpath "@loader_path" "$(PLUGIN_DIR)/mac_x64/xp_wellys_vfr_atc.xpl"
 	@codesign --force --deep --sign - "$(PLUGIN_DIR)/mac_x64/libonnxruntime.1.22.0.dylib"
 	@codesign --force --deep --sign - "$(PLUGIN_DIR)/mac_x64/libpiper.dylib"
-	@codesign --force --deep --sign - "$(PLUGIN_DIR)/mac_x64/xp_wellys_devfr_atc.xpl"
+	@codesign --force --deep --sign - "$(PLUGIN_DIR)/mac_x64/xp_wellys_vfr_atc.xpl"
 	@# Bundle espeak-ng-data (~19 MB) inside the plugin so Piper's
 	@# phonemizer finds its dictionary at runtime via the plugin-relative
 	@# path resolved by model_paths::espeakng_data_dir(). Models live in
@@ -456,7 +456,7 @@ lint: $(SUBMODULES_SENTINEL) $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) 
 
 # ── Sanitize ──────────────────────────────────────────────────────────────────
 # AddressSanitizer + UBSan on the SDK-free engine OBJECT lib + atc_repl +
-# Catch2 tests. The plugin module (`xp_wellys_devfr_atc.xpl`) is NOT instrumented —
+# Catch2 tests. The plugin module (`xp_wellys_vfr_atc.xpl`) is NOT instrumented —
 # ASan inside the X-Plane process is fragile on macOS ARM64. For runtime
 # leaks in the live plugin use Instruments.app (Leaks / Allocations
 # templates) attached to the X-Plane process.
@@ -467,13 +467,13 @@ lint: $(SUBMODULES_SENTINEL) $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) 
 sanitize: $(SUBMODULES_SENTINEL) $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $(CATCH2_SENTINEL)
 	@echo "=== Configuring sanitizer build (ASan + UBSan) ==="
 	cmake -B build-sanitize -DCMAKE_BUILD_TYPE=Debug -DXP_WELLYS_ATC_SANITIZE=ON -Wno-dev
-	@echo "=== Building atc_repl + xp_wellys_devfr_atc_tests with ASan + UBSan ==="
-	cmake --build build-sanitize --target atc_repl xp_wellys_devfr_atc_tests --parallel
+	@echo "=== Building atc_repl + xp_wellys_vfr_atc_tests with ASan + UBSan ==="
+	cmake --build build-sanitize --target atc_repl xp_wellys_vfr_atc_tests --parallel
 	@echo ""
 	@echo "=== Running unit tests under ASan + UBSan ==="
 	@ASAN_OPTIONS=detect_leaks=0:abort_on_error=1:print_stacktrace=1 \
 	 UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 \
-	     ./build-sanitize/xp_wellys_devfr_atc_tests
+	     ./build-sanitize/xp_wellys_vfr_atc_tests
 	@echo ""
 	@echo "=== Running scenario tests under ASan + UBSan ==="
 	@ASAN_OPTIONS=detect_leaks=0:abort_on_error=1:print_stacktrace=1 \

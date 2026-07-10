@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.26)
 # Objective-C++ is only used by the macOS UI/permission bridges
 # (clipboard.mm, mic_permission.mm). MSVC has no ObjC++ frontend, so the
 # language is enabled per-platform below rather than in project().
-project(xp_wellys_devfr_atc CXX)
+project(xp_wellys_vfr_atc CXX)
 if(APPLE)
     enable_language(OBJCXX)
 endif()
@@ -42,7 +42,7 @@ option(XPWELLYS_USE_LOCAL_INFERENCE
 # ── Sanitizer build (ASan + UBSan) ───────────────────────────────────────────
 # When ON, instruments the SDK-free engine OBJECT lib + atc_repl + Catch2
 # tests with AddressSanitizer + UndefinedBehaviorSanitizer. The plugin
-# module (`xp_wellys_devfr_atc.xpl`) and vendored libs (whisper/llama/piper/
+# module (`xp_wellys_vfr_atc.xpl`) and vendored libs (whisper/llama/piper/
 # ggml/imgui) are deliberately NOT instrumented — ASan inside the X-Plane
 # process is fragile on macOS ARM64, and those vendor trees aren't built
 # clean enough for sanitizers anyway.
@@ -270,7 +270,7 @@ if(XP_WELLYS_ATC_SANITIZE)
 endif()
 
 # ── Plugin MODULE (Engine + X-Plane-spezifisch) ──────────────────────────────
-add_library(xp_wellys_devfr_atc MODULE
+add_library(xp_wellys_vfr_atc MODULE
     $<TARGET_OBJECTS:xp_atc_engine>
     src/main.cpp
     src/atc/atc_session.cpp
@@ -322,12 +322,12 @@ add_library(xp_wellys_devfr_atc MODULE
 # issue #21); its single-header vendor dep is fetched by `make setup`
 # / the CI deps step and needs no extra link libraries.
 if(APPLE)
-    target_sources(xp_wellys_devfr_atc PRIVATE
+    target_sources(xp_wellys_vfr_atc PRIVATE
         src/audio/mic_permission.mm
         src/ui/clipboard.mm
     )
 elseif(WIN32)
-    target_sources(xp_wellys_devfr_atc PRIVATE
+    target_sources(xp_wellys_vfr_atc PRIVATE
         src/audio/mic_permission_win.cpp
         src/ui/clipboard_win.cpp
     )
@@ -338,14 +338,14 @@ if(XPWELLYS_USE_LOCAL_INFERENCE)
     # transitively. Static libs come from the spike submodules added
     # above. In the OpenAI-only build these TUs are not compiled at
     # all (and the loader is built without their includes).
-    target_sources(xp_wellys_devfr_atc PRIVATE
+    target_sources(xp_wellys_vfr_atc PRIVATE
         src/backends/whisper_stt.cpp
         src/backends/llama_lm.cpp
         src/backends/piper_tts.cpp
     )
 endif()
 
-target_include_directories(xp_wellys_devfr_atc PRIVATE
+target_include_directories(xp_wellys_vfr_atc PRIVATE
     ${CMAKE_SOURCE_DIR}/sdk
     ${CMAKE_SOURCE_DIR}/sdk/XPLM
     ${CMAKE_SOURCE_DIR}/sdk/XPWidgets
@@ -356,7 +356,7 @@ target_include_directories(xp_wellys_devfr_atc PRIVATE
 )
 
 if(XPWELLYS_USE_LOCAL_INFERENCE)
-    target_include_directories(xp_wellys_devfr_atc PRIVATE
+    target_include_directories(xp_wellys_vfr_atc PRIVATE
         # Local inference backends — headers from the spike submodules.
         ${SPIKES_DIR}/spike_whisper/third_party/whisper.cpp/include
         ${SPIKES_DIR}/spike_llama/third_party/llama.cpp/include
@@ -366,7 +366,7 @@ if(XPWELLYS_USE_LOCAL_INFERENCE)
     )
     # Surface the flag to C++ code so loader.cpp can #ifdef the
     # local-only includes + backend instantiation calls.
-    target_compile_definitions(xp_wellys_devfr_atc PRIVATE
+    target_compile_definitions(xp_wellys_vfr_atc PRIVATE
         XPWELLYS_USE_LOCAL_INFERENCE=1
     )
 endif()
@@ -375,16 +375,16 @@ endif()
 # win_x64/). The .xpl file MUST carry the plugin name on every platform:
 # X-Plane 12 on Windows silently fails to load a plugin whose per-arch file
 # is named generically (win.xpl) — it must be <plugin>/win_x64/
-# xp_wellys_devfr_atc.xpl, matching macOS mac_x64/xp_wellys_devfr_atc.xpl.
+# xp_wellys_vfr_atc.xpl, matching macOS mac_x64/xp_wellys_vfr_atc.xpl.
 # The .xpl suffix stays on both — on Windows it is a renamed DLL.
-set_target_properties(xp_wellys_devfr_atc PROPERTIES
-    OUTPUT_NAME "xp_wellys_devfr_atc"
+set_target_properties(xp_wellys_vfr_atc PROPERTIES
+    OUTPUT_NAME "xp_wellys_vfr_atc"
     SUFFIX      ".xpl"
     PREFIX      ""
 )
 
 if(APPLE)
-    target_compile_definitions(xp_wellys_devfr_atc PRIVATE
+    target_compile_definitions(xp_wellys_vfr_atc PRIVATE
         APL=1 IBM=0 LIN=0
         XPLM200=1 XPLM210=1 XPLM300=1 XPLM301=1 XPLM400=1
         XP_WELLYS_ATC_VERSION="${VERSION_STRING}"
@@ -395,13 +395,13 @@ if(APPLE)
         src/main.cpp src/ui/atc_ui.cpp
         PROPERTIES COMPILE_DEFINITIONS "GL_SILENCE_DEPRECATION"
     )
-    target_compile_options(xp_wellys_devfr_atc PRIVATE
+    target_compile_options(xp_wellys_vfr_atc PRIVATE
         -Wall -Wextra -Wno-unused-parameter
         -fvisibility=hidden
     )
 
     set(SDK_MAC_LIBS "${CMAKE_SOURCE_DIR}/sdk/Libraries/Mac")
-    target_link_libraries(xp_wellys_devfr_atc PRIVATE
+    target_link_libraries(xp_wellys_vfr_atc PRIVATE
         "${SDK_MAC_LIBS}/XPLM.framework/Versions/Current/XPLM"
         "${SDK_MAC_LIBS}/XPWidgets.framework/Versions/Current/XPWidgets"
         "-framework OpenGL"
@@ -422,7 +422,7 @@ if(APPLE)
     )
 
     if(XPWELLYS_USE_LOCAL_INFERENCE)
-        target_link_libraries(xp_wellys_devfr_atc PRIVATE
+        target_link_libraries(xp_wellys_vfr_atc PRIVATE
             # Local inference: whisper.cpp + llama.cpp build static
             # and link in directly. Piper is shared (libpiper.dylib)
             # and is resolved at runtime via @loader_path — see rpath
@@ -437,7 +437,7 @@ if(APPLE)
         # the installed bundle finds them via @loader_path (Makefile
         # install target copies libpiper.dylib +
         # libonnxruntime.<ver>.dylib next to the .xpl).
-        set_target_properties(xp_wellys_devfr_atc PROPERTIES
+        set_target_properties(xp_wellys_vfr_atc PROPERTIES
             BUILD_WITH_INSTALL_RPATH FALSE
             BUILD_RPATH "${CMAKE_BINARY_DIR};${ONNXRUNTIME_LIB_DIR}"
             INSTALL_RPATH "@loader_path"
@@ -446,32 +446,32 @@ if(APPLE)
         # Stage the runtime dependencies next to the built .xpl so a
         # fresh `cmake --build` produces a directory the install step
         # can copy verbatim.
-        add_custom_command(TARGET xp_wellys_devfr_atc POST_BUILD
+        add_custom_command(TARGET xp_wellys_vfr_atc POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "$<TARGET_FILE:piper>"
                 "${CMAKE_BINARY_DIR}/$<TARGET_FILE_NAME:piper>"
             COMMAND ${CMAKE_COMMAND} -E echo
-                "Staged libpiper next to xp_wellys_devfr_atc.xpl"
-            COMMENT "Staging libpiper.dylib alongside xp_wellys_devfr_atc.xpl"
+                "Staged libpiper next to xp_wellys_vfr_atc.xpl"
+            COMMENT "Staging libpiper.dylib alongside xp_wellys_vfr_atc.xpl"
         )
         # Copy only the actual onnxruntime dylibs (not pkgconfig + dSYM).
         # The versioned + unversioned (symlink-style) names both need
         # to be present so libpiper's
         # @rpath/libonnxruntime.1.22.0.dylib resolves.
-        add_custom_command(TARGET xp_wellys_devfr_atc POST_BUILD
+        add_custom_command(TARGET xp_wellys_vfr_atc POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${ONNXRUNTIME_LIB_DIR}/libonnxruntime.1.22.0.dylib"
                 "${CMAKE_BINARY_DIR}/libonnxruntime.1.22.0.dylib"
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${ONNXRUNTIME_LIB_DIR}/libonnxruntime.dylib"
                 "${CMAKE_BINARY_DIR}/libonnxruntime.dylib"
-            COMMENT "Staging libonnxruntime dylibs alongside xp_wellys_devfr_atc.xpl"
+            COMMENT "Staging libonnxruntime dylibs alongside xp_wellys_vfr_atc.xpl"
         )
     else()
         # OpenAI-only build: no shared dylibs to stage. @loader_path
         # still applies for the install (so future shared libs would
         # be found), but nothing actually resolves through it.
-        set_target_properties(xp_wellys_devfr_atc PROPERTIES
+        set_target_properties(xp_wellys_vfr_atc PROPERTIES
             BUILD_WITH_INSTALL_RPATH FALSE
             INSTALL_RPATH "@loader_path"
         )
@@ -482,15 +482,15 @@ elseif(WIN32)
     # libcurl, no whisper/llama/Piper/onnxruntime, no Metal. Built by
     # MSVC in CI (windows-latest) with libcurl from vcpkg. No @loader_path
     # / lipo / dylib staging — a single self-contained win.xpl DLL.
-    target_compile_definitions(xp_wellys_devfr_atc PRIVATE
+    target_compile_definitions(xp_wellys_vfr_atc PRIVATE
         APL=0 IBM=1 LIN=0
         XPLM200=1 XPLM210=1 XPLM300=1 XPLM301=1 XPLM400=1
         XP_WELLYS_ATC_VERSION="${VERSION_STRING}"
     )
-    target_compile_options(xp_wellys_devfr_atc PRIVATE /W3 /utf-8)
+    target_compile_options(xp_wellys_vfr_atc PRIVATE /W3 /utf-8)
 
     set(SDK_WIN_LIBS "${CMAKE_SOURCE_DIR}/sdk/Libraries/Win")
-    target_link_libraries(xp_wellys_devfr_atc PRIVATE
+    target_link_libraries(xp_wellys_vfr_atc PRIVATE
         "${SDK_WIN_LIBS}/XPLM_64.lib"
         "${SDK_WIN_LIBS}/XPWidgets_64.lib"
         opengl32

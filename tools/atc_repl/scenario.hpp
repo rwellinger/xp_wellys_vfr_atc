@@ -1,5 +1,5 @@
 /*
- * xp_wellys_devfr_atc - headless CLI
+ * xp_wellys_vfr_atc - headless CLI
  *
  * Scenario loader + runner. Parses JSON under testscripts/ into an
  * XPlaneContext + a list of pilot-say steps and drives them through

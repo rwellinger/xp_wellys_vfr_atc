@@ -1,5 +1,5 @@
 /*
- * xp_wellys_devfr_atc - headless CLI
+ * xp_wellys_vfr_atc - headless CLI
  *
  * Interactive REPL. Loads an initial context (scenario or default) and
  * dispatches commands: say/set/state/reset/load/help/quit. No readline,

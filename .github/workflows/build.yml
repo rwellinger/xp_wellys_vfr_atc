@@ -155,7 +155,7 @@ jobs:
 
       - name: Build (universal)
         # `make build` always produces a universal .xpl: two CMake configures
-        # lipo'd into one build/xp_wellys_devfr_atc.xpl that carries an arm64 slice
+        # lipo'd into one build/xp_wellys_vfr_atc.xpl that carries an arm64 slice
         # (whisper + llama + Piper + OpenAI) and an x86_64 slice (OpenAI-only).
         # Tag pushes flip -DRELEASE=ON so VERSION.txt gets baked into both
         # slices. libpiper.dylib + libonnxruntime.* are staged into build/
@@ -172,13 +172,13 @@ jobs:
         # + espeak-ng-data. The final `release` job downloads this, does the
         # rpath fixup + codesign, and folds it together with the Windows slice
         # into the drop-in ZIP. upload-artifact roots the archive at the
-        # common ancestor (build/), so the paths land as xp_wellys_devfr_atc.xpl,
+        # common ancestor (build/), so the paths land as xp_wellys_vfr_atc.xpl,
         # libpiper.dylib, ... , espeak_ng-install/share/espeak-ng-data/.
         uses: actions/upload-artifact@v4
         with:
-          name: xp_wellys_devfr_atc-mac
+          name: xp_wellys_vfr_atc-mac
           path: |
-            build/xp_wellys_devfr_atc.xpl
+            build/xp_wellys_vfr_atc.xpl
             build/libpiper.dylib
             build/libonnxruntime.1.22.0.dylib
             build/libonnxruntime.dylib
@@ -256,7 +256,7 @@ jobs:
   # GitHub Actions is the Windows compiler — no local MSVC toolchain
   # needed. Builds the same source tree with XPWELLYS_USE_LOCAL_INFERENCE=OFF
   # (no whisper/llama/Piper/onnxruntime, no Metal) into a self-contained
-  # win_x64/xp_wellys_devfr_atc.xpl (the per-arch .xpl MUST carry the plugin
+  # win_x64/xp_wellys_vfr_atc.xpl (the per-arch .xpl MUST carry the plugin
   # name, not win.xpl — X-Plane 12 on Windows silently skips a generically
   # named file). libcurl is linked statically from vcpkg (Schannel TLS)
   # so the artifact carries zero extra DLLs — a pure "unzip into
@@ -331,15 +331,15 @@ jobs:
 
       - name: Build (Release)
         shell: pwsh
-        run: cmake --build build-win --target xp_wellys_devfr_atc --parallel
+        run: cmake --build build-win --target xp_wellys_vfr_atc --parallel
 
       - name: Stage drop-in bundle
         shell: bash
         run: |
           set -euo pipefail
-          STAGE=dist/xp_wellys_devfr_atc
+          STAGE=dist/xp_wellys_vfr_atc
           mkdir -p "$STAGE/win_x64" "$STAGE/data/atc_profiles/de" "$STAGE/data/vrps" "$STAGE/data/airspaces"
-          cp build-win/xp_wellys_devfr_atc.xpl "$STAGE/win_x64/"
+          cp build-win/xp_wellys_vfr_atc.xpl "$STAGE/win_x64/"
           cp data/atc_prompt_templates.json "$STAGE/data/"
           cp data/models_catalog.json       "$STAGE/data/"
           cp data/settings.json             "$STAGE/data/"
@@ -351,8 +351,8 @@ jobs:
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
-          name: xp_wellys_devfr_atc-win
-          path: dist/xp_wellys_devfr_atc
+          name: xp_wellys_vfr_atc-win
+          path: dist/xp_wellys_vfr_atc
           if-no-files-found: error
 
   # ── Release: package both slices into one drop-in ZIP + publish ─────────────
@@ -378,19 +378,19 @@ jobs:
       - name: Download macOS slice
         uses: actions/download-artifact@v4
         with:
-          name: xp_wellys_devfr_atc-mac
+          name: xp_wellys_vfr_atc-mac
           path: mac-dist
 
       - name: Download Windows slice
         uses: actions/download-artifact@v4
         with:
-          name: xp_wellys_devfr_atc-win
+          name: xp_wellys_vfr_atc-win
           path: win-dist
 
       - name: Stage release bundle
         run: |
           set -euo pipefail
-          STAGE=dist/xp_wellys_devfr_atc
+          STAGE=dist/xp_wellys_vfr_atc
           mkdir -p "$STAGE/mac_x64"
           mkdir -p "$STAGE/win_x64"
           mkdir -p "$STAGE/Resources/espeak-ng-data"
@@ -400,23 +400,23 @@ jobs:
           mkdir -p "$STAGE/data/airspaces"
 
           # Windows slice (cloud-only, self-contained DLL — no extra libs).
-          cp win-dist/win_x64/xp_wellys_devfr_atc.xpl "$STAGE/win_x64/"
+          cp win-dist/win_x64/xp_wellys_vfr_atc.xpl "$STAGE/win_x64/"
 
           # macOS universal slice + its runtime dylibs (from the artifact).
-          cp mac-dist/xp_wellys_devfr_atc.xpl        "$STAGE/mac_x64/"
+          cp mac-dist/xp_wellys_vfr_atc.xpl        "$STAGE/mac_x64/"
           cp mac-dist/libpiper.dylib                 "$STAGE/mac_x64/"
           cp mac-dist/libonnxruntime.1.22.0.dylib    "$STAGE/mac_x64/"
           cp mac-dist/libonnxruntime.dylib           "$STAGE/mac_x64/"
 
-          for rp in $(otool -l "$STAGE/mac_x64/xp_wellys_devfr_atc.xpl" \
+          for rp in $(otool -l "$STAGE/mac_x64/xp_wellys_vfr_atc.xpl" \
                       | awk '/LC_RPATH/{flag=1; next} flag && /path/ {print $2; flag=0}'); do
-            install_name_tool -delete_rpath "$rp" "$STAGE/mac_x64/xp_wellys_devfr_atc.xpl" 2>/dev/null || true
+            install_name_tool -delete_rpath "$rp" "$STAGE/mac_x64/xp_wellys_vfr_atc.xpl" 2>/dev/null || true
           done
-          install_name_tool -add_rpath "@loader_path" "$STAGE/mac_x64/xp_wellys_devfr_atc.xpl"
+          install_name_tool -add_rpath "@loader_path" "$STAGE/mac_x64/xp_wellys_vfr_atc.xpl"
 
           codesign --force --deep --sign - "$STAGE/mac_x64/libonnxruntime.1.22.0.dylib"
           codesign --force --deep --sign - "$STAGE/mac_x64/libpiper.dylib"
-          codesign --force --deep --sign - "$STAGE/mac_x64/xp_wellys_devfr_atc.xpl"
+          codesign --force --deep --sign - "$STAGE/mac_x64/xp_wellys_vfr_atc.xpl"
 
           rsync -a --delete \
             mac-dist/espeak_ng-install/share/espeak-ng-data/ \
@@ -445,12 +445,12 @@ jobs:
           python3 tools/skunkcrafts/generate.py \
             --tree "$STAGE" --version "${GITHUB_REF_NAME#v}"
 
-          cd dist && zip -r xp_wellys_devfr_atc.zip xp_wellys_devfr_atc/
+          cd dist && zip -r xp_wellys_vfr_atc.zip xp_wellys_vfr_atc/
 
       - name: Create release with assets
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/xp_wellys_devfr_atc.zip
+          files: dist/xp_wellys_vfr_atc.zip
           generate_release_notes: true
 
       - name: Publish SkunkCrafts update tree
@@ -464,7 +464,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          STAGE=dist/xp_wellys_devfr_atc
+          STAGE=dist/xp_wellys_vfr_atc
           rm -rf "$STAGE/Resources/models"
           pushd "$STAGE"
           git init -q

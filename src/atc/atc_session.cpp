@@ -1,5 +1,5 @@
 /*
- * xp_wellys_devfr_atc - AI-powered ATC voice communication for X-Plane 12
+ * xp_wellys_vfr_atc - AI-powered ATC voice communication for X-Plane 12
  * Copyright (C) 2026 thWelly & Claude (Anthropic)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -204,7 +204,7 @@ speak_response(const std::string &text, model_manifest::VoiceRole role,
             char dbg[160];
             std::snprintf(
                 dbg, sizeof(dbg),
-                "[xp_wellys_devfr_atc][DEBUG] TTS produced %zu samples "
+                "[xp_wellys_vfr_atc][DEBUG] TTS produced %zu samples "
                 "@ %u Hz\n",
                 audio.pcm16.size(), audio.sample_rate_hz);
             XPLMDebugString(dbg);
@@ -217,7 +217,7 @@ speak_response(const std::string &text, model_manifest::VoiceRole role,
                                         settings::volume());
         } else {
           XPLMDebugString(
-              "[xp_wellys_devfr_atc][ERROR] TTS failed, skipping playback\n");
+              "[xp_wellys_vfr_atc][ERROR] TTS failed, skipping playback\n");
           state_ = PTTState::IDLE;
           if (on_failure)
             on_failure();
@@ -270,7 +270,7 @@ static void dispatch_guarded_tts() {
             char dbg[160];
             std::snprintf(
                 dbg, sizeof(dbg),
-                "[xp_wellys_devfr_atc][DEBUG] TTS produced %zu samples "
+                "[xp_wellys_vfr_atc][DEBUG] TTS produced %zu samples "
                 "@ %u Hz\n",
                 audio.pcm16.size(), audio.sample_rate_hz);
             XPLMDebugString(dbg);
@@ -289,7 +289,7 @@ static void dispatch_guarded_tts() {
           dialog_retry_timer_ = kDialogRetryDelaySec;
           char dbg[128];
           std::snprintf(dbg, sizeof(dbg),
-                        "[xp_wellys_devfr_atc] TTS failed (%d/%d), dialog "
+                        "[xp_wellys_vfr_atc] TTS failed (%d/%d), dialog "
                         "retry scheduled in %.0fs\n",
                         dialog_tts_failures_, kDialogMaxTtsTries,
                         kDialogRetryDelaySec);
@@ -300,7 +300,7 @@ static void dispatch_guarded_tts() {
         // Gave up — engage the revert guard and raise the network-error
         // flag so the UI surfaces the manual retry button.
         XPLMDebugString(
-            "[xp_wellys_devfr_atc][ERROR] TTS failed after retries, applying "
+            "[xp_wellys_vfr_atc][ERROR] TTS failed after retries, applying "
             "revert guard (squelch + state check)\n");
         const int com = settings::active_com();
         audio_player::play_squelch_burst(com);
@@ -491,7 +491,7 @@ void on_ptt_pressed() {
   if (state_ != PTTState::IDLE) {
     char buf[128];
     std::snprintf(buf, sizeof(buf),
-                  "[xp_wellys_devfr_atc] PTT blocked, state=%d\n",
+                  "[xp_wellys_vfr_atc] PTT blocked, state=%d\n",
                   static_cast<int>(state_));
     XPLMDebugString(buf);
     return;
@@ -502,7 +502,7 @@ void on_ptt_pressed() {
   const auto &ctx = xplane_context::get();
   if (!ctx.com_radio_powered) {
     XPLMDebugString(
-        "[xp_wellys_devfr_atc] PTT blocked - COM radio not powered\n");
+        "[xp_wellys_vfr_atc] PTT blocked - COM radio not powered\n");
     return;
   }
 
@@ -514,7 +514,7 @@ void on_ptt_pressed() {
   if (!backends::stt_ready() || !backends::lm_ready() ||
       !backends::tts_ready()) {
     XPLMDebugString(
-        "[xp_wellys_devfr_atc][ERROR] PTT blocked - local models not "
+        "[xp_wellys_vfr_atc][ERROR] PTT blocked - local models not "
         "loaded (open the plugin window to download)\n");
     return;
   }
@@ -523,7 +523,7 @@ void on_ptt_pressed() {
   audio_player::play_ptt_click();
   audio_recorder::start_recording();
   if (settings::debug_logging())
-    XPLMDebugString("[xp_wellys_devfr_atc][DEBUG] PTT pressed\n");
+    XPLMDebugString("[xp_wellys_vfr_atc][DEBUG] PTT pressed\n");
 }
 
 void on_ptt_released() {
@@ -540,7 +540,7 @@ void on_ptt_released() {
     char buf[128];
     std::snprintf(
         buf, sizeof(buf),
-        "[xp_wellys_devfr_atc] Recording too short (%.2fs), discarding\n",
+        "[xp_wellys_vfr_atc] Recording too short (%.2fs), discarding\n",
         last_duration_);
     XPLMDebugString(buf);
     state_ = PTTState::IDLE;
@@ -554,7 +554,7 @@ void on_ptt_released() {
   if (settings::debug_logging()) {
     char buf[256];
     std::snprintf(buf, sizeof(buf),
-                  "[xp_wellys_devfr_atc][DEBUG] Recording stopped: %.1fs, %zu "
+                  "[xp_wellys_vfr_atc][DEBUG] Recording stopped: %.1fs, %zu "
                   "samples @ %u Hz\n",
                   last_duration_, last_samples_, src_rate);
     XPLMDebugString(buf);
@@ -686,7 +686,7 @@ void submit_text(const std::string &text) {
   if (state_ != PTTState::IDLE) {
     char buf[128];
     std::snprintf(buf, sizeof(buf),
-                  "[xp_wellys_devfr_atc] submit_text blocked, state=%d\n",
+                  "[xp_wellys_vfr_atc] submit_text blocked, state=%d\n",
                   static_cast<int>(state_));
     XPLMDebugString(buf);
     return;
@@ -697,7 +697,7 @@ void submit_text(const std::string &text) {
   // downstream stages are identical to the voice path.
   if (!backends::lm_ready() || !backends::tts_ready()) {
     XPLMDebugString(
-        "[xp_wellys_devfr_atc][ERROR] submit_text blocked - LM/TTS not "
+        "[xp_wellys_vfr_atc][ERROR] submit_text blocked - LM/TTS not "
         "ready (open the plugin window to download)\n");
     return;
   }
@@ -720,12 +720,12 @@ void update() {
     if (atis_playing_) {
       atis_playing_ = false;
       if (settings::debug_logging())
-        XPLMDebugString("[xp_wellys_devfr_atc][DEBUG] ATIS playback finished, "
+        XPLMDebugString("[xp_wellys_vfr_atc][DEBUG] ATIS playback finished, "
                         "state -> IDLE\n");
     } else {
       if (settings::debug_logging())
         XPLMDebugString(
-            "[xp_wellys_devfr_atc][DEBUG] Playback finished, state -> IDLE\n");
+            "[xp_wellys_vfr_atc][DEBUG] Playback finished, state -> IDLE\n");
     }
     state_ = PTTState::IDLE;
   }
@@ -744,7 +744,7 @@ void update() {
       dialog_retry_timer_ = 0.0f;
       if (last_guarded_req_.valid) {
         XPLMDebugString(
-            "[xp_wellys_devfr_atc] Dialog TTS auto-retry firing\n");
+            "[xp_wellys_vfr_atc] Dialog TTS auto-retry firing\n");
         dispatch_guarded_tts();
       }
     }
@@ -836,7 +836,7 @@ void update() {
     state_ = PTTState::IDLE;
     if (settings::debug_logging())
       XPLMDebugString(
-          "[xp_wellys_devfr_atc][DEBUG] ATIS aborted: pilot retuned "
+          "[xp_wellys_vfr_atc][DEBUG] ATIS aborted: pilot retuned "
           "the COM that was playing ATIS\n");
   }
 
@@ -851,7 +851,7 @@ void update() {
     if (settings::debug_logging()) {
       char dbg[64];
       std::snprintf(dbg, sizeof(dbg), " (COM%d)", atis_com);
-      XPLMDebugString(("[xp_wellys_devfr_atc][DEBUG] ATIS triggered" +
+      XPLMDebugString(("[xp_wellys_vfr_atc][DEBUG] ATIS triggered" +
                        std::string(dbg) + ": " + atis_text + "\n")
                           .c_str());
     }
@@ -895,7 +895,7 @@ void update() {
           ++atis_tts_failures_;
           if (atis_tts_failures_ < kAtisMaxTtsTries) {
             atis_cooldown_ = kAtisRetryDelaySec;
-            XPLMDebugString("[xp_wellys_devfr_atc] ATIS TTS failed, retry "
+            XPLMDebugString("[xp_wellys_vfr_atc] ATIS TTS failed, retry "
                             "scheduled in 15s\n");
           } else {
             audio_player::play_squelch_burst(settings::active_com());
@@ -932,7 +932,7 @@ void retry_last_transmission() {
     return;
 
   XPLMDebugString(
-      "[xp_wellys_devfr_atc] Manual retry: replaying last transmission\n");
+      "[xp_wellys_vfr_atc] Manual retry: replaying last transmission\n");
   state_ = PTTState::PROCESSING;
   ++total_transcriptions_;
   dispatch_pilot_transcript(last_pilot_transcript_, last_pilot_quality_);

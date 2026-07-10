@@ -1,5 +1,5 @@
 /*
- * xp_wellys_devfr_atc - AI-powered ATC voice communication for X-Plane 12
+ * xp_wellys_vfr_atc - AI-powered ATC voice communication for X-Plane 12
  * Copyright (C) 2026 thWelly & Claude (Anthropic)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -334,7 +334,7 @@ static void build_towered_cache() {
   if (!file.is_open()) {
     char log[512];
     std::snprintf(log, sizeof(log),
-                  "[xp_wellys_devfr_atc] WARNING: Could not open %s\n",
+                  "[xp_wellys_vfr_atc] WARNING: Could not open %s\n",
                   apt_path.c_str());
     XPLMDebugString(log);
     towered_cache_ready_ = true;
@@ -342,7 +342,7 @@ static void build_towered_cache() {
   }
 
   XPLMDebugString(
-      "[xp_wellys_devfr_atc] Building airport cache from apt.dat...\n");
+      "[xp_wellys_vfr_atc] Building airport cache from apt.dat...\n");
 
   std::unordered_map<std::string, AirportFrequencies> freqs;
   std::unordered_map<std::string, std::vector<RunwayInfo>> runways;
@@ -496,7 +496,7 @@ static void build_towered_cache() {
   char log[256];
   std::snprintf(
       log, sizeof(log),
-      "[xp_wellys_devfr_atc] Airport cache ready: %zu with freqs (%zu "
+      "[xp_wellys_vfr_atc] Airport cache ready: %zu with freqs (%zu "
       "towered, %zu ATIS), %zu with runway data\n",
       freq_cache_.size(), towered_count, atis_count, runway_cache_.size());
   XPLMDebugString(log);
@@ -790,7 +790,7 @@ void update() {
             char mlog[256];
             std::snprintf(
                 mlog, sizeof(mlog),
-                "[xp_wellys_devfr_atc] Frequency match: %s (active COM "
+                "[xp_wellys_vfr_atc] Frequency match: %s (active COM "
                 "%u kHz) - switching active airport from %s\n",
                 cached_match_id.c_str(), com_khz,
                 ctx.geometric_nearest_id.c_str());
@@ -883,7 +883,7 @@ void update() {
         char dbg[256];
         std::snprintf(
             dbg, sizeof(dbg),
-            "[xp_wellys_devfr_atc][DEBUG] COM%d: %.3f MHz -> %s | Airport: %s "
+            "[xp_wellys_vfr_atc][DEBUG] COM%d: %.3f MHz -> %s | Airport: %s "
             "(%zu freqs, ATIS=%.3f, facility=%s, tower_only=%d)\n",
             ctx.active_com, active_freq,
             frequency_type_name(ctx.frequency_type),
@@ -909,7 +909,7 @@ void lock_airport(const std::string &icao) {
   // Apply immediately so ATC logic doesn't lag up to 1 s behind the click.
   populate_ctx_from_cache(icao, ctx.latitude, ctx.longitude);
   char log[128];
-  std::snprintf(log, sizeof(log), "[xp_wellys_devfr_atc] Airport lock: %s\n",
+  std::snprintf(log, sizeof(log), "[xp_wellys_vfr_atc] Airport lock: %s\n",
                 icao.c_str());
   XPLMDebugString(log);
 }
@@ -919,7 +919,7 @@ void unlock_airport() {
     return;
   char log[128];
   std::snprintf(log, sizeof(log),
-                "[xp_wellys_devfr_atc] Airport unlock (was %s)\n",
+                "[xp_wellys_vfr_atc] Airport unlock (was %s)\n",
                 locked_airport_id_.c_str());
   XPLMDebugString(log);
   locked_airport_id_.clear();
@@ -1003,7 +1003,7 @@ void set_standby_freq(uint32_t freq_khz) {
     if (settings::debug_logging()) {
       char dbg[128];
       std::snprintf(dbg, sizeof(dbg),
-                    "[xp_wellys_devfr_atc][DEBUG] Set COM%d standby to %u "
+                    "[xp_wellys_vfr_atc][DEBUG] Set COM%d standby to %u "
                     "(%.3f MHz)\n",
                     ctx.active_com, freq_khz,
                     static_cast<float>(freq_khz) / 1000.0f);

@@ -8,7 +8,7 @@ tust.
 
 ## Projektüberblick
 
-**xp_wellys_devfr_atc** ist ein C++17-Plugin für X-Plane 12 (**macOS 13.3+**),
+**xp_wellys_vfr_atc** ist ein C++17-Plugin für X-Plane 12 (**macOS 13.3+**),
 das KI-gestützte ATC-Sprechfunk-Kommunikation für die VFR-Flugsimulation
 bereitstellt. Es ist ein **reines Deutschland-VFR-Plugin**: modelliert
 ausschliesslich deutsche Phraseologie nach NfL Sprechfunk 2024 (DACH-VFR)
@@ -47,7 +47,7 @@ Der `x86_64`-Slice hat **keine** lokalen Backends einkompiliert; **OpenAI**
 oder **Mistral** ist die einzige Option auf Intel-Macs (der Loader
 schreibt `local` → `openai` beim Start für diesen Slice still um).
 
-**Windows-Slice (`win_x64/xp_wellys_devfr_atc.xpl`, cloud-only)** — die
+**Windows-Slice (`win_x64/xp_wellys_vfr_atc.xpl`, cloud-only)** — die
 per-arch `.xpl` MUSS den Plugin-Namen tragen (nicht `win.xpl`): X-Plane 12
 auf Windows lädt eine generisch benannte Datei still nicht. Funktional
 identisch
@@ -89,7 +89,7 @@ gebündelte `libpiper.dylib` des `arm64`-Slice gelinkt).
 
 ```bash
 make setup     # X-Plane SDK, Dear ImGui, nlohmann/json, Catch2, Spike-Submodule
-make build     # Universal-Release-Build → build/xp_wellys_devfr_atc.xpl (arm64+x86_64 lipo'd)
+make build     # Universal-Release-Build → build/xp_wellys_vfr_atc.xpl (arm64+x86_64 lipo'd)
 make install   # Code-Signing + Installation ins X-Plane-Plugins-Verzeichnis
 make all       # clean + format + build + lint + test (volle lokale CI)
 make repl      # headless atc_repl-Tool (kein X-Plane / kein Audio / keine Modelle)
@@ -111,12 +111,12 @@ N modul-eigene Resets. Neue Tests dürfen sich NICHT darauf verlassen, dass
 `flight_phase` ungeladen ist (frühere Falle: `ground_ctx()` mit `frequency_type=UNKNOWN`
 löste je nach Ladezustand den Wrong-Frequency-Hint-Guard aus) — immer eine realistische
 `frequency_type` setzen. Lokal neue Leaks jagen: andere Seeds durchprobieren, z. B.
-`./build/xp_wellys_devfr_atc_tests --order rand --rng-seed 7`.
+`./build/xp_wellys_vfr_atc_tests --order rand --rng-seed 7`.
 
 `make build` erzeugt stets das Universal Binary: CMake läuft zweimal —
 arm64 mit `XPWELLYS_USE_LOCAL_INFERENCE=ON` (build-arm64/), x86_64 mit
 demselben Flag `OFF` (build-x86_64/) — und `lipo`-merged die zwei `.xpl`s
-zu `build/xp_wellys_devfr_atc.xpl`. Das `libpiper.dylib` und
+zu `build/xp_wellys_vfr_atc.xpl`. Das `libpiper.dylib` und
 `libonnxruntime.{1.22.0,}.dylib` des arm64-Slice werden neben das
 lipo'd Binary gestaged, damit `make install` sie findet.
 `make release-build` ist derselbe Build mit durchgereichtem
@@ -134,7 +134,7 @@ angehängt an den X-Plane-Prozess, für Laufzeit-Leak-Jagd im Live-Plugin.
   kompiliert und gelinkt werden. Für den x86_64-Slice auf `OFF`; das
   resultierende Binary hat null lokalen Inferenz-Code.
 - Toolchain: Homebrew LLVM (`/opt/homebrew/opt/llvm`), `ccache` automatisch erkannt
-- Ausgabe: `build/xp_wellys_devfr_atc.xpl`; auf dem arm64-Slice zusätzlich
+- Ausgabe: `build/xp_wellys_vfr_atc.xpl`; auf dem arm64-Slice zusätzlich
   gestaged `libpiper.dylib` + `libonnxruntime.{1.22.0,}.dylib` neben dem
   `.xpl`, zur Laufzeit über `@loader_path`-rpath aufgelöst. Der
   x86_64-Slice hat keine dieser dylibs — ein deutlich kleineres Artefakt.
@@ -334,6 +334,20 @@ OpenAI-Key und für den Mistral-Key, sodass beide koexistieren und ein
 Moduswechsel nie erneutes Einfügen verlangt. Loggt nur die letzten 4
 Zeichen des Keys; ein vollständiger Key-Wert darf nie in `Log.txt`
 erscheinen.
+
+> **Hinweis Runtime-Identifier (`...devfr...` bewusst beibehalten).** Bei
+> der Umbenennung des Projekts auf `xp_wellys_vfr_atc` wurden vier Klassen
+> persistenter Laufzeit-Identifier **absichtlich** auf dem alten Namen
+> belassen, damit Bestandsinstallationen nichts verlieren: (1) die
+> Keychain-Services `com.xp_wellys_devfr_atc.{openai,mistral}` (sonst
+> müssten Nutzer ihre API-Keys neu eingeben), (2) die Plugin-Signature
+> `ch.thWelly.wellys_devfr_atc` (sonst behandelt X-Plane das Plugin als
+> neues Plugin), (3) die X-Plane-Command-Namen
+> `xp_wellys_devfr_atc/{ptt,atc_panel,transcript}` (sonst brechen
+> Tastenbelegungen), und (4) die User-State-Verzeichnisse
+> `Output/preferences/xp_wellys_devfr_atc` + `Output/xp_wellys_devfr_atc`
+> (halten `airspace.txt`-Override, Custom-VRPs, Flight-Logs — „survives
+> plugin re-installs"). Diese Strings NICHT „aufräumen".
 
 **`models_catalog`** — SDK-freier Loader für `data/models_catalog.json`.
 Exponiert die Per-Backend-STT/LM/TTS/Voice-Optionen. Die Settings-Dropdowns

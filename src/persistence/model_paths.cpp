@@ -1,5 +1,5 @@
 /*
- * xp_wellys_devfr_atc - AI-powered ATC voice communication for X-Plane 12
+ * xp_wellys_vfr_atc - AI-powered ATC voice communication for X-Plane 12
  * Copyright (C) 2026 thWelly & Claude (Anthropic)
  *
  * Licensed under the GNU GPL-3.0-or-later. See LICENSE.
@@ -81,7 +81,7 @@ void init() {
   XPLMGetPluginInfo(XPLMGetMyID(), nullptr, raw, nullptr, nullptr);
   std::string xpl_path = normalise_path(raw);
 
-  // .../plugins/xp_wellys_devfr_atc/mac_x64/xp_wellys_devfr_atc.xpl
+  // .../plugins/xp_wellys_vfr_atc/mac_x64/xp_wellys_vfr_atc.xpl
   //   ^ plugin_root              ^ platform_dir   ^ filename
   // Strip the filename, then strip the platform dir.
   auto pos = xpl_path.rfind('/');
@@ -103,7 +103,7 @@ void init() {
   // packaging error, not user state, and silently creating an empty
   // dir would mask that.
 
-  XPLMDebugString("[xp_wellys_devfr_atc] Plugin root resolved\n");
+  XPLMDebugString("[xp_wellys_vfr_atc] Plugin root resolved\n");
 }
 
 const std::string &plugin_root() {

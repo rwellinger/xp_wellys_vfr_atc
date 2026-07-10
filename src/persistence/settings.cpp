@@ -1,5 +1,5 @@
 /*
- * xp_wellys_devfr_atc - AI-powered ATC voice communication for X-Plane 12
+ * xp_wellys_vfr_atc - AI-powered ATC voice communication for X-Plane 12
  * Copyright (C) 2026 thWelly & Claude (Anthropic)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -132,7 +132,7 @@ static const char *kLegacyKeys[] = {
 
 void init() {
   // Resolve plugin path to find data/ directory
-  // Installed: .../plugins/xp_wellys_devfr_atc/mac_x64/xp_wellys_devfr_atc.xpl
+  // Installed: .../plugins/xp_wellys_vfr_atc/mac_x64/xp_wellys_vfr_atc.xpl
   // We need to go up 2 levels to reach the plugin root
   char plugin_path_raw[2048] = {};
   XPLMGetPluginInfo(XPLMGetMyID(), nullptr, plugin_path_raw, nullptr, nullptr);
@@ -185,7 +185,7 @@ void init() {
       }
     } catch (...) {
       XPLMDebugString(
-          "[xp_wellys_devfr_atc] Warning: failed to parse settings.json, "
+          "[xp_wellys_vfr_atc] Warning: failed to parse settings.json, "
           "using defaults\n");
       cfg = default_config();
       needs_save = true;
@@ -242,7 +242,7 @@ void init() {
   if (needs_save)
     save();
 
-  XPLMDebugString("[xp_wellys_devfr_atc] Settings loaded\n");
+  XPLMDebugString("[xp_wellys_vfr_atc] Settings loaded\n");
 }
 
 void stop() {}
@@ -295,7 +295,7 @@ void save() {
     out << cfg.dump(2) << std::endl;
   } else {
     XPLMDebugString(
-        "[xp_wellys_devfr_atc] Error: failed to write settings.json\n");
+        "[xp_wellys_vfr_atc] Error: failed to write settings.json\n");
   }
 }
 
@@ -545,7 +545,7 @@ void set_openai_tts_voice_ground(const std::string &v) {
 
 bool save_api_key(const std::string &key) {
   if (!persistence::keychain::save(key)) {
-    XPLMDebugString("[xp_wellys_devfr_atc] Error: failed to save API key to "
+    XPLMDebugString("[xp_wellys_vfr_atc] Error: failed to save API key to "
                     "Keychain\n");
     return false;
   }
@@ -625,7 +625,7 @@ void set_mistral_tts_voice_ground(const std::string &v) {
 
 bool save_mistral_api_key(const std::string &key) {
   if (!persistence::keychain::save(kMistralKcService, kMistralKcAccount, key)) {
-    XPLMDebugString("[xp_wellys_devfr_atc] Error: failed to save Mistral API "
+    XPLMDebugString("[xp_wellys_vfr_atc] Error: failed to save Mistral API "
                     "key to Keychain\n");
     return false;
   }

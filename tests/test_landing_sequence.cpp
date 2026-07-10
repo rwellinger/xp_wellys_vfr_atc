@@ -1,5 +1,5 @@
 /*
- * xp_wellys_devfr_atc - Phase-4 landing-sequence unit tests.
+ * xp_wellys_vfr_atc - Phase-4 landing-sequence unit tests.
  */
 
 #include "atc/landing_sequence.hpp"

@@ -1,5 +1,5 @@
 /*
- * xp_wellys_devfr_atc - AI-powered ATC voice communication for X-Plane 12
+ * xp_wellys_vfr_atc - AI-powered ATC voice communication for X-Plane 12
  * Copyright (C) 2026 thWelly & Claude (Anthropic)
  *
  * This program is free software: you can redistribute it and/or modify
@@ -26,7 +26,7 @@ static void emit(const char *level, const char *fmt, va_list ap) {
   std::vsnprintf(msg, sizeof(msg), fmt, ap);
 
   char line[1152];
-  std::snprintf(line, sizeof(line), "[xp_wellys_devfr_atc]%s %s\n", level, msg);
+  std::snprintf(line, sizeof(line), "[xp_wellys_vfr_atc]%s %s\n", level, msg);
 
   sink_(line);
 }
