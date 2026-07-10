@@ -84,12 +84,16 @@ jobs:
   # the xp_wellys_libs bundle (downloaded + SHA256-verified by `make setup`), so
   # there are no submodules, no whisper/llama/ggml/Piper/espeak compile, and no
   # espeak/onnx cache to manage — a deterministic ~5-8 min build, cold or warm.
-  # Runs ONLY on release tags. NO `needs: build-windows` — runs IN PARALLEL with
-  # the Windows slice; the two artifacts are folded together in `release`.
+  # Runs on release TAGS and on manual `workflow_dispatch` — the latter is a
+  # pre-release DRY RUN: it builds + uploads the artifact so you can confirm the
+  # full universal build works before cutting a tag, but the `release` job stays
+  # tag-only so nothing is published. NO `needs: build-windows` — runs IN
+  # PARALLEL with the Windows slice; the artifacts are folded together in
+  # `release` (tags only).
   build-macos-universal:
     runs-on: macos-15 # pinned — see build-macos-fast (matches test system)
     timeout-minutes: 25 # only the plugin's own ~40 TUs compile; libs are prebuilt
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v5
 
