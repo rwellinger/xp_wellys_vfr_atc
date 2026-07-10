@@ -189,7 +189,51 @@ jobs:
             build/espeak_ng-install/share/espeak-ng-data
           if-no-files-found: error
 
-  # ── Warm the default-branch deps cache (main pushes only) ───────────────────
+  # ── Detect whether this push actually moved a heavy dependency pin ──────────
+  # The `warm-deps` job below only earns its ~50 min cold cost when a submodule
+  # pin (whisper/llama/Piper) or `.gitmodules` changed — the ONLY time the arm64
+  # deps ccache genuinely needs rebuilding. A normal code commit changes none of
+  # them, so recompiling the third-party trees on every push was pure waste
+  # (and, worse, `cancel-in-progress` kept cancelling it before the ccache
+  # upload, so it never actually warmed anything). This cheap ubuntu gate lets
+  # warm-deps run ONLY on a real pin bump (or a manual workflow_dispatch to
+  # force a pre-release warm). Regular commits now cost just the ~4 min
+  # build-macos-fast green check. See Fix A / Epic (build-time) discussion.
+  detect-pin-change:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main' && !startsWith(github.event.head_commit.message, 'release ')) || github.event_name == 'workflow_dispatch'
+    outputs:
+      changed: ${{ steps.check.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Full history so `github.event.before` is reachable for the diff.
+          # No submodules: we only need the main-repo tree to see gitlink moves.
+          fetch-depth: 0
+      - name: Diff for submodule pin / .gitmodules changes
+        id: check
+        run: |
+          set -euo pipefail
+          BEFORE='${{ github.event.before }}'
+          # Manual dispatch, or a brand-new / force-pushed tip (all-zero before):
+          # warm unconditionally — we can't reliably diff, so err toward warming.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || \
+             [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Forcing warm (dispatch or no before-SHA)."
+            exit 0
+          fi
+          if git diff --name-only "$BEFORE" HEAD \
+               | grep -qE '^(\.gitmodules|spikes/.+/third_party)'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Submodule pin / .gitmodules changed -> warm-deps will run."
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No dependency-pin change -> skipping the heavy warm-deps build."
+          fi
+
+  # ── Warm the default-branch deps cache (only on a real pin bump) ────────────
   # NOT a release build — it uploads nothing and feeds no downstream job. Its
   # sole purpose is to recompile the heavy arm64 local-inference deps
   # (whisper/llama/ggml/Piper) into the DEFAULT-branch ccache and stage the
@@ -205,11 +249,12 @@ jobs:
   warm-deps:
     runs-on: macos-15 # pinned — see build-macos-fast (matches test system)
     timeout-minutes: 60 # bounds a cold submodule-bump rebuild; warm runs ~10-15 min
-    # SKIPPED for the `make release` version-bump commit ("release X.Y.Z"): its
-    # tag is pushed seconds later and its build-macos-universal runs concurrently,
-    # so this cache-warm couldn't warm THAT release anyway (ccache uploads only at
-    # job end). Regular dev merges to main (non-"release " messages) still warm it.
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && !startsWith(github.event.head_commit.message, 'release ')
+    # Gated by detect-pin-change: runs ONLY when a submodule pin / .gitmodules
+    # moved (or a manual workflow_dispatch), never on an ordinary code commit.
+    # detect-pin-change already excludes the `make release` version-bump commit
+    # ("release X.Y.Z") and non-main pushes, so those never reach here either.
+    needs: detect-pin-change
+    if: needs.detect-pin-change.outputs.changed == 'true'
     steps:
       - uses: actions/checkout@v5
         with:
