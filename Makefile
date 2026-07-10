@@ -16,20 +16,15 @@ CATCH2_SENTINEL := vendor/catch2/catch_amalgamated.hpp
 MINIAUDIO_VERSION  := 0.11.25
 MINIAUDIO_SENTINEL := vendor/miniaudio.h
 
-# One sentinel for the three submodule trees (whisper.cpp, llama.cpp,
-# Piper). They are all pulled in by a single
-# `git submodule update --init --recursive` invocation, so tracking
-# only the first one is sufficient — if it's missing, the whole
-# submodule init runs and lands all three.
-#
-# The sentinel only guarantees the trees EXIST (fast no-op once present),
-# so `make build`/`repl`/etc. stay cheap. It does NOT guarantee they sit
-# at the committed pin: a stale checkout silently keeps an old commit
-# (e.g. llama.cpp before the `common` -> `llama-common` target rename),
-# which then fails at link time with "library 'llama-common' not found".
-# `make setup` therefore depends on the always-run `submodules` target
-# below, which force-syncs every submodule back to its pinned commit.
-SUBMODULES_SENTINEL := spikes/spike_whisper/third_party/whisper.cpp/CMakeLists.txt
+# Prebuilt local-inference bundle (xp_wellys_libs). The heavy third-party
+# trees (whisper/llama/ggml/Piper/espeak) are compiled ONCE in that repo and
+# consumed here as a versioned arm64 binary bundle — no local compile, no
+# submodules. Version pinned in PREBUILT_LIBS_VERSION; bump it in lockstep
+# with a bundle release. The sentinel is one archive from the extracted tree.
+PREBUILT_LIBS_VERSION := $(shell cat PREBUILT_LIBS_VERSION)
+PREBUILT_LIBS_REPO    := rwellinger/xp_wellys_libs
+PREBUILT_LIBS_DIR     := vendor/prebuilt/xp_wellys_libs
+PREBUILT_SENTINEL     := $(PREBUILT_LIBS_DIR)/lib/libwhisper.a
 
 CATCH2_VERSION := 3.15.1
 
@@ -39,7 +34,7 @@ CATCH2_VERSION := 3.15.1
 # plus the generated skunkcrafts_updater_*.txt control files.
 SKUNK_DIR := build/skunkcrafts
 
-.PHONY: all help setup setup-cloud submodules build ci-fast ci-remote win-artifact install clean distclean format lint sanitize release release-build skunkcrafts cleanup-tags cleanup-branches cleanup-runs repl run-repl test test-unit test-scenarios
+.PHONY: all help setup setup-cloud build ci-fast ci-remote win-artifact install clean distclean format lint sanitize release release-build skunkcrafts cleanup-tags cleanup-branches cleanup-runs repl run-repl test test-unit test-scenarios
 
 .DEFAULT_GOAL := help
 
@@ -51,9 +46,8 @@ help:
 	@echo ""
 	@echo "  make                   Show this help (default)"
 	@echo "  make all               clean + format + build + lint"
-	@echo "  make setup             Sync submodules to pinned commits + download X-Plane SDK, Dear ImGui, nlohmann/json, Catch2"
-	@echo "  make setup-cloud       Cloud-only deps (SDK, ImGui, json, Catch2) WITHOUT submodules — for the fast CI sanity build"
-	@echo "  make submodules        Force-sync git submodules (whisper.cpp, llama.cpp, Piper) to pinned commits"
+	@echo "  make setup             Download prebuilt xp_wellys_libs bundle + X-Plane SDK, Dear ImGui, nlohmann/json, Catch2"
+	@echo "  make setup-cloud       Cloud-only deps (SDK, ImGui, json, Catch2) WITHOUT the local-inference bundle — for the fast CI sanity build"
 	@echo "  make build             Build universal plugin (arm64 local+cloud, x86_64 cloud-only) -> build/xp_wellys_vfr_atc.xpl"
 	@echo "  make ci-fast           Fast cloud-only arm64 sanity build + unit/scenario tests (no submodules, no local backends)"
 	@echo "  make ci-remote         Trigger the GitHub CI (fast macOS + Windows slice) on the current branch via gh (builds the PUSHED state)"
@@ -78,56 +72,16 @@ help:
 	@echo "  make help              Show this help"
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
-setup: submodules $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $(CATCH2_SENTINEL) $(MINIAUDIO_SENTINEL)
+setup: $(PREBUILT_SENTINEL) $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $(CATCH2_SENTINEL) $(MINIAUDIO_SENTINEL)
 	@echo "Setup complete. Run 'make build' to compile."
 
-# Cloud-only setup: the four non-submodule vendor deps only. Deliberately
-# skips the git submodules (whisper.cpp, llama.cpp, Piper) — the cloud-only
-# slice (XPWELLYS_USE_LOCAL_INFERENCE=OFF) never references them, so the
-# fast CI sanity build (`make ci-fast`) needs neither the submodule
-# checkout nor the espeak-ng/onnxruntime ExternalProject work.
+# Cloud-only setup: the four non-bundle vendor deps only. Deliberately skips
+# the prebuilt xp_wellys_libs bundle — the cloud-only slice
+# (XPWELLYS_USE_LOCAL_INFERENCE=OFF) never references whisper/llama/Piper, so
+# the fast CI sanity build (`make ci-fast`) needs neither the bundle download
+# nor any local-inference libraries.
 setup-cloud: $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $(CATCH2_SENTINEL) $(MINIAUDIO_SENTINEL)
 	@echo "Cloud-only setup complete (no submodules). Run 'make ci-fast'."
-
-# Always-run: force every submodule back to the commit pinned in this
-# repo, regardless of what's currently checked out. `sync` re-applies the
-# .gitmodules URLs, `--init` lands missing trees, `--force` discards a
-# diverged checkout so a stale machine can't keep an old llama.cpp commit.
-# This is the robust entry point used by `make setup`; routine build
-# targets keep the cheap sentinel below.
-submodules:
-	@if [ ! -d .git ]; then \
-	    echo "ERROR: not a git checkout - submodules cannot be initialised."; \
-	    echo ""; \
-	    echo "If you downloaded a release ZIP, the third-party sources"; \
-	    echo "(whisper.cpp, llama.cpp, Piper) are not bundled. Re-clone with:"; \
-	    echo ""; \
-	    echo "    git clone --recurse-submodules <repo-url>"; \
-	    echo ""; \
-	    exit 1; \
-	fi
-	@echo "Syncing git submodules to pinned commits (whisper.cpp, llama.cpp, Piper)..."
-	@git submodule sync --recursive
-	@git submodule update --init --recursive --force
-	@echo "Submodules ready (at pinned commits)."
-
-# Cheap existence guard for build/repl/test/lint/sanitize: init the trees
-# only if missing, never force. For a guaranteed-correct pin, run
-# `make setup` (or `make submodules`) instead.
-$(SUBMODULES_SENTINEL):
-	@if [ ! -d .git ]; then \
-	    echo "ERROR: not a git checkout - submodules cannot be initialised."; \
-	    echo ""; \
-	    echo "If you downloaded a release ZIP, the third-party sources"; \
-	    echo "(whisper.cpp, llama.cpp, Piper) are not bundled. Re-clone with:"; \
-	    echo ""; \
-	    echo "    git clone --recurse-submodules <repo-url>"; \
-	    echo ""; \
-	    exit 1; \
-	fi
-	@echo "Initialising git submodules (whisper.cpp, llama.cpp, Piper)..."
-	@git submodule update --init --recursive
-	@echo "Submodules ready."
 
 $(SDK_SENTINEL):
 	@echo "Downloading X-Plane SDK..."
@@ -175,6 +129,21 @@ $(MINIAUDIO_SENTINEL):
 	     -o vendor/miniaudio.h
 	@echo "miniaudio installed."
 
+# Download + extract + SHA256-verify the prebuilt xp_wellys_libs bundle.
+# Public GitHub release, so a plain curl works with no auth (local or CI).
+# The manifest's `<sha256>  <name>` lines are checked against the extracted
+# lib/ tree; a mismatch fails the build (never link an unverified binary).
+$(PREBUILT_SENTINEL):
+	@echo "Downloading xp_wellys_libs bundle v$(PREBUILT_LIBS_VERSION)..."
+	@mkdir -p $(PREBUILT_LIBS_DIR)
+	@curl -fsSL "https://github.com/$(PREBUILT_LIBS_REPO)/releases/download/v$(PREBUILT_LIBS_VERSION)/xp_wellys_libs-arm64-macos-$(PREBUILT_LIBS_VERSION).tar.gz" \
+	     -o $(PREBUILT_LIBS_DIR)/bundle.tar.gz
+	@tar -xzf $(PREBUILT_LIBS_DIR)/bundle.tar.gz -C $(PREBUILT_LIBS_DIR)
+	@rm -f $(PREBUILT_LIBS_DIR)/bundle.tar.gz
+	@echo "Verifying bundle SHA256 against manifest.txt..."
+	@cd $(PREBUILT_LIBS_DIR)/lib && grep -E '^[0-9a-f]{64}  ' ../manifest.txt | shasum -a 256 -c -
+	@echo "xp_wellys_libs bundle v$(PREBUILT_LIBS_VERSION) installed + verified."
+
 $(CATCH2_SENTINEL):
 	@echo "Downloading Catch2 v$(CATCH2_VERSION) (amalgamated)..."
 	@set -euo pipefail; \
@@ -209,7 +178,7 @@ $(CATCH2_SENTINEL):
 # (regular dev build); `release-build` sets it to `-DRELEASE=ON`.
 RELEASE_FLAG ?=
 
-build: $(SUBMODULES_SENTINEL) $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $(CATCH2_SENTINEL)
+build: $(PREBUILT_SENTINEL) $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $(CATCH2_SENTINEL)
 	@echo "=== Building universal xp_wellys_vfr_atc (arm64 local+cloud, x86_64 cloud-only) ==="
 	@echo ""
 	@echo "--- arm64 slice (local + cloud) ---"
@@ -319,7 +288,7 @@ win-artifact:
 	@find dist-win -name '*.xpl' -print
 
 # ── REPL (headless CLI) ───────────────────────────────────────────────────────
-repl: $(SUBMODULES_SENTINEL) $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $(CATCH2_SENTINEL)
+repl: $(PREBUILT_SENTINEL) $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $(CATCH2_SENTINEL)
 	@echo "=== Building atc_repl ==="
 	cmake -B build -DCMAKE_BUILD_TYPE=Release -Wno-dev
 	cmake --build build --target atc_repl --parallel
@@ -333,7 +302,7 @@ run-repl: repl
 # ── Tests ─────────────────────────────────────────────────────────────────────
 test: test-unit test-scenarios
 
-test-unit: $(SUBMODULES_SENTINEL) $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $(CATCH2_SENTINEL)
+test-unit: $(PREBUILT_SENTINEL) $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $(CATCH2_SENTINEL)
 	@echo "=== Building xp_wellys_vfr_atc unit tests ==="
 	cmake -B build -DCMAKE_BUILD_TYPE=Release -Wno-dev
 	cmake --build build --target xp_wellys_vfr_atc_tests --parallel
@@ -443,7 +412,7 @@ format:
 	    exit 1; }
 	clang-format -i src/main.cpp src/*/*.cpp src/*/*.hpp
 
-lint: $(SUBMODULES_SENTINEL) $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $(CATCH2_SENTINEL)
+lint: $(PREBUILT_SENTINEL) $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $(CATCH2_SENTINEL)
 	@command -v clang-tidy >/dev/null 2>&1 || { \
 	    echo "clang-tidy not found. Install with: brew install llvm"; \
 	    echo "Then add to PATH: export PATH=\"$$(brew --prefix llvm)/bin:$$PATH\""; \
@@ -464,7 +433,7 @@ lint: $(SUBMODULES_SENTINEL) $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) 
 # Findings abort with a non-zero exit (`-fno-sanitize-recover=all`), so this
 # target is CI-friendly. Build dir is `build-sanitize/` — independent of
 # `build/` so Release artifacts stay untouched.
-sanitize: $(SUBMODULES_SENTINEL) $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $(CATCH2_SENTINEL)
+sanitize: $(PREBUILT_SENTINEL) $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $(CATCH2_SENTINEL)
 	@echo "=== Configuring sanitizer build (ASan + UBSan) ==="
 	cmake -B build-sanitize -DCMAKE_BUILD_TYPE=Debug -DXP_WELLYS_ATC_SANITIZE=ON -Wno-dev
 	@echo "=== Building atc_repl + xp_wellys_vfr_atc_tests with ASan + UBSan ==="
