@@ -251,8 +251,9 @@ build: $(SUBMODULES_SENTINEL) $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL)
 # REPL and the plugin (all with XPWELLYS_USE_LOCAL_INFERENCE=OFF), then runs
 # the unit + scenario suites. No whisper/llama/Piper/espeak-ng/onnxruntime,
 # so no submodules are required (see `setup-cloud`). This is the fast macOS
-# gate for feature-branch pushes; the full universal `make build` only runs
-# on release tags / main merges. Uses its own build-ci/ dir so it never
+# gate for all non-tag pushes (incl. main merges); the full universal
+# *release* `make build` only runs on release tags, while main pushes run the
+# deps cache-warm job (`warm-deps`) instead. Uses its own build-ci/ dir so it never
 # clobbers the release build/ trees. Depends on the four non-submodule
 # vendor sentinels only.
 ci-fast: $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $(CATCH2_SENTINEL)

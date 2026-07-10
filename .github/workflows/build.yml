@@ -6,21 +6,22 @@ on:
   # WITHOUT cutting a release (the universal build + GitHub release stay tag-only).
   # NOTE: CI always builds the PUSHED state of the ref, never your local worktree.
   workflow_dispatch:
-  pull_request:
-    types: [closed]
-    branches: [main]
   push:
     branches:
-      # main: every push (incl. PR merges) rebuilds the universal binary so
-      # the arm64 local-inference deps (whisper/llama/ggml/Piper) stay warm in
-      # the DEFAULT-branch ccache. A release tag can only restore caches from
-      # its own tag or from main — never from another tag — so main is the one
-      # scope that keeps the heavy deps cached across releases. See the
-      # `build-macos-universal` ccache step.
+      # main: a push (incl. every PR merge) runs the FAST cloud-only sanity
+      # gate (build-macos-fast, ~4 min) as the merge's green check, PLUS the
+      # `warm-deps` job that recompiles the heavy arm64 local-inference deps
+      # (whisper/llama/ggml/Piper/espeak-ng/onnxruntime) into the DEFAULT-branch
+      # ccache. A release tag can only restore caches from its own tag or from
+      # main — never from another tag — so main is the one scope that keeps the
+      # heavy deps warm across releases. The full universal *release* build
+      # (build-macos-universal, ~50 min cold) does NOT run here — it is
+      # TAG-ONLY. (No `pull_request` trigger: a PR merge is a push to main, so
+      # the push event above already covers it — avoids an empty extra run.)
       - main
-      # Feature-branch scaffolding for the Windows port: build both the
-      # macOS universal binary and the Windows slice on every push here
-      # so the Windows .xpl can be bring-up-tested before a release tag.
+      # Feature-branch scaffolding for the Windows port: build the macOS fast
+      # sanity gate + the Windows slice on every push here so the Windows .xpl
+      # can be bring-up-tested before a release tag.
       - windows_support
     tags:
       - 'v*'
@@ -36,12 +37,14 @@ concurrency:
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/v') }}
 
 jobs:
-  # ── Fast macOS sanity gate (feature-branch pushes) ──────────────────────────
+  # ── Fast macOS sanity gate (all non-tag pushes, incl. main merges) ──────────
   # Cloud-only arm64 build + tests: no submodules, no whisper/llama/Piper/
   # espeak-ng/onnxruntime, so it finishes in ~4 min instead of ~50. Crucially
-  # it has NO `needs: build-windows`, so it runs IN PARALLEL with the Windows
-  # slice. Runs on branch pushes that are not release tags (e.g. every push to
-  # windows_support). Tags + PR-merges take build-macos-release instead.
+  # it has NO `needs: build-windows`, so it runs IN PARALLEL with everything
+  # else. This is the merge's fast green check: it runs on every non-tag push,
+  # INCLUDING pushes to main (i.e. PR merges) and windows_support, plus
+  # workflow_dispatch. On main it runs alongside `warm-deps` (the deps
+  # cache-warmer). Release tags take build-macos-universal instead.
   build-macos-fast:
     # Pinned to macos-15 (Sequoia, Apple Silicon) — the maintainer's test
     # system. macos-latest migrated to macOS 26 on 2026-06-15; pinning keeps
@@ -50,10 +53,10 @@ jobs:
     # verified against, so a silent runner bump cannot break a release.
     runs-on: macos-15
     timeout-minutes: 20
-    # Excludes main: a push to main runs the full build-macos-universal instead
-    # (which also runs `make test`), so a cloud-only sanity build there would be
-    # redundant. Fires on windows_support pushes + workflow_dispatch only.
-    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && !startsWith(github.ref, 'refs/tags/v') && github.ref != 'refs/heads/main'
+    # Every non-tag push (main, windows_support) + workflow_dispatch. On main
+    # this is the merge's ~4 min green check; the deps cache-warm runs in the
+    # separate `warm-deps` job. Release tags take build-macos-universal.
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && !startsWith(github.ref, 'refs/tags/v')
     steps:
       - uses: actions/checkout@v5
 
@@ -74,19 +77,23 @@ jobs:
           make ci-fast
           ccache --show-stats
 
-  # ── Full universal macOS build (tags / main merges) ─────────────────────────
+  # ── Full universal macOS RELEASE build (tags only) ──────────────────────────
   # Carries the local-inference backends, so it needs the submodules + the
   # espeak-ng/onnxruntime cache. Builds the universal .xpl + dylibs +
   # espeak-ng-data and uploads them as an artifact for the final `release`
-  # job. NO `needs: build-windows` — this runs IN PARALLEL with the Windows
-  # slice; the two artifacts are folded together only in `release`.
+  # job. Runs ONLY on release tags — main pushes are handled by `warm-deps`
+  # (below), which keeps THIS build's ccache + espeak/onnx cache warm so a
+  # release stays a ~10-15 min build instead of a ~50 min cold one. NO
+  # `needs: build-windows` — this runs IN PARALLEL with the Windows slice;
+  # the two artifacts are folded together only in `release`.
   build-macos-universal:
     runs-on: macos-15 # pinned — see build-macos-fast (matches test system)
     timeout-minutes: 60 # bounds a cold submodule-bump rebuild; warm runs ~10-15 min
-    # Runs on: release tags, PR merges, AND direct pushes to main. The main-push
-    # run is what populates the DEFAULT-branch ccache that later tag runs restore
-    # from (a tag cannot read another tag's cache — only its own or main's).
-    if: startsWith(github.ref, 'refs/tags/v') || github.event.pull_request.merged == true || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    # TAG-ONLY. Produces the uploadable universal .xpl for the `release` job.
+    # The DEFAULT-branch ccache it restores from is kept warm by `warm-deps` on
+    # main pushes (a tag can only read its own cache or main's — never another
+    # tag's), so this stays a warm ~10-15 min build.
+    if: startsWith(github.ref, 'refs/tags/v')
     steps:
       - uses: actions/checkout@v5
         with:
@@ -178,6 +185,73 @@ jobs:
             build/espeak_ng-install/share/espeak-ng-data
           if-no-files-found: error
 
+  # ── Warm the default-branch deps cache (main pushes only) ───────────────────
+  # NOT a release build — it uploads nothing and feeds no downstream job. Its
+  # sole purpose is to recompile the heavy arm64 local-inference deps
+  # (whisper/llama/ggml/Piper) into the DEFAULT-branch ccache and stage the
+  # espeak-ng/onnxruntime actions/cache, using the SAME keys and build dirs as
+  # build-macos-universal so a later release TAG restores everything warm (a
+  # tag can only read its own cache or main's — never another tag's). Steady
+  # state is a near-instant ccache hit; a real recompile happens only when a
+  # submodule pin actually moves — exactly what must be cached before the next
+  # release. Runs in parallel with build-macos-fast (the merge's fast green
+  # check); it gates nothing, so its ~10-15 min warm runtime blocks no one. The
+  # regression gate (`make test`) runs in build-macos-fast, so this job builds
+  # only — no tests, no artifact.
+  warm-deps:
+    runs-on: macos-15 # pinned — see build-macos-fast (matches test system)
+    timeout-minutes: 60 # bounds a cold submodule-bump rebuild; warm runs ~10-15 min
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Rewrite SSH submodule URLs to HTTPS
+        run: git config --global url."https://github.com/".insteadOf "git@github.com:"
+
+      - name: Setup dependencies
+        run: make setup
+
+      - name: Compute submodule SHA key
+        # Identical to build-macos-universal: the ccache key suffix moves ONLY
+        # when a submodule pin moves, so the warmed objects stay a cache hit
+        # for every release until a pin is actually bumped.
+        id: subsha
+        run: echo "sha=$(git submodule status --recursive | shasum -a 256 | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up ccache
+        # SAME key as build-macos-universal, written from the main (default)
+        # branch scope -> the scope a release tag can restore from.
+        uses: hendrikmuhs/ccache-action@v1.2.23
+        with:
+          key: ${{ runner.os }}-arm64-deps-${{ steps.subsha.outputs.sha }}
+          restore-keys: |
+            ${{ runner.os }}-arm64-deps-
+          max-size: 2500M
+          variant: ccache
+
+      - name: Cache espeak-ng build + onnxruntime prebuilt
+        # SAME key + paths as build-macos-universal so the arm64 espeak build
+        # tree and the onnxruntime prebuilt are staged in main's scope too.
+        uses: actions/cache@v4
+        with:
+          path: |
+            build-arm64/espeak_ng
+            build-arm64/espeak_ng-install
+            spikes/spike_piper/third_party/piper1-gpl/libpiper/lib
+            spikes/spike_piper/third_party/piper1-gpl/libpiper/download
+          key: ${{ runner.os }}-espeak-onnx-${{ hashFiles('spikes/spike_piper/third_party/piper1-gpl/libpiper/CMakeLists.txt') }}
+
+      - name: Build (universal) — warms the deps cache, uploads nothing
+        # Same `make build` as the release, into the same build-arm64/ +
+        # build-x86_64/ dirs, so every cache the release restores is populated
+        # here in main's scope. No RELEASE_FLAG (VERSION.txt is baked only on
+        # tags) and no artifact upload: this exists purely to keep caches warm.
+        run: |
+          make build
+          ccache --show-stats
+
   # ── Windows slice (cloud-only) ──────────────────────────────────────────────
   # GitHub Actions is the Windows compiler — no local MSVC toolchain
   # needed. Builds the same source tree with XPWELLYS_USE_LOCAL_INFERENCE=OFF
@@ -190,7 +264,11 @@ jobs:
   build-windows:
     runs-on: windows-latest
     timeout-minutes: 30
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
+    # Windows slice is release-bundle work: it runs on release TAGS (the
+    # `release` job needs it), on windows_support pushes (feature-branch
+    # bring-up) and on workflow_dispatch — but NOT on plain main merges, so a
+    # normal PR merge never pays the ~30 min Windows build.
+    if: (github.event_name == 'push' && github.ref != 'refs/heads/main') || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v5
         # No submodules: cloud-only build pulls in none of the local
