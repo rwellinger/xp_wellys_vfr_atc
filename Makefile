@@ -383,13 +383,17 @@ install:
 	@# happens via Settings, not by hand-editing this file.
 	@cp data/models_catalog.json "$(PLUGIN_DIR)/data/"
 	@echo "Installed: $(PLUGIN_DIR)/data/models_catalog.json"
-	@mkdir -p "$(PLUGIN_DIR)/data/atc_profiles/de"
-	@cp data/atc_profiles/de/atc_templates.json     "$(PLUGIN_DIR)/data/atc_profiles/de/"
-	@cp data/atc_profiles/de/flight_rules.json      "$(PLUGIN_DIR)/data/atc_profiles/de/"
-	@cp data/atc_profiles/de/intent_rules.json      "$(PLUGIN_DIR)/data/atc_profiles/de/"
-	@cp data/atc_profiles/de/phraseology_hints.json "$(PLUGIN_DIR)/data/atc_profiles/de/"
-	@cp data/atc_profiles/de/ui_strings.json        "$(PLUGIN_DIR)/data/atc_profiles/de/"
-	@echo "Installed: $(PLUGIN_DIR)/data/atc_profiles/de/*.json"
+	@# Install BOTH profile bundles in full — every *.json, including
+	@# conformance.json. The active profile is chosen at runtime via
+	@# atc_language(); previously only de/ (and not even its
+	@# conformance.json) was copied, so EN mode found no ui_strings and
+	@# fell back to raw keys ("airport.frequencies_header" etc.). Globbing
+	@# *.json keeps this correct if a bundle gains a new file.
+	@for lang in de en; do \
+	    mkdir -p "$(PLUGIN_DIR)/data/atc_profiles/$$lang"; \
+	    cp data/atc_profiles/$$lang/*.json "$(PLUGIN_DIR)/data/atc_profiles/$$lang/"; \
+	    echo "Installed: $(PLUGIN_DIR)/data/atc_profiles/$$lang/*.json"; \
+	done
 	@mkdir -p "$(PLUGIN_DIR)/data/vrps"
 	@cp data/vrps/airport_vrps.json "$(PLUGIN_DIR)/data/vrps/"
 	@echo "Installed: $(PLUGIN_DIR)/data/vrps/airport_vrps.json"
