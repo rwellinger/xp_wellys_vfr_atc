@@ -22,7 +22,10 @@ even to pilot mistakes.
   completeness the way an examiner would. **English** follows the
   self-contained **ICAO VFR phraseology** (ICAO Annex 10 Vol II / Doc 4444 /
   EASA SERA) — not a translation of the German profile, but its own standard
-  wording and number/callsign pronunciation.
+  wording and number/callsign pronunciation. The **operating interface**
+  (menus, buttons, labels) has its own language switch, independent of the
+  spoken phraseology — so you can run the UI in English while training German
+  NfL radio, and the switch applies instantly without a restart.
 - **🛬 Traffic pattern** — the full pattern flow at controlled and
   uncontrolled airfields: entry, downwind, base, final, landing,
   touch-and-go, go-around — including landing sequencing ("you are number
@@ -99,7 +102,7 @@ from BZF holders are expressly welcome.
   with a delivery workflow, and a virtual co-pilot / checklist reader.
 
 > A detailed breakdown of the limitations including effort estimates is in
-> the [technical documentation](docs/README.md#bekannte-einschränkungen).
+> the [technical documentation](docs/README.md#known-limitations).
 
 ## Companion plugin: Welly's VFR Trainer
 
@@ -121,5 +124,5 @@ inference models, configuration, architecture and development workflow:
 
 [GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0.html)
 — details and the breakdown of third-party dependencies are in the
-[technical documentation](docs/README.md#lizenz) and in
+[technical documentation](docs/README.md#license) and in
 [`THIRD_PARTY.md`](THIRD_PARTY.md).
