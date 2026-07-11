@@ -184,6 +184,8 @@
   "flightprep.dest_hint": "  (enter ICAO, e.g. EDMA; Enter saves. Or speak: 'VFR to Echo Delta Mike Alfa')",
   "flightprep.preview_label": "First call contains:",
   "settings.ui_language_label": "Interface language",
+  "settings.ui_language_de": "German",
+  "settings.ui_language_en": "English",
   "settings.language_label": "ATC phraseology language",
   "settings.language_de": "German (NfL DACH-VFR)",
   "settings.language_en": "English (ICAO-VFR)",

@@ -1698,13 +1698,14 @@ static void draw_settings_tab() {
 
   // Interface (UI-chrome) language — DE or EN (Issue #56). Decoupled from
   // the ATC phraseology language below; only ui_strings.json follows it.
-  // Switches live via ui_strings::reload() — no restart needed.
-  const char *language_labels_tr[2] = {
-      ui_strings::tr("settings.language_de"),
-      ui_strings::tr("settings.language_en"),
+  // Switches live via ui_strings::reload() — no restart needed. Plain
+  // language labels (no NfL/ICAO annotation — that belongs to phraseology).
+  const char *ui_language_labels_tr[2] = {
+      ui_strings::tr("settings.ui_language_de"),
+      ui_strings::tr("settings.ui_language_en"),
   };
   if (ImGui::Combo(ui_strings::tr("settings.ui_language_label"),
-                   &ui_language_selection, language_labels_tr, 2)) {
+                   &ui_language_selection, ui_language_labels_tr, 2)) {
     settings::set_ui_language(language_keys[ui_language_selection]);
     settings::save();
     ui_strings::reload();
@@ -1716,7 +1717,11 @@ static void draw_settings_tab() {
   // ATC phraseology language — DE (NfL DACH-VFR) or EN (ICAO-VFR). Governs
   // the spoken phraseology, ATC responses and hint contents. Applies on the
   // next plugin start: the profile bundle and the local TTS voice are loaded
-  // during init.
+  // during init. Labels carry the NfL/ICAO annotation here.
+  const char *language_labels_tr[2] = {
+      ui_strings::tr("settings.language_de"),
+      ui_strings::tr("settings.language_en"),
+  };
   if (ImGui::Combo(ui_strings::tr("settings.language_label"),
                    &language_selection, language_labels_tr, 2)) {
     settings::set_atc_language(language_keys[language_selection]);
