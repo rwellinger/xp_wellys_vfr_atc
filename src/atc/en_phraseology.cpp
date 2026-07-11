@@ -28,11 +28,18 @@ namespace en_phraseology {
 namespace {
 
 // ICAO spoken digits (Annex 10 Vol II §5.2.1.4.3.1, docs/icao §11.1):
-// the distinctive ATC forms "tree/fower/fife/niner" for 3/4/5/9. Kept
-// lowercase — the callsign expander and the mid-sentence ziffernweise
-// both draw from this single table (mirrors de_phraseology's kDigitWords).
+// the distinctive ATC forms "tree/fife/niner" for 3/5/9. Kept lowercase —
+// the callsign expander and the mid-sentence ziffernweise both draw from
+// this single table (mirrors de_phraseology's kDigitWords).
+//
+// 4 is "four", NOT the ICAO respelling "fower" (issue #63): "fower" is a
+// human pronunciation hint, not a real word, so TTS engines say it
+// literally ("FOW-er") instead of "four". "tree/fife/niner" survive
+// because they are real words / clean homophones; "fower" was the outlier.
+// The reverse parser (spoken_digit_value) still accepts both "fower" and
+// "four", so STT tolerance is unchanged.
 constexpr std::array<const char *, 10> kDigitWords = {
-    "zero", "one",   "two",   "tree", "fower",
+    "zero", "one",   "two",   "tree", "four",
     "fife", "six",   "seven", "eight", "niner"};
 
 // ICAO/NATO phonetic alphabet, official spellings (Annex 10 Vol II

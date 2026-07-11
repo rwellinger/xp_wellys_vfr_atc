@@ -24,7 +24,7 @@ TEST_CASE("Runway: suffix L -> left", "[en_phraseology][runway]") {
 }
 
 TEST_CASE("Runway: suffix C -> center", "[en_phraseology][runway]") {
-    REQUIRE(normalize_for_speech("Runway 14C") == "Runway one fower center");
+    REQUIRE(normalize_for_speech("Runway 14C") == "Runway one four center");
 }
 
 TEST_CASE("Runway: lower-case anchor keeps its case",
@@ -65,7 +65,7 @@ TEST_CASE("Frequency: 118.300", "[en_phraseology][frequency]") {
 
 TEST_CASE("Frequency: 119.450 in context", "[en_phraseology][frequency]") {
     REQUIRE(normalize_for_speech("contact tower on 119.450") ==
-            "contact tower on one one niner decimal fower fife zero");
+            "contact tower on one one niner decimal four fife zero");
 }
 
 // ── Altitudes ────────────────────────────────────────────────────────
@@ -94,7 +94,7 @@ TEST_CASE("Wind: 250 degrees 15 knots", "[en_phraseology][wind]") {
 
 TEST_CASE("Wind: single-digit speed", "[en_phraseology][wind]") {
     REQUIRE(normalize_for_speech("wind 240 degrees 8 knots") ==
-            "wind two fower zero degrees eight knots");
+            "wind two four zero degrees eight knots");
 }
 
 // ── Clock / number ───────────────────────────────────────────────────
@@ -110,13 +110,26 @@ TEST_CASE("Sequence number", "[en_phraseology][sequence]") {
 
 // ── Composite ────────────────────────────────────────────────────────
 
+TEST_CASE("Digit 4: spoken as 'four', not the ICAO respelling 'fower'",
+          "[en_phraseology][digit4]") {
+    // Issue #63: "fower" is a human pronunciation hint, not a real word;
+    // TTS engines say it literally. "four" is intelligible everywhere.
+    REQUIRE(normalize_for_speech("Runway 24") == "Runway two four");
+    REQUIRE(normalize_for_speech("Runway 24").find("fower") ==
+            std::string::npos);
+    // 3/5/9 keep their ICAO forms (real words / clean homophones).
+    REQUIRE(normalize_for_speech("Runway 35") == "Runway tree fife");
+    // Reverse parser still round-trips "four" back to the digit.
+    REQUIRE(parse_spoken_number("Runway two four") == "Runway 24");
+}
+
 TEST_CASE("Composite: landing clearance", "[en_phraseology][composite]") {
     const std::string in =
         "November one two tree Alfa Bravo, Runway 24 cleared to land, "
         "wind 240 degrees 8 knots, QNH 1013.";
     const std::string want =
-        "November one two tree Alfa Bravo, Runway two fower cleared to "
-        "land, wind two fower zero degrees eight knots, QNH one zero one "
+        "November one two tree Alfa Bravo, Runway two four cleared to "
+        "land, wind two four zero degrees eight knots, QNH one zero one "
         "tree.";
     REQUIRE(normalize_for_speech(in) == want);
 }

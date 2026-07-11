@@ -157,7 +157,7 @@ TEST_CASE("EN ATIS: unknown airport falls back to 'Airport'",
 // over the ATIS text for EN before handing it to TTS. Asserting the
 // normalized output keeps the contract explicit: the raw broadcast emits
 // digits + anchor keywords, the normalizer spells them ziffernweise (ICAO
-// tree/fower/fife/niner) and converts altitudes to thousand/hundred form.
+// tree/four/fife/niner) and converts altitudes to thousand/hundred form.
 
 TEST_CASE("EN ATIS: normalized broadcast carries ICAO ziffernweise phrasing",
           "[atis][en][normalizer]") {
@@ -171,8 +171,8 @@ TEST_CASE("EN ATIS: normalized broadcast carries ICAO ziffernweise phrasing",
   REQUIRE(contains(spoken, "QNH one zero one tree"));
   // 3500 feet -> tree thousand fife hundred feet
   REQUIRE(contains(spoken, "tree thousand fife hundred feet"));
-  // Wind 240 degrees 08 knots -> ziffernweise both sides
-  REQUIRE(contains(spoken, "two fower zero degrees zero eight knots"));
+  // Wind 240 degrees 08 knots -> ziffernweise both sides (4 -> "four", #63)
+  REQUIRE(contains(spoken, "two four zero degrees zero eight knots"));
   // Information Alpha is untouched (no Alpha->Alfa swap on the EN path)
   REQUIRE(contains(spoken, "Information Alpha."));
   REQUIRE(contains(spoken, "information Alpha."));
