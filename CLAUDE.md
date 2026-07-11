@@ -10,15 +10,20 @@ tust.
 
 **xp_wellys_vfr_atc** ist ein C++17-Plugin für X-Plane 12 (**macOS 13.3+**),
 das KI-gestützte ATC-Sprechfunk-Kommunikation für die VFR-Flugsimulation
-bereitstellt. Es ist ein **reines Deutschland-VFR-Plugin**: modelliert
-ausschliesslich deutsche Phraseologie nach NfL Sprechfunk 2024 (DACH-VFR)
-mit optionalem **BZF-Strict-Mode**. Es gibt **kein** EU-/US-Profil und
-**kein** IFR. Auslieferung als **Universal Binary** (`arm64 + x86_64`).
+bereitstellt. Schwerpunkt ist **VFR-Sprechfunk in Deutschland** nach NfL
+Sprechfunk 2024 (DACH-VFR) mit optionalem, **DE-only**-**BZF-Strict-Mode**.
+Daneben gibt es ein **englisches ICAO-VFR-Profil** (ICAO Doc 4444 /
+Annex 10 / SERA — **keine** NfL-Übersetzung). **Kein** IFR. Auslieferung
+als **Universal Binary** (`arm64 + x86_64`).
 
-Das ATC-Profil ist fest: `settings::atc_profile()` liefert konstant
-`"DE"`, `settings::backend_language()` konstant `"de"`. Es gibt keine
-Profilauswahl in der UI. Das einzige Profil-Bundle ist
-`data/atc_profiles/de/`.
+Die **Sprache** ist der einzige maßgebliche Schalter
+(`settings::atc_language()`, Issue #36) und liefert `"de"` (Standard) oder
+`"en"`. Davon leiten sich `settings::atc_profile()` (`"DE"` / `"EN"`) und
+`settings::backend_language()` (gleich `atc_language()`) ab. Die Sprache
+ist im **Settings-Tab** wählbar (`settings::set_atc_language()`). Es gibt
+zwei Profil-Bundles: `data/atc_profiles/de/` und `data/atc_profiles/en/`.
+Strict-/Conformance-Hooks gaten auf `atc_profile()=="DE"` und sind im
+EN-Profil inert.
 
 **Triple-Backend-Inferenz** — der Nutzer wählt den Modus zur Laufzeit in
 den Einstellungen:
@@ -319,8 +324,10 @@ Flugplatzes passt, mit Cooldown.
 **`settings`** — Lädt/speichert `data/settings.json`. Hält den
 `backend_mode`-Toggle (`local` | `openai` | `mistral`), die OpenAI- und
 Mistral-Modell-/Voice-IDs, `bzf_strict_mode`, `start_mode`,
-`traffic_features_enabled`, `debug_text_input` usw. `atc_profile()`
-liefert konstant `"DE"`, `backend_language()` konstant `"de"`. **Kein
+`traffic_features_enabled`, `debug_text_input` usw. sowie den
+`atc_language`-Schalter (`"de"` | `"en"`), aus dem `atc_profile()`
+(`"DE"` / `"EN"`) und `backend_language()` (gleich `atc_language()`)
+abgeleitet werden. **Kein
 API-Key liegt je in `settings.json`** — nur die Flags `api_key_saved` und
 `mistral_api_key_saved` werden persistiert; die echten Geheimnisse liegen
 im macOS Keychain unter zwei separaten Services
