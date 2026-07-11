@@ -40,6 +40,7 @@
   "btn.send": "Senden",
   "btn.retry": "Nochmal versuchen",
   "transcript.network_error": "Netzwerkfehler - ATC-Antwort konnte nach 3 Versuchen nicht uebertragen werden. Verbindung/Backend pruefen, dann erneut versuchen.",
+  "transcript.tts_blocked": "Sprachausgabe vom Anbieter blockiert (Inhalt abgelehnt) - Text steht im Transkript. Wiederholen hilft nicht; ggf. Backend Local/OpenAI nutzen.",
 
   "status.ready": "Bereit",
   "status.not_loaded": "Nicht geladen",

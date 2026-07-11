@@ -281,3 +281,33 @@ TEST_CASE("parse_spoken_icao: too few letters is a miss",
 TEST_CASE("parse_spoken_icao: empty input", "[en_phraseology][icao][edge]") {
     REQUIRE(parse_spoken_icao("").empty());
 }
+
+// ── De-shout (issue #62): ALL-CAPS phraseology must not reach TTS in ──
+// uppercase, or a moderation "shouting" heuristic 403-blocks it. ────────
+
+TEST_CASE("de-shout: ICAO SAY AGAIN is lowercased for speech",
+          "[en_phraseology][deshout]") {
+    REQUIRE(normalize_for_speech("SAY AGAIN") == "say again");
+}
+
+TEST_CASE("de-shout: NEGATIVE keyword lowercased",
+          "[en_phraseology][deshout]") {
+    REQUIRE(normalize_for_speech("NEGATIVE") == "negative");
+}
+
+TEST_CASE("de-shout: QNH acronym stays uppercase",
+          "[en_phraseology][deshout]") {
+    const std::string out = normalize_for_speech("QNH 1013");
+    REQUIRE(out.find("QNH") != std::string::npos);
+    REQUIRE(out.find("qnh") == std::string::npos);
+}
+
+TEST_CASE("de-shout: Title-case words untouched", "[en_phraseology][deshout]") {
+    REQUIRE(normalize_for_speech("November One Two Three") ==
+            "November One Two Three");
+}
+
+TEST_CASE("de-shout: idempotent", "[en_phraseology][deshout]") {
+    const std::string once = normalize_for_speech("SAY AGAIN");
+    REQUIRE(normalize_for_speech(once) == once);
+}

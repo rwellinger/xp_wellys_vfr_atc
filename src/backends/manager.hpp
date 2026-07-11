@@ -123,6 +123,11 @@ struct Audio {
   std::vector<int16_t> pcm16;
   uint32_t sample_rate_hz = 0;
   int channels = 1;
+  // True when synthesis failed because a provider's content-moderation
+  // guardrail rejected the text (deterministic, non-retryable — issue
+  // #62). Only meaningful when pcm16 is empty. Lets the session skip the
+  // retry loop and degrade gracefully instead of hammering a doomed call.
+  bool content_blocked = false;
 };
 
 // Synthesize using the voice currently assigned to `role` (resolved

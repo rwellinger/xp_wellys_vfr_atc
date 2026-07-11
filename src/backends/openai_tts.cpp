@@ -79,8 +79,12 @@ std::string OpenAiTts::default_voice_for(model_manifest::VoiceRole role) const {
 std::vector<int16_t> OpenAiTts::synthesize(const std::string &voice_id,
                                            const std::string &text,
                                            float length_scale,
-                                           uint32_t &sample_rate_hz) {
+                                           uint32_t &sample_rate_hz,
+                                           TtsFailure &out_failure) {
   sample_rate_hz = 0;
+  // Default to Transient: every early failure return is retryable unless
+  // the moderation path below upgrades it to ContentBlocked.
+  out_failure = TtsFailure::Transient;
   if (api_key_.empty()) {
     logging::error("[%s] No API key configured", kBackendTag);
     return {};
@@ -144,6 +148,13 @@ std::vector<int16_t> OpenAiTts::synthesize(const std::string &voice_id,
   if (http_code != 200) {
     const std::string err(wav_bytes.begin(), wav_bytes.end());
     logging::error("[%s] HTTP %ld: %s", kBackendTag, http_code, err.c_str());
+    // OpenAI rejects disallowed content with an HTTP 400 whose body names
+    // a content-policy / moderation violation. That is deterministic, so
+    // flag it non-retryable for the session's fail-fast path (issue #62).
+    if (http_code == 400 && (err.find("content_policy") != std::string::npos ||
+                             err.find("moderation") != std::string::npos ||
+                             err.find("invalid_prompt") != std::string::npos))
+      out_failure = TtsFailure::ContentBlocked;
     return {};
   }
 
@@ -154,6 +165,7 @@ std::vector<int16_t> OpenAiTts::synthesize(const std::string &voice_id,
                    wav_bytes.size());
     return {};
   }
+  out_failure = TtsFailure::None;
   return pcm;
 }
 

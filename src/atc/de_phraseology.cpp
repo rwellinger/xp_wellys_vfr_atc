@@ -803,6 +803,120 @@ std::string parse_spoken_number_impl(const std::string &text) {
   return out;
 }
 
+// ────────────────────────────────────────────────────────────────────
+// De-shout pass (issue #62): lowercase ALL-CAPS phraseology words before
+// they reach the synthesizer. BZF/NfL writes ATC phraseology in uppercase
+// ("WIEDERHOLEN SIE WOERTLICH", "NEGATIV", "ROLLEN"); a language-agnostic
+// moderation "shouting/aggression" heuristic (Mistral's TTS guardrail)
+// reads sustained uppercase as hostile and 403-blocks the request.
+// Lowercasing the SPOKEN form is pronunciation-neutral and defuses the
+// trigger — the transcript / Log.txt still show the original uppercase,
+// because this runs only in the TTS pipeline (via normalize_for_speech).
+//
+// UTF-8 aware for the three German uppercase umlauts: it runs AFTER
+// restore_umlaute, and while that pass only emits Title/lowercase umlaut
+// forms today (so all-caps tokens reaching here are still ASCII), the
+// uppercase-umlaut handling keeps this pass correct if that ever changes.
+// Acronyms in kKeepUpper stay uppercase so the TTS still articulates them
+// (they are spoken as initialisms / precede ziffernweise digits). A word
+// qualifies as "shouting" only when it has >= 2 letters, at least one
+// uppercase letter, and NO lowercase letter — so Title-case words
+// (Charlie, Hektopascal) and number-words (eins null) are untouched.
+// Idempotent.
+// ────────────────────────────────────────────────────────────────────
+std::string soften_caps_for_speech(const std::string &s) {
+  static const std::array<const char *, 11> kKeepUpper = {
+      {"QNH", "VFR", "IFR", "ATIS", "ILS", "UTC", "RMZ", "TMZ", "CTR", "TMA",
+       "CTA"}};
+
+  // Second UTF-8 byte after a 0xC3 lead byte, for the German umlauts.
+  auto is_upper_umlaut = [](unsigned char b) {
+    return b == 0x96 || b == 0x84 || b == 0x9C; // Oe Ae Ue
+  };
+  auto is_lower_umlaut = [](unsigned char b) {
+    return b == 0xB6 || b == 0xA4 || b == 0xBC || b == 0x9F; // oe ae ue ss
+  };
+  auto is_space = [](char c) {
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+  };
+
+  std::string out;
+  out.reserve(s.size());
+  std::size_t i = 0;
+  const std::size_t n = s.size();
+  while (i < n) {
+    if (is_space(s[i])) {
+      out += s[i++];
+      continue;
+    }
+    // One token = a maximal run of non-whitespace bytes.
+    const std::size_t start = i;
+    while (i < n && !is_space(s[i]))
+      ++i;
+    const std::string tok = s.substr(start, i - start);
+
+    bool has_upper = false, has_lower = false;
+    int letters = 0;
+    for (std::size_t k = 0; k < tok.size();) {
+      const unsigned char c = static_cast<unsigned char>(tok[k]);
+      if (c == 0xC3 && k + 1 < tok.size()) {
+        const unsigned char d = static_cast<unsigned char>(tok[k + 1]);
+        if (is_upper_umlaut(d)) {
+          has_upper = true;
+          ++letters;
+        } else if (is_lower_umlaut(d)) {
+          has_lower = true;
+          ++letters;
+        }
+        k += 2;
+        continue;
+      }
+      if (is_upper(tok[k])) {
+        has_upper = true;
+        ++letters;
+      } else if (is_lower(tok[k])) {
+        has_lower = true;
+        ++letters;
+      }
+      ++k;
+    }
+
+    const bool all_caps = has_upper && !has_lower && letters >= 2;
+    bool keep = false;
+    if (all_caps) {
+      // Compare the token's ASCII letter/digit core against the acronym
+      // allowlist (acronyms are pure ASCII — no umlauts).
+      std::string core;
+      for (char ch : tok)
+        if (is_upper(ch) || is_digit(ch))
+          core += ch;
+      for (const char *k2 : kKeepUpper)
+        if (core == k2) {
+          keep = true;
+          break;
+        }
+    }
+
+    if (!all_caps || keep) {
+      out += tok;
+      continue;
+    }
+    for (std::size_t k = 0; k < tok.size();) {
+      const unsigned char c = static_cast<unsigned char>(tok[k]);
+      if (c == 0xC3 && k + 1 < tok.size() &&
+          is_upper_umlaut(static_cast<unsigned char>(tok[k + 1]))) {
+        out += static_cast<char>(0xC3);
+        out += static_cast<char>(static_cast<unsigned char>(tok[k + 1]) + 0x20);
+        k += 2;
+        continue;
+      }
+      out += is_upper(tok[k]) ? static_cast<char>(tok[k] + ('a' - 'A')) : tok[k];
+      ++k;
+    }
+  }
+  return out;
+}
+
 } // namespace
 
 std::string normalize_for_speech(const std::string &text) {
@@ -824,11 +938,14 @@ std::string normalize_for_speech(const std::string &text) {
   s = expand_clock(s);
   s = expand_sequence(s);
   s = swap_information_alpha(s);
-  // Last pass: ASCII -> UTF-8 umlaut restoration on a curated word
-  // list. TTS-only — the original ASCII output above is what callers
-  // see when they invoke this directly; the umlaut pass produces the
-  // string that actually goes to backends::tts::synthesize_async.
+  // ASCII -> UTF-8 umlaut restoration on a curated word list. TTS-only —
+  // the original ASCII output above is what callers see when they invoke
+  // this directly; the umlaut pass produces the string that actually goes
+  // to backends::tts::synthesize_async.
   s = restore_umlaute(s);
+  // Last pass: de-shout ALL-CAPS phraseology so a moderation "shouting"
+  // heuristic cannot 403-block the spoken form (issue #62).
+  s = soften_caps_for_speech(s);
   return s;
 }
 

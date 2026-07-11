@@ -647,7 +647,10 @@ void synthesize_async(std::string text, model_manifest::VoiceRole role,
         if (!tts_ptr->has_voice(id))
           id = tts_ptr->default_voice_for(role);
         auto t0 = std::chrono::steady_clock::now();
-        a.pcm16 = tts_ptr->synthesize(id, text, length_scale, a.sample_rate_hz);
+        TtsFailure fail = TtsFailure::None;
+        a.pcm16 =
+            tts_ptr->synthesize(id, text, length_scale, a.sample_rate_hz, fail);
+        a.content_blocked = (fail == TtsFailure::ContentBlocked);
         auto t1 = std::chrono::steady_clock::now();
         g_last_tts_ms = static_cast<uint32_t>(
             std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0)

@@ -402,8 +402,10 @@ struct PiperShim final : ITextToSpeech {
   }
   std::vector<int16_t> synthesize(const std::string &voice_id,
                                   const std::string &text, float length_scale,
-                                  uint32_t &sample_rate_hz) override {
-    return inner->synthesize(voice_id, text, length_scale, sample_rate_hz);
+                                  uint32_t &sample_rate_hz,
+                                  TtsFailure &out_failure) override {
+    return inner->synthesize(voice_id, text, length_scale, sample_rate_hz,
+                             out_failure);
   }
   std::string default_voice_for(model_manifest::VoiceRole role) const override {
     return inner->default_voice_for(role);

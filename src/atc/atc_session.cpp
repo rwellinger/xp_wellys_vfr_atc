@@ -104,7 +104,11 @@ static constexpr int kDialogMaxTtsTries = 3;       // attempts before giving up
 static constexpr float kDialogRetryDelaySec = 3.0f; // gap between failed tries
 static int dialog_tts_failures_ = 0;               // consecutive TTS failures
 static float dialog_retry_timer_ = 0.0f;           // >0 = auto-retry scheduled
-static bool tts_network_error_ = false;            // UI give-up flag
+static bool tts_network_error_ = false;            // UI give-up flag (retryable)
+// Content-moderation give-up flag (issue #62). Distinct from
+// tts_network_error_: a provider guardrail rejected the text, so retrying
+// is pointless — the UI shows an honest notice and NO retry button.
+static bool tts_blocked_ = false;
 
 // Full parameters of the last guarded TTS dispatch, retained so the
 // flight-loop poller can re-send the identical utterance without re-running
@@ -265,6 +269,7 @@ static void dispatch_guarded_tts() {
         if (success && !audio.pcm16.empty()) {
           dialog_tts_failures_ = 0;
           tts_network_error_ = false;
+          tts_blocked_ = false;
           last_guarded_req_.valid = false;
           if (settings::debug_logging()) {
             char dbg[160];
@@ -281,44 +286,68 @@ static void dispatch_guarded_tts() {
                                         settings::volume());
           return;
         }
-        // TTS failed. Auto-retry a few times through the flight-loop poller
-        // (state stays PLAYING so PTT is blocked; no squelch/revert between
-        // tries) before engaging the revert guard.
-        ++dialog_tts_failures_;
-        if (dialog_tts_failures_ < kDialogMaxTtsTries) {
-          dialog_retry_timer_ = kDialogRetryDelaySec;
-          char dbg[128];
-          std::snprintf(dbg, sizeof(dbg),
-                        "[xp_wellys_vfr_atc] TTS failed (%d/%d), dialog "
-                        "retry scheduled in %.0fs\n",
-                        dialog_tts_failures_, kDialogMaxTtsTries,
-                        kDialogRetryDelaySec);
-          XPLMDebugString(dbg);
-          return;
+        // A provider content-moderation guardrail (issue #62) is
+        // deterministic — retrying the identical text can never succeed —
+        // so skip the retry loop entirely and degrade immediately.
+        // Transient failures still get the auto-retry treatment.
+        const bool blocked = audio.content_blocked;
+        if (!blocked) {
+          // TTS failed transiently. Auto-retry a few times through the
+          // flight-loop poller (state stays PLAYING so PTT is blocked; no
+          // squelch/revert between tries) before engaging the revert guard.
+          ++dialog_tts_failures_;
+          if (dialog_tts_failures_ < kDialogMaxTtsTries) {
+            dialog_retry_timer_ = kDialogRetryDelaySec;
+            char dbg[128];
+            std::snprintf(dbg, sizeof(dbg),
+                          "[xp_wellys_vfr_atc] TTS failed (%d/%d), dialog "
+                          "retry scheduled in %.0fs\n",
+                          dialog_tts_failures_, kDialogMaxTtsTries,
+                          kDialogRetryDelaySec);
+            XPLMDebugString(dbg);
+            return;
+          }
         }
 
-        // Gave up — engage the revert guard and raise the network-error
-        // flag so the UI surfaces the manual retry button.
+        // Give up — engage the revert guard. `blocked` short-circuits here
+        // on the first failure (no retries); a transient failure lands here
+        // after exhausting kDialogMaxTtsTries.
         XPLMDebugString(
-            "[xp_wellys_vfr_atc][ERROR] TTS failed after retries, applying "
-            "revert guard (squelch + state check)\n");
+            blocked ? "[xp_wellys_vfr_atc][ERROR] TTS content blocked by "
+                      "provider guardrail, degrading (squelch + state check)\n"
+                    : "[xp_wellys_vfr_atc][ERROR] TTS failed after retries, "
+                      "applying revert guard (squelch + state check)\n");
         const int com = settings::active_com();
         audio_player::play_squelch_burst(com);
 
         const bool restored = atc_state_machine::restore_snapshot_if_gen(
             last_guarded_req_.pre_snap, last_guarded_req_.expected_gen);
-        const char *sys_text =
-            restored ? "Netzwerkfehler - Funkspruch nicht uebertragen. "
-                       "'Nochmal versuchen' druecken oder wiederholen."
-                     : "Netzwerkfehler - Anweisung nicht uebertragen. 'Nochmal "
-                       "versuchen' druecken oder 'Wiederholen Sie' sagen.";
+        const char *sys_text;
+        if (blocked)
+          sys_text =
+              restored
+                  ? "Sprachausgabe vom Anbieter blockiert - Funkspruch nicht "
+                    "uebertragen. Text im Transkript."
+                  : "Sprachausgabe vom Anbieter blockiert - Anweisung nicht "
+                    "uebertragen. Text im Transkript oder 'Wiederholen Sie' "
+                    "sagen.";
+        else
+          sys_text =
+              restored ? "Netzwerkfehler - Funkspruch nicht uebertragen. "
+                         "'Nochmal versuchen' druecken oder wiederholen."
+                       : "Netzwerkfehler - Anweisung nicht uebertragen. "
+                         "'Nochmal versuchen' druecken oder 'Wiederholen Sie' "
+                         "sagen.";
         transcript_.push_back(TranscriptEntry{
             static_cast<double>(XPLMGetElapsedTime()),
             TranscriptKind::System,
             sys_text,
             "",
         });
-        tts_network_error_ = true;
+        if (blocked)
+          tts_blocked_ = true;
+        else
+          tts_network_error_ = true;
         dialog_tts_failures_ = 0;
         dialog_retry_timer_ = 0.0f;
         last_guarded_req_.valid = false;
@@ -359,6 +388,7 @@ static void speak_response_guarded(const std::string &text,
   dialog_tts_failures_ = 0;
   dialog_retry_timer_ = 0.0f;
   tts_network_error_ = false;
+  tts_blocked_ = false;
   dispatch_guarded_tts();
 }
 
@@ -380,6 +410,7 @@ static void dispatch_pilot_transcript(const std::string &text, float quality) {
   last_pilot_transcript_ = text;
   last_pilot_quality_ = quality;
   tts_network_error_ = false;
+  tts_blocked_ = false;
 
   const auto &ctx = xplane_context::get();
   float active_freq =
@@ -472,6 +503,7 @@ void init() {
   dialog_tts_failures_ = 0;
   dialog_retry_timer_ = 0.0f;
   tts_network_error_ = false;
+  tts_blocked_ = false;
   last_guarded_req_.valid = false;
   last_pilot_transcript_.clear();
   last_pilot_quality_ = 1.0f;
@@ -484,6 +516,7 @@ void stop() {
   dialog_tts_failures_ = 0;
   dialog_retry_timer_ = 0.0f;
   tts_network_error_ = false;
+  tts_blocked_ = false;
   last_guarded_req_.valid = false;
 }
 
@@ -920,6 +953,8 @@ void reset_atis_cooldown() {
 }
 
 bool tts_network_error() { return tts_network_error_; }
+
+bool tts_blocked() { return tts_blocked_; }
 
 void retry_last_transmission() {
   // Re-run the last pilot transmission through the full pipeline. After a
