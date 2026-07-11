@@ -119,6 +119,11 @@ static int start_mode_selection = 1; // default: engines_running
 static const char *language_keys[] = {"de", "en"};
 static int language_selection = 0; // default: de
 
+// Interface (UI-chrome) language — "de" or "en" (Issue #56). Decoupled from
+// the ATC phraseology language above; reuses language_keys. Switches live via
+// ui_strings::reload() (no restart).
+static int ui_language_selection = 1; // default: en
+
 // AI backend selection — local (whisper.cpp + llama.cpp + Piper), the
 // OpenAI cloud pipeline, or the Mistral cloud pipeline. The arm64
 // slice offers all three; the x86_64 slice has no local backends
@@ -1400,6 +1405,17 @@ static void draw_settings_tab() {
         }
       }
     }
+    {
+      std::string ui_lang = settings::ui_language();
+      ui_language_selection = 1; // en default
+      for (size_t i = 0; i < sizeof(language_keys) / sizeof(language_keys[0]);
+           ++i) {
+        if (ui_lang == language_keys[i]) {
+          ui_language_selection = static_cast<int>(i);
+          break;
+        }
+      }
+    }
     // Mistral model slugs no longer live in InputText buffers — the
     // Combo widgets pull current values straight from settings each
     // frame. Nothing to seed here.
@@ -1680,13 +1696,27 @@ static void draw_settings_tab() {
   // ATC Commands Panel (see draw_flightprep_tab) so it sits with the operative
   // flow rather than buried in Settings.
 
-  // ATC phraseology language — DE (NfL DACH-VFR) or EN (ICAO-VFR).
-  // Applies on the next plugin start: the profile bundle and the local
-  // TTS voice are loaded during init.
+  // Interface (UI-chrome) language — DE or EN (Issue #56). Decoupled from
+  // the ATC phraseology language below; only ui_strings.json follows it.
+  // Switches live via ui_strings::reload() — no restart needed.
   const char *language_labels_tr[2] = {
       ui_strings::tr("settings.language_de"),
       ui_strings::tr("settings.language_en"),
   };
+  if (ImGui::Combo(ui_strings::tr("settings.ui_language_label"),
+                   &ui_language_selection, language_labels_tr, 2)) {
+    settings::set_ui_language(language_keys[ui_language_selection]);
+    settings::save();
+    ui_strings::reload();
+  }
+  if (ImGui::IsItemHovered()) {
+    ImGui::SetTooltip("%s", ui_strings::tr("tooltip.ui_language"));
+  }
+
+  // ATC phraseology language — DE (NfL DACH-VFR) or EN (ICAO-VFR). Governs
+  // the spoken phraseology, ATC responses and hint contents. Applies on the
+  // next plugin start: the profile bundle and the local TTS voice are loaded
+  // during init.
   if (ImGui::Combo(ui_strings::tr("settings.language_label"),
                    &language_selection, language_labels_tr, 2)) {
     settings::set_atc_language(language_keys[language_selection]);

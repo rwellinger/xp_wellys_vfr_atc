@@ -12,6 +12,7 @@
   "bzf_strict_mode": false,
   "atc_language": "de",
   "atc_profile": "DE",
+  "ui_language": "en",
   "start_mode": "engines_running",
   "vfr_flight_type": "pattern",
   "vfr_destination": "",

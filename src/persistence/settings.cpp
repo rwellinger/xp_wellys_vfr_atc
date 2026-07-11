@@ -77,6 +77,10 @@ static json default_config() {
       // Legacy mirror kept for schema stability: derived from
       // atc_language ("de"->"DE", "en"->"EN"). Not authoritative.
       {"atc_profile", "DE"},
+      // Interface (UI-chrome) language, decoupled from atc_language
+      // (Issue #56). Default "en" for fresh installs; existing configs
+      // without this key inherit atc_language on migration in init().
+      {"ui_language", "en"},
       {"debug_traffic", false},
       {"debug_text_input", false},
       {"traffic_features_enabled", true},
@@ -173,9 +177,15 @@ void init() {
   std::string json_path = data_dir_path + "/settings.json";
   std::ifstream in(json_path);
   bool needs_save = false;
+  // Whether the loaded file already carried ui_language (Issue #56). Stays
+  // true for fresh installs / parse-fallback (both seed default_config(),
+  // which has ui_language="en"), so only an existing file lacking the key
+  // triggers the atc_language migration below.
+  bool had_ui_language = true;
   if (in.good()) {
     try {
       in >> cfg;
+      had_ui_language = cfg.contains("ui_language");
       // Merge any missing defaults
       json defaults = default_config();
       for (auto &[key, value] : defaults.items()) {
@@ -225,6 +235,22 @@ void init() {
     }
   }
 
+  // UI-chrome language (Issue #56). An existing config that predates this
+  // key inherits atc_language so the interface looks unchanged after the
+  // update; fresh installs keep the "en" default from default_config().
+  // Then validate: unknown values fall back to "de".
+  {
+    if (!had_ui_language) {
+      cfg["ui_language"] = cfg.value("atc_language", std::string("de"));
+      needs_save = true;
+    }
+    std::string ui_lang = cfg.value("ui_language", std::string("de"));
+    if (ui_lang != "de" && ui_lang != "en") {
+      cfg["ui_language"] = "de";
+      needs_save = true;
+    }
+  }
+
   // Mistral-default bump (v3.1): users on the previous hardcoded
   // defaults (voxtral-mini-2507 / mistral-small-latest) get upgraded
   // to the better aviation-English combo. Any user who pasted a
@@ -255,6 +281,14 @@ std::string atc_profile_data_dir() {
   // intent_rules, phraseology_hints, ui_strings, conformance) resolve through
   // here, so a language switch repoints all of them at once.
   return data_dir_path + "/atc_profiles/" + atc_language();
+}
+
+std::string ui_profile_data_dir() {
+  // UI-chrome bundle directory derived from ui_language (Issue #56), so the
+  // interface language is independent of the ATC phraseology language. Only
+  // ui_strings.json resolves through here; it reuses the per-language
+  // bundles under atc_profiles/{de,en}.
+  return data_dir_path + "/atc_profiles/" + ui_language();
 }
 
 std::string vrps_data_path() {
@@ -360,6 +394,12 @@ std::string atc_profile() {
   return atc_language() == "en" ? "EN" : "DE";
 }
 std::string backend_language() { return atc_language(); }
+std::string ui_language() {
+  std::string v = cfg.value("ui_language", std::string("de"));
+  if (v != "de" && v != "en")
+    v = "de";
+  return v;
+}
 bool debug_traffic() { return cfg.value("debug_traffic", false); }
 bool debug_text_input() { return cfg.value("debug_text_input", false); }
 bool bzf_strict_mode() { return cfg.value("bzf_strict_mode", false); }
@@ -488,6 +528,9 @@ void set_atc_profile(const std::string &v) {
   // set_atc_language(); translate the uppercase profile back to a
   // language code so old callers keep working.
   set_atc_language(v == "EN" ? "en" : "de");
+}
+void set_ui_language(const std::string &v) {
+  cfg["ui_language"] = (v == "en") ? "en" : "de";
 }
 void set_debug_traffic(bool v) { cfg["debug_traffic"] = v; }
 void set_debug_text_input(bool v) { cfg["debug_text_input"] = v; }
