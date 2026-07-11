@@ -129,6 +129,10 @@ FacilityType classify_facility(const AirportFrequencies &freqs) {
   return FacilityType::UNKNOWN;
 }
 
+bool has_contactable_atc(const AirportFrequencies &freqs) {
+  return classify_facility(freqs) != FacilityType::UNKNOWN;
+}
+
 FrequencyType classify_by_name(FrequencyType base, const std::string &name) {
   if (base != FrequencyType::TOWER)
     return base;

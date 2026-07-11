@@ -10,6 +10,7 @@
 using xplane_context::AirportFrequencies;
 using xplane_context::classify_facility;
 using xplane_context::FacilityType;
+using xplane_context::has_contactable_atc;
 using FT = xplane_context::FrequencyType;
 
 namespace {
@@ -47,6 +48,24 @@ TEST_CASE("classify_facility: no usable contact freq -> UNKNOWN", "[facility]") 
   // ATIS/DELIVERY alone is not a contact facility -> still UNKNOWN.
   REQUIRE(classify_facility(with({FT::ATIS, FT::DELIVERY})) ==
           FacilityType::UNKNOWN);
+}
+
+TEST_CASE("has_contactable_atc: only contactable freqs count (issue #60)",
+          "[facility]") {
+  // Radio-less field (glider strip like Olten) -> not contactable.
+  REQUIRE_FALSE(has_contactable_atc(AirportFrequencies{}));
+  // ATIS-only / Delivery-only -> nothing to talk to -> not contactable.
+  REQUIRE_FALSE(has_contactable_atc(with({FT::ATIS})));
+  REQUIRE_FALSE(has_contactable_atc(with({FT::DELIVERY})));
+  REQUIRE_FALSE(has_contactable_atc(with({FT::ATIS, FT::DELIVERY})));
+  // Every facility class with a real contact freq -> contactable.
+  REQUIRE(has_contactable_atc(with({FT::TOWER})));
+  REQUIRE(has_contactable_atc(with({FT::INFO})));
+  REQUIRE(has_contactable_atc(with({FT::RADIO})));
+  REQUIRE(has_contactable_atc(with({FT::UNICOM})));
+  REQUIRE(has_contactable_atc(with({FT::CTAF})));
+  // A contact freq alongside ATIS is still contactable.
+  REQUIRE(has_contactable_atc(with({FT::ATIS, FT::TOWER})));
 }
 
 TEST_CASE("XPlaneContext::is_towered() derives only from TOWERED", "[facility]") {
