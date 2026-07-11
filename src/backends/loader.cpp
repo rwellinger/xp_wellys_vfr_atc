@@ -518,6 +518,34 @@ void process_one(const model_manifest::Entry &e) {
   else if (e.kind == K::LlamaModel)
     load_llama(e);
 }
+
+// Hybrid TTS bring-up (issue #66). Called AFTER a cloud loader has already
+// registered STT+LM+TTS, when settings::tts_backend_override() == "local".
+// Verifies the assigned Piper voice(s) and, only if at least one verifies,
+// inits Piper + loads them — ensure_piper_init() registers the PiperShim
+// and thereby OVERWRITES the cloud TTS slot. If nothing verifies we leave
+// the cloud TTS untouched (graceful fallback, no voiceless shim). Touches
+// no whisper/llama models; voice_for_role() already yields Piper ids
+// because the override is active. Returns true iff a Piper voice is loaded.
+bool bring_up_local_tts_override() {
+  using K = model_manifest::Kind;
+  std::unordered_set<std::string> verified;
+  for (const auto &vid : assigned_voice_ids()) {
+    const auto *onnx = model_manifest::get_voice(K::PiperVoice, vid);
+    const auto *json = model_manifest::get_voice(K::PiperVoiceConfig, vid);
+    if (onnx && json && verify_one(*onnx) && verify_one(*json))
+      verified.insert(vid);
+  }
+  if (verified.empty())
+    return false;
+  bool any_ready = false;
+  for (const auto &vid : verified) {
+    load_piper_voice(vid);
+    if (g_piper && g_piper->has_voice(vid))
+      any_ready = true;
+  }
+  return any_ready;
+}
 #endif // XPWELLYS_USE_LOCAL_INFERENCE
 
 // Construct the three OpenAI cloud backends and register them with the
@@ -723,6 +751,30 @@ void run_worker() {
           "OpenAI in Settings (Apple Silicon required for Local).");
 #endif
     }
+#ifdef XPWELLYS_USE_LOCAL_INFERENCE
+    // Hybrid (issue #66): keep STT+LM on the cloud backend just registered,
+    // but speak with the local Piper voice (native German, no US accent).
+    // Overwrites the cloud TTS slot if a Piper voice is available; falls
+    // back to the cloud TTS otherwise.
+    if ((mode == "openai" || mode == "mistral") &&
+        settings::tts_backend_override() == "local") {
+      if (g_should_exit.load()) {
+        g_running = false;
+        return;
+      }
+      if (bring_up_local_tts_override()) {
+        logging::info("[xp_wellys_vfr_atc] TTS OVERRIDE: LOCAL Piper voice "
+                      "active (STT+LM stay on %s).",
+                      mode.c_str());
+      } else {
+        logging::info(
+            "[xp_wellys_vfr_atc] TTS override 'local' requested but no Piper "
+            "voice is verified - keeping %s TTS. Download the voice in the "
+            "Models tab.",
+            mode.c_str());
+      }
+    }
+#endif
   } catch (const std::exception &e) {
     logging::error("loader: run_worker threw: %s", e.what());
   } catch (...) {
