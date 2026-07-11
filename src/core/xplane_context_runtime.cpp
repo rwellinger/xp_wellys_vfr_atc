@@ -813,9 +813,20 @@ void update() {
           ctx.airport_lon = apt_lon;
         }
       } else {
-        ctx.nearest_airport_id = ctx.geometric_nearest_id;
-        ctx.airport_lat = apt_lat;
-        ctx.airport_lon = apt_lon;
+        // Issue #60: only accept the geometric nearest as active ATC airport
+        // when it has a contactable ATC frequency. A radio-less field (glider
+        // strip like Olten) must not become the ATC context; leave it empty.
+        auto geom_it = freq_cache_.find(ctx.geometric_nearest_id);
+        if (geom_it != freq_cache_.end() &&
+            has_contactable_atc(geom_it->second)) {
+          ctx.nearest_airport_id = ctx.geometric_nearest_id;
+          ctx.airport_lat = apt_lat;
+          ctx.airport_lon = apt_lon;
+        } else {
+          ctx.nearest_airport_id.clear();
+          ctx.airport_lat = 0.0;
+          ctx.airport_lon = 0.0;
+        }
       }
 
       // Airport name from cache
@@ -957,20 +968,23 @@ std::vector<NearbyAirport> find_nearby_airports(double max_nm,
     if (dist_m > max_m)
       continue;
 
+    // Issue #60: hide fields without a contactable ATC frequency (glider
+    // strips etc.) from the picker so they can't be selected as ATC airport.
+    auto freq_it = freq_cache_.find(kv.first);
+    if (freq_it == freq_cache_.end() || !has_contactable_atc(freq_it->second))
+      continue;
+
     NearbyAirport na;
     na.icao = kv.first;
     na.distance_nm = dist_m / kMetersPerNm;
     auto name_it = name_cache_.find(kv.first);
     if (name_it != name_cache_.end())
       na.name = name_it->second;
-    auto freq_it = freq_cache_.find(kv.first);
-    if (freq_it != freq_cache_.end()) {
-      na.has_atis = freq_it->second.has(FrequencyType::ATIS);
-      na.has_ground = freq_it->second.has(FrequencyType::GROUND);
-      na.has_tower = freq_it->second.has(FrequencyType::TOWER);
-      na.has_afis = freq_it->second.has(FrequencyType::INFO) ||
-                    freq_it->second.has(FrequencyType::RADIO);
-    }
+    na.has_atis = freq_it->second.has(FrequencyType::ATIS);
+    na.has_ground = freq_it->second.has(FrequencyType::GROUND);
+    na.has_tower = freq_it->second.has(FrequencyType::TOWER);
+    na.has_afis = freq_it->second.has(FrequencyType::INFO) ||
+                  freq_it->second.has(FrequencyType::RADIO);
     out.push_back(std::move(na));
   }
 

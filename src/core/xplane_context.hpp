@@ -105,6 +105,12 @@ struct AirportFrequencies {
 // AFIS, UNICOM/CTAF -> UNCONTROLLED, none -> UNKNOWN). SDK-free / unit-testable.
 FacilityType classify_facility(const AirportFrequencies &freqs);
 
+// True when the airport has at least one contactable ATC frequency
+// (TOWER/INFO/RADIO/UNICOM/CTAF). ATIS-only or Delivery-only fields do NOT
+// count. Used to filter out radio-less fields (glider strips) from active-ATC
+// selection and the airport picker (issue #60). SDK-free / unit-testable.
+bool has_contactable_atc(const AirportFrequencies &freqs);
+
 struct XPlaneContext {
   double latitude = 0.0;
   double longitude = 0.0;
