@@ -37,6 +37,12 @@ std::string get_data_dir();
 // (ICAO-VFR). The six profile-bundle loaders resolve through here.
 std::string atc_profile_data_dir();
 
+// UI-chrome-scoped data directory, derived from ui_language() (Issue #56):
+// <data>/atc_profiles/de or <data>/atc_profiles/en. Only ui_strings.json
+// resolves through here, so the interface language is decoupled from the
+// ATC phraseology language (atc_profile_data_dir()).
+std::string ui_profile_data_dir();
+
 // Global, profile-independent VRP file path (<data>/vrps/airport_vrps.json).
 // VRPs are geographic data and don't depend on which ATC style the pilot
 // is training.
@@ -85,6 +91,14 @@ float auto_correction_factor();
 // atc_profile() / backend_language() / atc_profile_data_dir() all derive
 // from it.
 std::string atc_language();
+
+// Interface (UI-chrome) language: "de" or "en" (Issue #56). Decoupled from
+// atc_language() so a pilot can run the operating UI in English while
+// keeping German NfL phraseology. Default "en" for fresh installs; existing
+// configs inherit their atc_language on first migration. Only ui_strings
+// (buttons/labels/tabs/tooltips) resolves through it — the spoken
+// phraseology, ATC responses and hint contents stay on atc_language().
+std::string ui_language();
 
 // Active ATC training profile, derived from atc_language(): "DE" for
 // German, "EN" for English. The region gates across the engine compare
@@ -229,6 +243,11 @@ void set_atc_language(const std::string &v);
 // REPL call it): translates an uppercase profile ("DE"/"EN") to the
 // language and forwards to set_atc_language().
 void set_atc_profile(const std::string &v);
+
+// Set the interface (UI-chrome) language: "en" or "de" (Issue #56).
+// Independent of set_atc_language(). Callers should ui_strings::reload()
+// afterwards for a live switch without a restart.
+void set_ui_language(const std::string &v);
 
 void set_debug_traffic(bool v);
 void set_debug_text_input(bool v);
