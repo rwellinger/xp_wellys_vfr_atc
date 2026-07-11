@@ -569,6 +569,80 @@ std::string parse_spoken_number_impl(const std::string &text) {
   return out;
 }
 
+// ────────────────────────────────────────────────────────────────────
+// De-shout pass (issue #62): lowercase ALL-CAPS phraseology words before
+// they reach the synthesizer. ICAO/BZF writes phraseology in uppercase
+// ("SAY AGAIN", "NEGATIVE", "READBACK"); a language-agnostic moderation
+// "shouting/aggression" heuristic (Mistral's TTS guardrail) reads
+// sustained uppercase as hostile and 403-blocks the request. Lowercasing
+// the SPOKEN form is pronunciation-neutral and defuses the trigger — the
+// transcript / Log.txt still show the original uppercase, because this
+// runs only in the TTS pipeline (via normalize_for_speech). Mirrors
+// de_phraseology::soften_caps_for_speech (English carries no umlauts, so
+// this ASCII variant suffices). Acronyms in kKeepUpper stay uppercase so
+// the TTS still articulates them. A word qualifies as "shouting" only
+// when it has >= 2 letters, at least one uppercase letter, and NO
+// lowercase letter. Idempotent.
+// ────────────────────────────────────────────────────────────────────
+std::string soften_caps_for_speech(const std::string &s) {
+  static const std::array<const char *, 11> kKeepUpper = {
+      {"QNH", "VFR", "IFR", "ATIS", "ILS", "UTC", "RMZ", "TMZ", "CTR", "TMA",
+       "CTA"}};
+
+  auto is_space = [](char c) {
+    return c == ' ' || c == '\t' || c == '\n' || c == '\r';
+  };
+
+  std::string out;
+  out.reserve(s.size());
+  std::size_t i = 0;
+  const std::size_t n = s.size();
+  while (i < n) {
+    if (is_space(s[i])) {
+      out += s[i++];
+      continue;
+    }
+    const std::size_t start = i;
+    while (i < n && !is_space(s[i]))
+      ++i;
+    const std::string tok = s.substr(start, i - start);
+
+    bool has_upper = false, has_lower = false;
+    int letters = 0;
+    for (char ch : tok) {
+      if (is_upper(ch)) {
+        has_upper = true;
+        ++letters;
+      } else if (is_lower(ch)) {
+        has_lower = true;
+        ++letters;
+      }
+    }
+
+    const bool all_caps = has_upper && !has_lower && letters >= 2;
+    bool keep = false;
+    if (all_caps) {
+      std::string core;
+      for (char ch : tok)
+        if (is_upper(ch) || is_digit(ch))
+          core += ch;
+      for (const char *k2 : kKeepUpper)
+        if (core == k2) {
+          keep = true;
+          break;
+        }
+    }
+
+    if (!all_caps || keep) {
+      out += tok;
+      continue;
+    }
+    for (char ch : tok)
+      out += is_upper(ch) ? static_cast<char>(ch + ('a' - 'A')) : ch;
+  }
+  return out;
+}
+
 } // namespace
 
 std::string normalize_for_speech(const std::string &text) {
@@ -588,6 +662,9 @@ std::string normalize_for_speech(const std::string &text) {
   s = expand_altitudes(s);
   s = expand_clock(s);
   s = expand_sequence(s);
+  // Last pass: de-shout ALL-CAPS phraseology so a moderation "shouting"
+  // heuristic cannot 403-block the spoken form (issue #62).
+  s = soften_caps_for_speech(s);
   return s;
 }
 

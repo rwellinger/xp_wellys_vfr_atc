@@ -1199,6 +1199,13 @@ static void draw_transcript_tab() {
     if (ImGui::Button(ui_strings::tr("btn.retry")))
       atc_session::retry_last_transmission();
     ImGui::EndDisabled();
+  } else if (atc_session::tts_blocked()) {
+    // Provider content-moderation guardrail rejected the reply (issue #62).
+    // Retrying the identical text can never succeed, so show an honest
+    // notice and NO retry button — the text is still in the transcript.
+    ImGui::Separator();
+    ImGui::TextColored(ImVec4(1.0f, 0.55f, 0.2f, 1.0f), "%s",
+                       ui_strings::tr("transcript.tts_blocked"));
   }
 
   // Debug-Texteingabe: typed pilot transmission injected directly into

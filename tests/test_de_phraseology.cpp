@@ -411,3 +411,45 @@ TEST_CASE("parse_spoken_icao: too few letters is a miss",
 TEST_CASE("parse_spoken_icao: empty input", "[de_phraseology][icao][edge]") {
     REQUIRE(parse_spoken_icao("").empty());
 }
+
+// ── De-shout (issue #62): ALL-CAPS phraseology must not reach TTS in ──
+// uppercase, or a moderation "shouting" heuristic 403-blocks it. ────────
+
+TEST_CASE("de-shout: BZF readback correction is lowercased for speech",
+          "[de_phraseology][deshout]") {
+    REQUIRE(normalize_for_speech(
+                "Charlie Oscar Lima eins, WIEDERHOLEN SIE WOERTLICH.") ==
+            "Charlie Oscar Lima eins, wiederholen sie woertlich.");
+}
+
+TEST_CASE("de-shout: standalone NEGATIV keyword", "[de_phraseology][deshout]") {
+    REQUIRE(normalize_for_speech("NEGATIV") == "negativ");
+}
+
+TEST_CASE("de-shout: uppercase umlaut is lowercased (UTF-8 aware)",
+          "[de_phraseology][deshout]") {
+    // Input already carries the uppercase Oe; restore_umlaute leaves it,
+    // the de-shout pass lowercases it to "woertlich" via the umlaut.
+    REQUIRE(normalize_for_speech("W\xC3\x96RTLICH") == "w\xC3\xB6rtlich");
+}
+
+TEST_CASE("de-shout: QNH acronym stays uppercase",
+          "[de_phraseology][deshout]") {
+    const std::string out = normalize_for_speech("QNH 1013");
+    REQUIRE(out.find("QNH") != std::string::npos);
+    REQUIRE(out.find("qnh") == std::string::npos);
+}
+
+TEST_CASE("de-shout: Title-case and number words are untouched",
+          "[de_phraseology][deshout]") {
+    // "Charlie" / "Hektopascal" carry lowercase -> not shouting;
+    // ziffernweise output is already lowercase.
+    REQUIRE(normalize_for_speech("Charlie Hektopascal") ==
+            "Charlie Hektopascal");
+}
+
+TEST_CASE("de-shout: idempotent", "[de_phraseology][deshout]") {
+    const std::string once =
+        normalize_for_speech("WIEDERHOLEN SIE WOERTLICH");
+    REQUIRE(normalize_for_speech(once) == once);
+}

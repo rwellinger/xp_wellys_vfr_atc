@@ -106,8 +106,12 @@ std::string PiperTts::default_voice_for(model_manifest::VoiceRole role) const {
 std::vector<int16_t> PiperTts::synthesize(const std::string &voice_id,
                                           const std::string &text,
                                           float length_scale,
-                                          uint32_t &sample_rate_hz) {
+                                          uint32_t &sample_rate_hz,
+                                          TtsFailure &out_failure) {
   sample_rate_hz = 0;
+  // Local synthesis never runs content moderation, so any failure here is
+  // Transient by construction; success flips it to None below.
+  out_failure = TtsFailure::Transient;
   if (text.empty())
     return {};
   logging::info("[%s] synthesize voice %s, %zu chars, length_scale %.2f "
@@ -163,6 +167,7 @@ std::vector<int16_t> PiperTts::synthesize(const std::string &voice_id,
       pcm.push_back(f32_to_i16(s[i]));
     }
   }
+  out_failure = TtsFailure::None;
   return pcm;
 }
 

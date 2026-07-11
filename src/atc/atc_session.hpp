@@ -97,6 +97,12 @@ void reset_atis_cooldown();
 // set; cleared on the next transmission or a successful retry.
 bool tts_network_error();
 
+// True after an interactive TTS exchange was rejected by a provider's
+// content-moderation guardrail (issue #62). Deterministic and
+// non-retryable, so the UI shows an honest "blocked" notice with NO retry
+// button; cleared on the next transmission or a successful synthesis.
+bool tts_blocked();
+
 // Manually re-send the last pilot transmission through the full pipeline
 // (voice-quality preserved). No-op unless a network error is pending and
 // the pipeline is idle. Wired to the transcript-window retry button.

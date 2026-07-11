@@ -123,7 +123,8 @@ MistralTts::default_voice_for(model_manifest::VoiceRole role) const {
 std::vector<int16_t> MistralTts::synthesize(const std::string &voice_id,
                                             const std::string &text,
                                             float length_scale,
-                                            uint32_t &sample_rate_hz) {
+                                            uint32_t &sample_rate_hz,
+                                            TtsFailure &out_failure) {
   // length_scale has no direct equivalent in Voxtral TTS — ATIS will
   // still synthesize, just at the model's native rate. We log the
   // value so it shows up once in Log.txt and the user understands
@@ -131,6 +132,9 @@ std::vector<int16_t> MistralTts::synthesize(const std::string &voice_id,
   (void)length_scale;
 
   sample_rate_hz = 0;
+  // Default to Transient: every early failure return below is retryable
+  // unless the guardrail path (HTTP 403) upgrades it to ContentBlocked.
+  out_failure = TtsFailure::Transient;
   if (api_key_.empty()) {
     logging::error("[%s] No API key configured", kBackendTag);
     return {};
@@ -194,6 +198,12 @@ std::vector<int16_t> MistralTts::synthesize(const std::string &voice_id,
   if (http_code != 200) {
     const std::string err(wav_bytes.begin(), wav_bytes.end());
     logging::error("[%s] HTTP %ld: %s", kBackendTag, http_code, err.c_str());
+    // A 403 is Mistral's content-moderation guardrail rejecting the text
+    // (issue #62). It is deterministic — retrying the identical input can
+    // never succeed — so flag it non-retryable for the session's fail-fast
+    // path.
+    if (http_code == 403)
+      out_failure = TtsFailure::ContentBlocked;
     return {};
   }
 
@@ -250,6 +260,7 @@ std::vector<int16_t> MistralTts::synthesize(const std::string &voice_id,
     std::vector<int16_t> pcm(audio_bytes.size() / 2);
     std::memcpy(pcm.data(), audio_bytes.data(), audio_bytes.size());
     sample_rate_hz = json_sample_rate;
+    out_failure = TtsFailure::None;
     return pcm;
   }
 
@@ -269,6 +280,7 @@ std::vector<int16_t> MistralTts::synthesize(const std::string &voice_id,
                    kBackendTag, static_cast<unsigned>(sample_rate_hz));
     return {};
   }
+  out_failure = TtsFailure::None;
   return pcm;
 }
 

@@ -40,6 +40,7 @@
   "btn.send": "Send",
   "btn.retry": "Retry",
   "transcript.network_error": "Network error - the ATC reply could not be transmitted after 3 attempts. Check your connection/backend, then retry.",
+  "transcript.tts_blocked": "Speech output blocked by the provider (content rejected) - the text is in the transcript. Retrying will not help; consider the Local/OpenAI backend.",
 
   "status.ready": "Ready",
   "status.not_loaded": "Not loaded",

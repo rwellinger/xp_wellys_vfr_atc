@@ -45,7 +45,8 @@ public:
 
   std::vector<int16_t> synthesize(const std::string &voice_id,
                                   const std::string &text, float length_scale,
-                                  uint32_t &sample_rate_hz) override;
+                                  uint32_t &sample_rate_hz,
+                                  TtsFailure &out_failure) override;
 
   std::string default_voice_for(model_manifest::VoiceRole role) const override;
 
