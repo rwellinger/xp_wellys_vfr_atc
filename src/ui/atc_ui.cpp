@@ -767,16 +767,22 @@ static void draw_status_tab() {
   ImGui::Separator();
 
   // ── Per-file rows (accordion sections) ──
-  // Three CollapsingHeaders split the 18 rows into "Inference Models",
+  // Three CollapsingHeaders split the rows into "Inference Models",
   // "Required Voices", "Optional Voices". Inference + Required are
   // expanded by default; Optional folds away so the page is scannable
   // at a glance. Each row's actions live inside its section.
+  //
+  // Sections are rendered order-INDEPENDENTLY: we first bucket the
+  // visible manifest indices by section, then draw each non-empty
+  // section exactly once in a fixed order. The catalog interleaves
+  // voices of different sections/languages (e.g. a required EN voice
+  // sits between optional DE voices), so a "emit a header whenever the
+  // section changes vs. the previous row" scheme would re-open the same
+  // section twice in one frame and ImGui would assert "2 visible items
+  // with conflicting ID". Bucketing first makes that impossible.
   const auto &manifest = model_manifest::all();
-  enum class Section { None, Inference, RequiredVoices, OptionalVoices };
-  Section last_section = Section::None;
-  // Tracks whether the user wants the current section's rows rendered.
-  // Defaults change per section via ImGuiTreeNodeFlags_DefaultOpen.
-  bool section_open = false;
+  enum Section { SecInference = 0, SecRequiredVoices, SecOptionalVoices };
+  std::vector<size_t> sec_indices[3];
   for (size_t i = 0; i < manifest.size(); ++i) {
     const auto &m = manifest[i];
 
@@ -787,189 +793,198 @@ static void draw_status_tab() {
     if (m.kind == model_manifest::Kind::PiperVoiceConfig)
       continue;
 
-    if (!m.optional && !m.language.empty() && m.language != active_lang)
+    // Only offer models/voices of the active language. Llama carries an
+    // empty language and is always kept. This applies to OPTIONAL voices
+    // too — otherwise foreign-language voices leak into the list (and
+    // would speak the wrong language), and their interleaving is what
+    // breaks section contiguity.
+    if (!m.language.empty() && m.language != active_lang)
       continue;
 
-    Section sec;
     if (m.kind == model_manifest::Kind::WhisperModel ||
         m.kind == model_manifest::Kind::LlamaModel)
-      sec = Section::Inference;
+      sec_indices[SecInference].push_back(i);
     else if (!m.optional)
-      sec = Section::RequiredVoices;
+      sec_indices[SecRequiredVoices].push_back(i);
     else
-      sec = Section::OptionalVoices;
+      sec_indices[SecOptionalVoices].push_back(i);
+  }
 
-    if (sec != last_section) {
-      const char *label = "";
-      ImGuiTreeNodeFlags flags = 0;
-      switch (sec) {
-      case Section::Inference:
-        label = ui_strings::tr("models.section_inference");
-        flags = ImGuiTreeNodeFlags_DefaultOpen;
-        break;
-      case Section::RequiredVoices:
-        label = ui_strings::tr("models.section_required_voices");
-        flags = ImGuiTreeNodeFlags_DefaultOpen;
-        break;
-      case Section::OptionalVoices:
-        label = ui_strings::tr("models.section_optional_voices");
-        // Closed by default — most users never touch these.
-        flags = 0;
-        break;
-      default:
-        break;
-      }
-      section_open = ImGui::CollapsingHeader(label, flags);
-      last_section = sec;
-    }
-    if (!section_open) {
+  struct SectionDef {
+    const char *label_key;
+    const char *id_suffix; // stable ###-ID so a translated label change
+                           // never flips the header's ImGui ID.
+    ImGuiTreeNodeFlags flags;
+  };
+  const SectionDef section_defs[3] = {
+      {"models.section_inference", "###sec_inference",
+       ImGuiTreeNodeFlags_DefaultOpen},
+      {"models.section_required_voices", "###sec_required_voices",
+       ImGuiTreeNodeFlags_DefaultOpen},
+      // Optional voices closed by default — most users never touch these.
+      {"models.section_optional_voices", "###sec_optional_voices", 0},
+  };
+
+  for (int s = 0; s < 3; ++s) {
+    if (sec_indices[s].empty())
+      continue; // no visible rows -> no header for this section
+
+    std::string header =
+        std::string(ui_strings::tr(section_defs[s].label_key)) +
+        section_defs[s].id_suffix;
+    if (!ImGui::CollapsingHeader(header.c_str(), section_defs[s].flags))
       continue; // user has the section folded away
-    }
-    backends::loader::FileStatus loader_fs{
-        m.kind, m.voice_id, m.language, backends::loader::FileState::NotChecked,
-        ""};
-    for (const auto &fs : loader_status.files) {
-      // Match on the full (kind, voice_id, language) triple — two
-      // Whisper rows share the same kind/voice_id but differ by
-      // language.
-      if (fs.kind == m.kind && fs.voice_id == m.voice_id &&
-          fs.language == m.language) {
-        loader_fs = fs;
-        break;
-      }
-    }
-    backends::downloader::Progress dl{};
-    dl.kind = m.kind;
-    dl.voice_id = m.voice_id;
-    // Downloader Progress vector mirrors model_manifest::all() order
-    // exactly, so the same index `i` is the authoritative lookup.
-    if (i < downloads.size() && downloads[i].kind == m.kind &&
-        downloads[i].voice_id == m.voice_id) {
-      dl = downloads[i];
-    }
 
-    // Piper voices: fold in the .onnx.json config sibling's on-disk +
-    // download state so this single row's buttons manage both files.
-    const model_manifest::Entry *cfg_entry = nullptr;
-    backends::loader::FileStatus cfg_fs{};
-    backends::downloader::Progress cfg_dl{};
-    if (m.kind == model_manifest::Kind::PiperVoice) {
-      cfg_entry = model_manifest::get_voice(
-          model_manifest::Kind::PiperVoiceConfig, m.voice_id);
+    for (size_t i : sec_indices[s]) {
+      const auto &m = manifest[i];
+      backends::loader::FileStatus loader_fs{
+          m.kind, m.voice_id, m.language,
+          backends::loader::FileState::NotChecked, ""};
       for (const auto &fs : loader_status.files) {
-        if (fs.kind == model_manifest::Kind::PiperVoiceConfig &&
-            fs.voice_id == m.voice_id && fs.language == m.language) {
-          cfg_fs = fs;
+        // Match on the full (kind, voice_id, language) triple — two
+        // Whisper rows share the same kind/voice_id but differ by
+        // language.
+        if (fs.kind == m.kind && fs.voice_id == m.voice_id &&
+            fs.language == m.language) {
+          loader_fs = fs;
           break;
         }
       }
-      for (const auto &p : downloads) {
-        if (p.kind == model_manifest::Kind::PiperVoiceConfig &&
-            p.voice_id == m.voice_id) {
-          cfg_dl = p;
-          break;
+      backends::downloader::Progress dl{};
+      dl.kind = m.kind;
+      dl.voice_id = m.voice_id;
+      // Downloader Progress vector mirrors model_manifest::all() order
+      // exactly, so the same index `i` is the authoritative lookup.
+      if (i < downloads.size() && downloads[i].kind == m.kind &&
+          downloads[i].voice_id == m.voice_id) {
+        dl = downloads[i];
+      }
+
+      // Piper voices: fold in the .onnx.json config sibling's on-disk +
+      // download state so this single row's buttons manage both files.
+      const model_manifest::Entry *cfg_entry = nullptr;
+      backends::loader::FileStatus cfg_fs{};
+      backends::downloader::Progress cfg_dl{};
+      if (m.kind == model_manifest::Kind::PiperVoice) {
+        cfg_entry = model_manifest::get_voice(
+            model_manifest::Kind::PiperVoiceConfig, m.voice_id);
+        for (const auto &fs : loader_status.files) {
+          if (fs.kind == model_manifest::Kind::PiperVoiceConfig &&
+              fs.voice_id == m.voice_id && fs.language == m.language) {
+            cfg_fs = fs;
+            break;
+          }
+        }
+        for (const auto &p : downloads) {
+          if (p.kind == model_manifest::Kind::PiperVoiceConfig &&
+              p.voice_id == m.voice_id) {
+            cfg_dl = p;
+            break;
+          }
         }
       }
-    }
 
-    ImGui::PushID(static_cast<int>(i));
+      ImGui::PushID(static_cast<int>(i));
 
-    // Row header: filename + state badge + language tag
-    ImGui::Text("%s", m.display_name.c_str());
-    ImGui::SameLine();
-    ImGui::TextColored(file_state_color(loader_fs.state), "[%s]",
-                       file_state_label(loader_fs.state));
-    if (!m.language.empty()) {
+      // Row header: filename + state badge + language tag
+      ImGui::Text("%s", m.display_name.c_str());
       ImGui::SameLine();
-      ImGui::TextDisabled("[%s]", m.language.c_str());
-    }
-
-    // Live download line (if active)
-    using DS = backends::downloader::State;
-    if (dl.state == DS::Downloading) {
-      float frac = dl.bytes_total > 0
-                       ? static_cast<float>(dl.bytes_downloaded) /
-                             static_cast<float>(dl.bytes_total)
-                       : 0.0f;
-      char overlay[64];
-      std::snprintf(overlay, sizeof(overlay), "%s / %s",
-                    format_bytes(dl.bytes_downloaded).c_str(),
-                    format_bytes(dl.bytes_total).c_str());
-      ImGui::ProgressBar(frac, ImVec2(-1.0f, 0.0f), overlay);
-    } else if (dl.state == DS::Queued) {
-      ImGui::TextDisabled("%s", ui_strings::tr("models.queued"));
-    } else if (dl.state == DS::Verifying) {
-      ImGui::TextDisabled("%s", ui_strings::tr("models.verifying"));
-    } else if (dl.state == DS::Failed || dl.state == DS::InsufficientDisk) {
-      ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.2f, 1.0f), "%s: %s",
-                         download_state_label(dl.state),
-                         dl.error_message.c_str());
-    }
-
-    // Compact metadata: size + first 8 hex of SHA256
-    ImGui::TextDisabled(ui_strings::tr("models.metadata_format"),
-                        format_bytes(m.size_bytes).c_str(),
-                        m.sha256_hex.substr(0, 8).c_str(), m.filename.c_str());
-
-    // Loader-side messages (verify errors, load errors)
-    if (!loader_fs.message.empty() &&
-        loader_fs.state != backends::loader::FileState::Verifying &&
-        loader_fs.state != backends::loader::FileState::Loading) {
-      ImGui::TextWrapped("   %s", loader_fs.message.c_str());
-    }
-
-    // Action buttons — act on the voice as a whole (.onnx + .onnx.json).
-    // The per-row "Re-verify" + "Force re-download" skip the 2 GB Llama
-    // hash entirely. For voices the buttons fan out to both files so a
-    // single row drives the whole voice.
-    using FS = backends::loader::FileState;
-    auto is_missing = [](FS s) {
-      return s == FS::Missing || s == FS::SizeMismatch || s == FS::HashMismatch;
-    };
-    auto is_settled = [](FS s) {
-      return s == FS::Ready || s == FS::Verified || s == FS::LoadError;
-    };
-    auto dl_active = [](DS s) {
-      return s == DS::Downloading || s == DS::Queued || s == DS::Verifying;
-    };
-    const bool busy_dl =
-        dl_active(dl.state) || (cfg_entry && dl_active(cfg_dl.state));
-    const bool needs_dl =
-        is_missing(loader_fs.state) || (cfg_entry && is_missing(cfg_fs.state));
-    const bool settled =
-        is_settled(loader_fs.state) && (!cfg_entry || is_settled(cfg_fs.state));
-    const std::string entry_key = model_manifest::entry_key(m);
-    if (busy_dl) {
-      if (ImGui::Button(ui_strings::tr("btn.cancel"))) {
-        backends::downloader::cancel(m);
-        if (cfg_entry)
-          backends::downloader::cancel(*cfg_entry);
+      ImGui::TextColored(file_state_color(loader_fs.state), "[%s]",
+                         file_state_label(loader_fs.state));
+      if (!m.language.empty()) {
+        ImGui::SameLine();
+        ImGui::TextDisabled("[%s]", m.language.c_str());
       }
-    } else if (needs_dl) {
-      if (ImGui::Button(ui_strings::tr("btn.download"))) {
-        backends::downloader::enqueue(m);
-        if (cfg_entry)
-          backends::downloader::enqueue(*cfg_entry);
-      }
-    } else if (settled) {
-      if (ImGui::Button(ui_strings::tr("btn.reverify"))) {
-        // process_one() pulls the .onnx.json sibling automatically.
-        backends::loader::start(entry_key);
-      }
-      ImGui::SameLine();
-      if (ImGui::Button(ui_strings::tr("btn.force_redownload"))) {
-        backends::downloader::force_redownload(m);
-        if (cfg_entry)
-          backends::downloader::force_redownload(*cfg_entry);
-      }
-    } else {
-      ImGui::BeginDisabled();
-      ImGui::Button(ui_strings::tr("btn.busy"));
-      ImGui::EndDisabled();
-    }
 
-    ImGui::PopID();
-    ImGui::Separator();
+      // Live download line (if active)
+      using DS = backends::downloader::State;
+      if (dl.state == DS::Downloading) {
+        float frac = dl.bytes_total > 0
+                         ? static_cast<float>(dl.bytes_downloaded) /
+                               static_cast<float>(dl.bytes_total)
+                         : 0.0f;
+        char overlay[64];
+        std::snprintf(overlay, sizeof(overlay), "%s / %s",
+                      format_bytes(dl.bytes_downloaded).c_str(),
+                      format_bytes(dl.bytes_total).c_str());
+        ImGui::ProgressBar(frac, ImVec2(-1.0f, 0.0f), overlay);
+      } else if (dl.state == DS::Queued) {
+        ImGui::TextDisabled("%s", ui_strings::tr("models.queued"));
+      } else if (dl.state == DS::Verifying) {
+        ImGui::TextDisabled("%s", ui_strings::tr("models.verifying"));
+      } else if (dl.state == DS::Failed || dl.state == DS::InsufficientDisk) {
+        ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.2f, 1.0f), "%s: %s",
+                           download_state_label(dl.state),
+                           dl.error_message.c_str());
+      }
+
+      // Compact metadata: size + first 8 hex of SHA256
+      ImGui::TextDisabled(ui_strings::tr("models.metadata_format"),
+                          format_bytes(m.size_bytes).c_str(),
+                          m.sha256_hex.substr(0, 8).c_str(),
+                          m.filename.c_str());
+
+      // Loader-side messages (verify errors, load errors)
+      if (!loader_fs.message.empty() &&
+          loader_fs.state != backends::loader::FileState::Verifying &&
+          loader_fs.state != backends::loader::FileState::Loading) {
+        ImGui::TextWrapped("   %s", loader_fs.message.c_str());
+      }
+
+      // Action buttons — act on the voice as a whole (.onnx + .onnx.json).
+      // The per-row "Re-verify" + "Force re-download" skip the 2 GB Llama
+      // hash entirely. For voices the buttons fan out to both files so a
+      // single row drives the whole voice.
+      using FS = backends::loader::FileState;
+      auto is_missing = [](FS s) {
+        return s == FS::Missing || s == FS::SizeMismatch ||
+               s == FS::HashMismatch;
+      };
+      auto is_settled = [](FS s) {
+        return s == FS::Ready || s == FS::Verified || s == FS::LoadError;
+      };
+      auto dl_active = [](DS s) {
+        return s == DS::Downloading || s == DS::Queued || s == DS::Verifying;
+      };
+      const bool busy_dl =
+          dl_active(dl.state) || (cfg_entry && dl_active(cfg_dl.state));
+      const bool needs_dl = is_missing(loader_fs.state) ||
+                            (cfg_entry && is_missing(cfg_fs.state));
+      const bool settled = is_settled(loader_fs.state) &&
+                           (!cfg_entry || is_settled(cfg_fs.state));
+      const std::string entry_key = model_manifest::entry_key(m);
+      if (busy_dl) {
+        if (ImGui::Button(ui_strings::tr("btn.cancel"))) {
+          backends::downloader::cancel(m);
+          if (cfg_entry)
+            backends::downloader::cancel(*cfg_entry);
+        }
+      } else if (needs_dl) {
+        if (ImGui::Button(ui_strings::tr("btn.download"))) {
+          backends::downloader::enqueue(m);
+          if (cfg_entry)
+            backends::downloader::enqueue(*cfg_entry);
+        }
+      } else if (settled) {
+        if (ImGui::Button(ui_strings::tr("btn.reverify"))) {
+          // process_one() pulls the .onnx.json sibling automatically.
+          backends::loader::start(entry_key);
+        }
+        ImGui::SameLine();
+        if (ImGui::Button(ui_strings::tr("btn.force_redownload"))) {
+          backends::downloader::force_redownload(m);
+          if (cfg_entry)
+            backends::downloader::force_redownload(*cfg_entry);
+        }
+      } else {
+        ImGui::BeginDisabled();
+        ImGui::Button(ui_strings::tr("btn.busy"));
+        ImGui::EndDisabled();
+      }
+
+      ImGui::PopID();
+      ImGui::Separator();
+    }
   }
 
   // ── Footer: backend readiness + RAM + per-stage latency ──
