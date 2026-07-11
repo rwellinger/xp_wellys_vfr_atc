@@ -55,9 +55,15 @@ even to pilot mistakes.
 - **💻 Local AI & ☁️ Cloud AI** — choose your mode at runtime:
   - **Local** (Apple Silicon) — runs **100% offline** after a one-time model
     download. No subscription, no API key, no constant internet.
-  - **OpenAI Cloud** (any Mac) — with your own API key.
-  - **Mistral Cloud** (any Mac) — with your own API key; speaks German
-    without a US accent.
+  - **OpenAI Cloud** (any Mac) — with your own API key. English voices only,
+    so German is spoken with a US accent.
+  - **Mistral Cloud** (any Mac) — with your own API key. Multilingual, but
+    Voxtral ships **no German preset voice** (US/GB English + French only),
+    so with the default voices German still carries an English accent.
+
+  > **For accurate German, use Local mode** (Piper `de_DE-thorsten`, a native
+  > German voice). Both cloud providers speak German with an accent — see
+  > issue #63.
 - **🪟 Windows (cloud-only, fully supported)** — a pure cloud build for
   X-Plane 12 on Windows is included (`win_x64/xp_wellys_vfr_atc.xpl`, OpenAI
   **or** Mistral, API key in the Windows Credential Manager). **Verified

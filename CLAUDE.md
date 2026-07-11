@@ -45,8 +45,14 @@ den Einstellungen:
   (`mistral-small-latest`, JSON-Modus) + Voxtral TTS
   (`voxtral-mini-tts-2603`). Separater Keychain-Eintrag
   `com.xp_wellys_devfr_atc.mistral`, sodass der OpenAI-Key unberührt bleibt.
-  Multilinguales TTS — der einzige Cloud-Modus, der Deutsch ohne
-  US-Akzent spricht.
+  Multilinguales TTS (Voxtral spricht u. a. Deutsch). **Wichtig (Issue
+  #63):** Voxtral hat **keine deutsche Preset-Stimme** — die Presets sind
+  US-EN (`en_paul_*`), GB-EN (`gb_oliver_*`) und FR. Die Default-Voices
+  sind englisch, deutscher Text bekommt damit einen **US-Akzent**. Weniger
+  Akzent geht nur über eine französische Preset-Stimme (emergenter
+  Cross-Lingual-Effekt) oder Voice-Cloning mit deutscher Referenz — beides
+  nicht Default. Für sauberes Deutsch ist **Local** (Piper `thorsten`) das
+  einzige Backend; OpenAI hat gar keine deutsche Stimme.
 
 Der `x86_64`-Slice hat **keine** lokalen Backends einkompiliert; **OpenAI**
 oder **Mistral** ist die einzige Option auf Intel-Macs (der Loader
@@ -706,8 +712,11 @@ Intents überspringen sie ganz. Jede Inferenz läuft auf `std::thread`s mit
   API-Key im Keychain, letzte 4 Zeichen geloggt.
 - **Mistral Cloud** (beide Slices): `voxtral-mini-2507` →
   `mistral-small-latest` (JSON-Modus) → `voxtral-mini-tts-2603`. Latenz
-  typisch 2–3 s warm. Multilinguales TTS — der einzige Cloud-Modus, der
-  Deutsch ohne US-Akzent spricht. API-Key im Keychain, letzte 4 Zeichen
+  typisch 2–3 s warm. Multilinguales TTS (spricht u. a. Deutsch), aber
+  **keine deutsche Preset-Stimme** — die Default-Voices sind englisch
+  (`en_paul`/`gb_oliver`), deutscher Text klingt daher US-akzentuiert
+  (Issue #63). Sauberes Deutsch nur über **Local** (Piper `thorsten`).
+  API-Key im Keychain, letzte 4 Zeichen
   geloggt. Achtung: Voxtral TTS liefert ein JSON-Envelope
   `{"audio_data":"<base64 WAV>"}` unabhängig vom `response_format`.
 

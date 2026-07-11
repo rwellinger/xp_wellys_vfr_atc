@@ -27,8 +27,11 @@
 // tree").
 //
 // Spoken forms follow ICAO Annex 10 Vol II §5.2.1.4.3.1 (see
-// docs/icao/icao_coverage.md §11.1): the digits three/four/five/nine use
-// the distinctive ATC forms "tree/fower/fife/niner"; the phonetic
+// docs/icao/icao_coverage.md §11.1): digits 3/5/9 use the distinctive ATC
+// forms "tree/fife/niner". 4 is spoken "four", not the ICAO respelling
+// "fower" — that non-word makes TTS engines say it literally (issue #63);
+// "tree/fife/niner" survive because they are real words / clean
+// homophones. The reverse parser still accepts "fower". The phonetic
 // alphabet uses the ICAO official spellings "Alfa" and "Juliett"
 // (double-t) and "X-ray" (§11.3). English aviation nouns replace the
 // German anchors (Runway/heading/feet/knots/degrees/decimal/o'clock).
