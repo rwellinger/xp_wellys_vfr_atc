@@ -73,6 +73,16 @@ bool role_from_name(const std::string &name, VoiceRole &out);
 // entries with the same key are the same file.
 std::string entry_key(const Entry &e);
 
+// True for large models that are NOT part of the active-language
+// "language pack" and are downloaded only on explicit user request —
+// currently just the ~1.9 GB Llama LM. The engine treats the LM as a
+// low-confidence fallback and runs fully on the rule-based parser
+// without it (see atc/engine.cpp), so these must be excluded from the
+// "still required" download total, from bulk Download-All, and from the
+// local-mode readiness gate. Distinct from `Entry::optional`, which
+// tags on-demand *voices* gated by role assignment.
+bool is_optional_ai_model(Kind kind);
+
 // All entries the plugin knows about. Order is the loading order and
 // is also what the UI iterates for its rows. Required entries come
 // first (Whisper, Llama, the four default voices), optional voices

@@ -224,7 +224,12 @@ bool verify_files() {
     // click Download, instead of staring at a permanent "Busy" button.
     const bool foreign_language =
         !e.language.empty() && e.language != active_lang;
-    bool is_required = !e.optional && !foreign_language;
+    // Optional AI models (Llama) are NOT part of the readiness gate: the
+    // engine runs fully on the rule parser without the LM, and a missing
+    // Llama must not stop Whisper/Piper from loading (load_backends only
+    // runs when verify_files() returns true).
+    bool is_required = !e.optional && !foreign_language &&
+                       !model_manifest::is_optional_ai_model(e.kind);
     bool is_assigned_voice =
         (e.kind == model_manifest::Kind::PiperVoice ||
          e.kind == model_manifest::Kind::PiperVoiceConfig) &&
@@ -350,8 +355,20 @@ void load_backends() {
   if (g_should_exit.load())
     return;
 
-  // Llama
-  load_llama(model_manifest::get(K::LlamaModel));
+  // Llama — optional low-confidence fallback. Only load it when the file
+  // is actually on disk; its absence leaves the LM backend unregistered
+  // (engine falls back to the rule parser) instead of logging a scary
+  // "open failed" for a file the user deliberately did not download.
+  {
+    const auto &llama = model_manifest::get(K::LlamaModel);
+    const std::string llama_path =
+        model_paths::models_dir() + "/" + llama.filename;
+    if (model_manifest::size_matches(llama, llama_path))
+      load_llama(llama);
+    else
+      logging::info("LM (llama.cpp) not present - optional, running "
+                    "rule-parser-only classification.");
+  }
 
   if (g_should_exit.load())
     return;
@@ -718,11 +735,16 @@ bool Status::all_ready() const { return readiness_blockers().empty(); }
 
 std::vector<ReadinessBlocker> Status::readiness_blockers() const {
   std::vector<ReadinessBlocker> out;
+  const std::string mode = settings::backend_mode();
   if (!backends::stt_ready())
     out.push_back({ReadinessBlocker::Source::SttBackend,
                    {},
                    "STT backend not registered"});
-  if (!backends::lm_ready())
+  // The LM is the primary classifier for the cloud modes but only an
+  // optional low-confidence fallback in local mode (Llama). Do not gate
+  // local-mode readiness on it — a user who skipped the 1.9 GB download
+  // is still fully operational on the rule parser.
+  if (mode != "local" && !backends::lm_ready())
     out.push_back(
         {ReadinessBlocker::Source::LmBackend, {}, "LM backend not registered"});
   if (!backends::tts_ready())
@@ -732,7 +754,6 @@ std::vector<ReadinessBlocker> Status::readiness_blockers() const {
 
   // Cloud modes have no model files on disk to gate against — backend
   // registration alone is the readiness signal.
-  const std::string mode = settings::backend_mode();
   if (mode == "openai" || mode == "mistral")
     return out;
 
@@ -783,6 +804,8 @@ std::vector<ReadinessBlocker> Status::readiness_blockers() const {
   for (const auto &f : files) {
     if (!f.language.empty() && f.language != active_lang)
       continue;
+    if (model_manifest::is_optional_ai_model(f.kind))
+      continue; // Llama is download-on-demand; never a readiness blocker
     bool is_voice_kind = (f.kind == model_manifest::Kind::PiperVoice ||
                           f.kind == model_manifest::Kind::PiperVoiceConfig);
     if (is_voice_kind && wanted.count(f.voice_id) == 0)

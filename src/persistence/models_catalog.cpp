@@ -119,7 +119,10 @@ void ensure_defaults_locked() {
        "ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb",
        "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/"
        "ggml-small-q5_1.bin",
-       "Whisper STT (small multilingual, q5_1)", "de"},
+       // Multilingual model — language-agnostic (empty), shared by DE and
+       // EN. Tagging it "de" would filter it out of EN local mode and make
+       // get_for_language(WhisperModel,"en") abort.
+       "Whisper STT (small multilingual, q5_1)", ""},
   };
   g_cat.local_llama = {
       {"Llama-3.2-3B-Instruct-Q4_K_M.gguf", 2019377696ULL,

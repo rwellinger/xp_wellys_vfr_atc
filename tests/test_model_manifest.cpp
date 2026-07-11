@@ -10,15 +10,27 @@ using model_manifest::Kind;
 using model_manifest::VoiceRole;
 
 // ── Language-aware Whisper selection (M6) ────────────────────────────
-// German-VFR-only build: the catalog ships a single (multilingual)
-// Whisper model tagged "de" and a single German Piper voice.
+// The catalog ships a single *multilingual* Whisper model. It is tagged
+// language-agnostic (empty) so it is shared by both DE and EN — tagging
+// it "de" would make get_for_language(WhisperModel,"en") abort and drop
+// STT from EN local mode.
 
-TEST_CASE("get_for_language picks the multilingual Whisper for 'de'",
+TEST_CASE("get_for_language routes multilingual Whisper for both languages",
           "[model_manifest][m6]") {
-  const auto &e = model_manifest::get_for_language(Kind::WhisperModel, "de");
-  REQUIRE(e.kind == Kind::WhisperModel);
-  REQUIRE(e.language == "de");
-  REQUIRE(e.filename == "ggml-small-q5_1.bin");
+  const auto &de = model_manifest::get_for_language(Kind::WhisperModel, "de");
+  const auto &en = model_manifest::get_for_language(Kind::WhisperModel, "en");
+  REQUIRE(de.kind == Kind::WhisperModel);
+  REQUIRE(en.kind == Kind::WhisperModel);
+  REQUIRE(de.filename == "ggml-small-q5_1.bin");
+  REQUIRE(en.filename == de.filename); // same single entry via fallback
+  REQUIRE(de.language.empty());        // language-agnostic
+}
+
+TEST_CASE("is_optional_ai_model flags Llama but not Whisper/voices",
+          "[model_manifest]") {
+  REQUIRE(model_manifest::is_optional_ai_model(Kind::LlamaModel));
+  REQUIRE_FALSE(model_manifest::is_optional_ai_model(Kind::WhisperModel));
+  REQUIRE_FALSE(model_manifest::is_optional_ai_model(Kind::PiperVoice));
 }
 
 TEST_CASE("get_for_language falls back to language-agnostic Llama",

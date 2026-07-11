@@ -740,19 +740,23 @@ static void draw_status_tab() {
       break;
     }
   }
-  // Two top-row buttons: Download All (left) + Re-verify All (right).
-  // Re-verify All stays visible even when something is still missing
-  // — it lets the user retrigger a check after they manually copied a
-  // model file into Resources/models/ without a download.
+  // Two top-row buttons: Download language pack (left) + Re-verify All
+  // (right). The pack button fetches only what the active language needs
+  // (Whisper + required voice + any assigned optional voices) — it does
+  // NOT pull the large optional Llama, which has its own per-row Download
+  // in the "Optional AI models" section. `need_b` already excludes Llama.
+  // Re-verify All stays visible even when something is still missing — it
+  // lets the user retrigger a check after they manually copied a model
+  // file into Resources/models/ without a download.
   if (need_b > 0) {
     if (any_pending_or_active) {
       ImGui::BeginDisabled();
-      ImGui::Button(ui_strings::tr("btn.download_all"));
+      ImGui::Button(ui_strings::tr("btn.download_language_pack"));
       ImGui::EndDisabled();
       ImGui::SameLine();
       ImGui::TextDisabled("%s", ui_strings::tr("models.download_progress"));
     } else {
-      if (ImGui::Button(ui_strings::tr("btn.download_all"))) {
+      if (ImGui::Button(ui_strings::tr("btn.download_language_pack"))) {
         backends::downloader::enqueue_all_missing(false);
       }
     }
@@ -767,10 +771,14 @@ static void draw_status_tab() {
   ImGui::Separator();
 
   // ── Per-file rows (accordion sections) ──
-  // Three CollapsingHeaders split the rows into "Inference Models",
-  // "Required Voices", "Optional Voices". Inference + Required are
-  // expanded by default; Optional folds away so the page is scannable
-  // at a glance. Each row's actions live inside its section.
+  // Three CollapsingHeaders separate what the user actually needs from
+  // the large optional download, so nobody accidentally pulls the
+  // ~1.9 GB Llama when they only wanted a ~60 MB language voice:
+  //   0 "Language pack"  — the multilingual Whisper STT + the required
+  //                        voice for the active language. Open by default.
+  //   1 "Optional voices"— extra voices for the active language. Folded.
+  //   2 "Optional AI models" — Llama (download-on-demand). Folded, with a
+  //                        note that the sim runs without it.
   //
   // Sections are rendered order-INDEPENDENTLY: we first bucket the
   // visible manifest indices by section, then draw each non-empty
@@ -781,7 +789,7 @@ static void draw_status_tab() {
   // section twice in one frame and ImGui would assert "2 visible items
   // with conflicting ID". Bucketing first makes that impossible.
   const auto &manifest = model_manifest::all();
-  enum Section { SecInference = 0, SecRequiredVoices, SecOptionalVoices };
+  enum Section { SecLanguagePack = 0, SecOptionalVoices, SecAiModels };
   std::vector<size_t> sec_indices[3];
   for (size_t i = 0; i < manifest.size(); ++i) {
     const auto &m = manifest[i];
@@ -793,19 +801,16 @@ static void draw_status_tab() {
     if (m.kind == model_manifest::Kind::PiperVoiceConfig)
       continue;
 
-    // Only offer models/voices of the active language. Llama carries an
-    // empty language and is always kept. This applies to OPTIONAL voices
-    // too — otherwise foreign-language voices leak into the list (and
-    // would speak the wrong language), and their interleaving is what
-    // breaks section contiguity.
+    // Only offer models/voices of the active language. Whisper + Llama
+    // carry an empty language and are always kept. Applies to OPTIONAL
+    // voices too — otherwise foreign-language voices leak into the list.
     if (!m.language.empty() && m.language != active_lang)
       continue;
 
-    if (m.kind == model_manifest::Kind::WhisperModel ||
-        m.kind == model_manifest::Kind::LlamaModel)
-      sec_indices[SecInference].push_back(i);
-    else if (!m.optional)
-      sec_indices[SecRequiredVoices].push_back(i);
+    if (model_manifest::is_optional_ai_model(m.kind))
+      sec_indices[SecAiModels].push_back(i); // Llama — separate & optional
+    else if (m.kind == model_manifest::Kind::WhisperModel || !m.optional)
+      sec_indices[SecLanguagePack].push_back(i); // Whisper + required voice
     else
       sec_indices[SecOptionalVoices].push_back(i);
   }
@@ -817,23 +822,32 @@ static void draw_status_tab() {
     ImGuiTreeNodeFlags flags;
   };
   const SectionDef section_defs[3] = {
-      {"models.section_inference", "###sec_inference",
+      {"models.section_language_pack", "###sec_language_pack",
        ImGuiTreeNodeFlags_DefaultOpen},
-      {"models.section_required_voices", "###sec_required_voices",
-       ImGuiTreeNodeFlags_DefaultOpen},
-      // Optional voices closed by default — most users never touch these.
+      // Optional voices + AI models folded — most users never touch these.
       {"models.section_optional_voices", "###sec_optional_voices", 0},
+      {"models.section_ai_models", "###sec_ai_models", 0},
   };
 
   for (int s = 0; s < 3; ++s) {
     if (sec_indices[s].empty())
       continue; // no visible rows -> no header for this section
 
-    std::string header =
-        std::string(ui_strings::tr(section_defs[s].label_key)) +
-        section_defs[s].id_suffix;
+    std::string header = std::string(ui_strings::tr(section_defs[s].label_key));
+    // Name the active language on the language-pack header so it is clear
+    // which voices these are (e.g. "Language pack · English (ICAO-VFR)").
+    if (s == SecLanguagePack)
+      header += std::string(" - ") +
+                ui_strings::tr(active_lang == "en" ? "settings.language_en"
+                                                   : "settings.language_de");
+    header += section_defs[s].id_suffix;
     if (!ImGui::CollapsingHeader(header.c_str(), section_defs[s].flags))
       continue; // user has the section folded away
+
+    // Optional AI models get a one-line "you don't need this" note so the
+    // large download reads as deliberate, not mandatory.
+    if (s == SecAiModels)
+      ImGui::TextDisabled("%s", ui_strings::tr("models.ai_model_note"));
 
     for (size_t i : sec_indices[s]) {
       const auto &m = manifest[i];

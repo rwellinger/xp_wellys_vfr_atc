@@ -87,7 +87,7 @@
     "_piper_base": "https://huggingface.co/rhasspy/piper-voices/resolve/main",
 
     "whisper": [
-      {"language": "de",
+      {"language": "",
        "filename": "ggml-small-q5_1.bin",
        "size_bytes": 190085487,
        "sha256": "ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb",

@@ -381,6 +381,10 @@ uint64_t bytes_still_required(bool include_all_languages) {
   for (const auto &e : model_manifest::all()) {
     if (e.optional)
       continue;
+    // Optional AI models (Llama) are downloaded on explicit request only;
+    // they must not inflate the language-pack "still required" total.
+    if (model_manifest::is_optional_ai_model(e.kind))
+      continue;
     if (!include_all_languages && !e.language.empty() &&
         e.language != active_lang)
       continue;
@@ -455,6 +459,10 @@ size_t enqueue_all_missing(bool include_all_languages) {
     for (const auto &e : model_manifest::all()) {
       if (e.kind == fs.kind && e.voice_id == fs.voice_id &&
           e.language == fs.language) {
+        // Never auto-pull large optional AI models (Llama, 1.9 GB) via
+        // Download-All — they get an explicit per-row Download click.
+        if (model_manifest::is_optional_ai_model(e.kind))
+          break;
         if (e.optional) {
           // Optional Piper voice: only enqueue when the user picked
           // it for a role. Unassigned optional voices still need an

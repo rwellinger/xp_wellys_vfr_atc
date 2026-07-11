@@ -161,6 +161,8 @@ const Entry &get(Kind kind) {
   std::abort();
 }
 
+bool is_optional_ai_model(Kind kind) { return kind == Kind::LlamaModel; }
+
 const Entry &get_for_language(Kind kind, const std::string &language) {
   // Caller bug: voice kinds need a voice_id, not a language.
   if (kind == Kind::PiperVoice || kind == Kind::PiperVoiceConfig)
