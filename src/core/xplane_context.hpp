@@ -200,7 +200,8 @@ struct NearbyAirport {
   bool has_atis = false;
   bool has_ground = false;
   bool has_tower = false;
-  bool has_afis = false; // INFO or RADIO -> AFIS facility
+  bool has_afis = false;   // INFO or RADIO -> AFIS facility
+  bool has_unicom = false; // UNICOM or CTAF -> uncontrolled facility
 };
 
 // Return up to `max_count` airports within `max_nm` of the aircraft,

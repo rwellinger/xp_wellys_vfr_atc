@@ -392,17 +392,18 @@ static void draw_nearby_airports() {
 
   auto render_row = [&](const std::string &icao, const std::string &name,
                         double dist_nm, bool has_atis, bool has_ground,
-                        bool has_tower, bool has_afis, bool is_locked) {
+                        bool has_tower, bool has_afis, bool has_unicom,
+                        bool is_locked) {
     auto mark = [](bool present) -> const char * {
       return present ? "X" : "-";
     };
     char label[256];
     std::snprintf(label, sizeof(label),
-                  "%s %-4s  %-24s  %5.1f NM   %s    %s   %s    %s##nb_%s",
+                  "%s %-4s  %-24s  %5.1f NM   %s    %s   %s    %s    %s##nb_%s",
                   is_locked ? ">" : " ", // lock marker
                   icao.c_str(), name.empty() ? "" : name.substr(0, 24).c_str(),
                   dist_nm, mark(has_atis), mark(has_ground), mark(has_tower),
-                  mark(has_afis), icao.c_str());
+                  mark(has_afis), mark(has_unicom), icao.c_str());
     if (is_locked) {
       ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4f, 1.0f, 0.4f, 1.0f));
     }
@@ -476,6 +477,7 @@ static void draw_nearby_airports() {
         ctx.airport_freqs.has(FT::ATIS), ctx.airport_freqs.has(FT::GROUND),
         ctx.airport_freqs.has(FT::TOWER),
         ctx.airport_freqs.has(FT::INFO) || ctx.airport_freqs.has(FT::RADIO),
+        ctx.airport_freqs.has(FT::UNICOM) || ctx.airport_freqs.has(FT::CTAF),
         true);
   }
 
@@ -484,7 +486,7 @@ static void draw_nearby_airports() {
   } else {
     for (const auto &na : nearby_cache_) {
       render_row(na.icao, na.name, na.distance_nm, na.has_atis, na.has_ground,
-                 na.has_tower, na.has_afis, na.icao == locked);
+                 na.has_tower, na.has_afis, na.has_unicom, na.icao == locked);
     }
   }
 }

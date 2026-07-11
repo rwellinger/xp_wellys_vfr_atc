@@ -88,7 +88,7 @@
   "nearby.col_icao": "ICAO",
   "nearby.col_name": "Name",
   "nearby.col_dist": "Dist.",
-  "nearby.col_facilities": "ATIS GND TWR AFIS",
+  "nearby.col_facilities": "ATIS GND TWR AFIS UNI",
   "nearby.empty": "  (no airports in range)",
 
   "models.openai_active": "OpenAI cloud mode active",
