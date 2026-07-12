@@ -261,6 +261,15 @@ void init() {
     cfg["mistral_stt_model"] = "voxtral-mini-transcribe-2507";
     needs_save = true;
   }
+  // Heal an invalid STT slug (issue #79): voxtral-small-2507 is an
+  // audio-instruct model, not a transcription model — the
+  // /v1/audio/transcriptions endpoint rejects it with HTTP 400
+  // 'invalid_model', so every PTT fails silently. Point it back at the
+  // dedicated transcribe model so a stuck install recovers on next launch.
+  if (cfg.value("mistral_stt_model", std::string{}) == "voxtral-small-2507") {
+    cfg["mistral_stt_model"] = "voxtral-mini-transcribe-2507";
+    needs_save = true;
+  }
   if (cfg.value("mistral_lm_model", std::string{}) == "mistral-small-latest") {
     cfg["mistral_lm_model"] = "mistral-large-latest";
     needs_save = true;

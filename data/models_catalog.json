@@ -27,13 +27,12 @@
   },
 
   "mistral": {
+    "_stt_comment": "Only the Voxtral Mini variants serve /v1/audio/transcriptions. voxtral-small-2507 is an audio-instruct model and the transcribe endpoint rejects it with HTTP 400 'invalid_model' (issue #79) — do NOT add it here.",
     "stt": [
       {"id": "voxtral-mini-transcribe-2507",
        "label": "voxtral-mini-transcribe-2507 (recommended, dedicated transcribe)"},
       {"id": "voxtral-mini-2507",
-       "label": "voxtral-mini-2507 (multimodal, weaker for ATC)"},
-      {"id": "voxtral-small-2507",
-       "label": "voxtral-small-2507 (best quality, slower)"}
+       "label": "voxtral-mini-2507 (multimodal, weaker for ATC)"}
     ],
     "lm": [
       {"id": "mistral-small-latest",
