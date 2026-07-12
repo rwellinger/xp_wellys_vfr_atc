@@ -95,7 +95,7 @@
   "models.openai_active": "OpenAI-Cloud-Modus aktiv",
   "models.openai_no_models": "Keine lokalen Modelle benoetigt. Inferenz laeuft ueber api.openai.com.",
   "models.openai_hint": "Zurueck zu lokalen Modellen: 'Backend' im Einstellungen-Tab umstellen.",
-  "models.hybrid_voice_hint": "Fuer 'Sprachausgabe lokal' (Hybrid): einmal in den Local-Modus wechseln, eine deutsche Stimme laden, dann zurueck auf Cloud.",
+  "models.hybrid_voice_section": "Hybrid-Modus: Nur die lokale Piper-Stimme fuer die Sprachausgabe herunterladen. STT + Sprachmodell laufen weiter ueber die Cloud.",
   "models.location": "Modelle liegen unter <plugin>/Resources/models/",
   "models.all_present_format": "Alle Dateien vorhanden. Freier Speicher: %s",
   "models.low_disk_format": "Benoetigt: %s - nur %s frei auf diesem Volume!",

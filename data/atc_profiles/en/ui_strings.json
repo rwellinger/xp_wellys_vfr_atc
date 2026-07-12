@@ -95,7 +95,7 @@
   "models.openai_active": "OpenAI cloud mode active",
   "models.openai_no_models": "No local models needed. Inference runs via api.openai.com.",
   "models.openai_hint": "Back to local models: switch 'Backend' in the Settings tab.",
-  "models.hybrid_voice_hint": "For 'Local voice output' (hybrid): switch to Local mode once, download a voice, then switch back to cloud.",
+  "models.hybrid_voice_section": "Hybrid mode: download only the local Piper voice for speech output. STT + language model stay on the cloud backend.",
   "models.location": "Models are stored under <plugin>/Resources/models/",
   "models.all_present_format": "All files present. Free disk: %s",
   "models.low_disk_format": "Needed: %s - only %s free on this volume!",

@@ -694,25 +694,32 @@ static void draw_status_tab() {
 // RAM usage and per-stage inference latency live at the bottom for
 // live tuning during dev sessions; both are read-only.
 [[maybe_unused]] static void draw_models_tab() {
-  // Cloud modes have no local models to manage — short-circuit the
-  // whole panel so the user is not tempted to download files they
-  // would never use.
+  // Cloud modes never download the full local pipeline (Whisper STT +
+  // Llama LM). On Apple Silicon we still render a trimmed "voice only"
+  // view so the hybrid TTS override (issue #66) can fetch its local Piper
+  // voice right here, without a detour through Local mode. On the
+  // cloud-only slices there is nothing local to manage, so short-circuit.
+  bool voice_only = false;
   {
     const std::string mode = settings::backend_mode();
     if (mode == "openai" || mode == "mistral") {
       ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.0f, 1.0f), "%s",
                          ui_strings::tr("models.openai_active"));
+#ifdef XPWELLYS_USE_LOCAL_INFERENCE
+      // Hybrid TTS (issue #66): only the local Piper voice is downloadable
+      // here — STT+LM stay on the cloud backend, so Whisper/Llama are
+      // hidden. Fall through to the per-voice rows below instead of
+      // returning.
+      voice_only = true;
+      ImGui::TextDisabled("%s", ui_strings::tr("models.hybrid_voice_section"));
+      ImGui::Spacing();
+      ImGui::Separator();
+#else
       ImGui::TextDisabled("%s", ui_strings::tr("models.openai_no_models"));
       ImGui::Spacing();
       ImGui::TextDisabled("%s", ui_strings::tr("models.openai_hint"));
-#ifdef XPWELLYS_USE_LOCAL_INFERENCE
-      // Hybrid TTS (issue #66): the local Piper voice must first be
-      // downloaded in Local mode; then it can be used as the speech voice
-      // while STT+LM stay on the cloud backend.
-      ImGui::Spacing();
-      ImGui::TextDisabled("%s", ui_strings::tr("models.hybrid_voice_hint"));
-#endif
       return;
+#endif
     }
   }
 
@@ -724,66 +731,73 @@ static void draw_status_tab() {
   // toggle is gone.
   const std::string active_lang = settings::backend_language();
 
-  // ── Top summary: where files live + free disk + still-required ──
-  ImGui::TextDisabled("%s", ui_strings::tr("models.location"));
-  uint64_t free_b = backends::downloader::free_space_bytes();
-  uint64_t need_b = backends::downloader::bytes_still_required(false);
-  if (need_b == 0) {
-    ImGui::Text(ui_strings::tr("models.all_present_format"),
-                format_bytes(free_b).c_str());
-  } else {
-    bool low_disk = free_b < need_b + (50ULL * 1024 * 1024); // 50 MB slack
-    if (low_disk) {
-      ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f),
-                         ui_strings::tr("models.low_disk_format"),
-                         format_bytes(need_b).c_str(),
-                         format_bytes(free_b).c_str());
+  // The whole-pipeline summary (disk + still-required) and the "Download
+  // language pack" bulk button count Whisper via bytes_still_required /
+  // enqueue_all_missing — neither is meaningful in the hybrid voice-only
+  // view, so both are skipped there. The per-voice rows below carry their
+  // own Download/Re-verify buttons and cover the voice-only case fully.
+  if (!voice_only) {
+    // ── Top summary: where files live + free disk + still-required ──
+    ImGui::TextDisabled("%s", ui_strings::tr("models.location"));
+    uint64_t free_b = backends::downloader::free_space_bytes();
+    uint64_t need_b = backends::downloader::bytes_still_required(false);
+    if (need_b == 0) {
+      ImGui::Text(ui_strings::tr("models.all_present_format"),
+                  format_bytes(free_b).c_str());
     } else {
-      ImGui::Text(ui_strings::tr("models.still_need_format"),
-                  format_bytes(need_b).c_str(), format_bytes(free_b).c_str());
-    }
-  }
-  ImGui::Spacing();
-
-  // ── Bulk action: download all missing ──
-  bool any_pending_or_active = false;
-  for (const auto &d : downloads) {
-    using DS = backends::downloader::State;
-    if (d.state == DS::Queued || d.state == DS::Downloading ||
-        d.state == DS::Verifying) {
-      any_pending_or_active = true;
-      break;
-    }
-  }
-  // Two top-row buttons: Download language pack (left) + Re-verify All
-  // (right). The pack button fetches only what the active language needs
-  // (Whisper + required voice + any assigned optional voices) — it does
-  // NOT pull the large optional Llama, which has its own per-row Download
-  // in the "Optional AI models" section. `need_b` already excludes Llama.
-  // Re-verify All stays visible even when something is still missing — it
-  // lets the user retrigger a check after they manually copied a model
-  // file into Resources/models/ without a download.
-  if (need_b > 0) {
-    if (any_pending_or_active) {
-      ImGui::BeginDisabled();
-      ImGui::Button(ui_strings::tr("btn.download_language_pack"));
-      ImGui::EndDisabled();
-      ImGui::SameLine();
-      ImGui::TextDisabled("%s", ui_strings::tr("models.download_progress"));
-    } else {
-      if (ImGui::Button(ui_strings::tr("btn.download_language_pack"))) {
-        backends::downloader::enqueue_all_missing(false);
+      bool low_disk = free_b < need_b + (50ULL * 1024 * 1024); // 50 MB slack
+      if (low_disk) {
+        ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f),
+                           ui_strings::tr("models.low_disk_format"),
+                           format_bytes(need_b).c_str(),
+                           format_bytes(free_b).c_str());
+      } else {
+        ImGui::Text(ui_strings::tr("models.still_need_format"),
+                    format_bytes(need_b).c_str(), format_bytes(free_b).c_str());
       }
     }
-    ImGui::SameLine();
-  }
-  if (ImGui::Button(ui_strings::tr("btn.reverify_all"))) {
-    backends::loader::start();
-  }
-  ImGui::SameLine();
-  ImGui::TextDisabled("%s", ui_strings::tr("models.bandwidth_hint"));
+    ImGui::Spacing();
 
-  ImGui::Separator();
+    // ── Bulk action: download all missing ──
+    bool any_pending_or_active = false;
+    for (const auto &d : downloads) {
+      using DS = backends::downloader::State;
+      if (d.state == DS::Queued || d.state == DS::Downloading ||
+          d.state == DS::Verifying) {
+        any_pending_or_active = true;
+        break;
+      }
+    }
+    // Two top-row buttons: Download language pack (left) + Re-verify All
+    // (right). The pack button fetches only what the active language needs
+    // (Whisper + required voice + any assigned optional voices) — it does
+    // NOT pull the large optional Llama, which has its own per-row Download
+    // in the "Optional AI models" section. `need_b` already excludes Llama.
+    // Re-verify All stays visible even when something is still missing — it
+    // lets the user retrigger a check after they manually copied a model
+    // file into Resources/models/ without a download.
+    if (need_b > 0) {
+      if (any_pending_or_active) {
+        ImGui::BeginDisabled();
+        ImGui::Button(ui_strings::tr("btn.download_language_pack"));
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        ImGui::TextDisabled("%s", ui_strings::tr("models.download_progress"));
+      } else {
+        if (ImGui::Button(ui_strings::tr("btn.download_language_pack"))) {
+          backends::downloader::enqueue_all_missing(false);
+        }
+      }
+      ImGui::SameLine();
+    }
+    if (ImGui::Button(ui_strings::tr("btn.reverify_all"))) {
+      backends::loader::start();
+    }
+    ImGui::SameLine();
+    ImGui::TextDisabled("%s", ui_strings::tr("models.bandwidth_hint"));
+
+    ImGui::Separator();
+  }
 
   // ── Per-file rows (accordion sections) ──
   // Three CollapsingHeaders separate what the user actually needs from
@@ -820,6 +834,12 @@ static void draw_status_tab() {
     // carry an empty language and are always kept. Applies to OPTIONAL
     // voices too — otherwise foreign-language voices leak into the list.
     if (!m.language.empty() && m.language != active_lang)
+      continue;
+
+    // Hybrid voice-only view (cloud mode on Apple Silicon): STT+LM stay in
+    // the cloud, so only the local Piper voice is downloadable here — hide
+    // Whisper and Llama entirely.
+    if (voice_only && m.kind != model_manifest::Kind::PiperVoice)
       continue;
 
     if (model_manifest::is_optional_ai_model(m.kind))
@@ -1015,6 +1035,12 @@ static void draw_status_tab() {
       ImGui::Separator();
     }
   }
+
+  // The hybrid voice-only view ends here. The footer below reports the full
+  // local pipeline (STT/LM/TTS readiness, RAM, per-stage latency), which is
+  // misleading in a cloud mode where STT+LM never run locally.
+  if (voice_only)
+    return;
 
   // ── Footer: backend readiness + RAM + per-stage latency ──
   ImGui::Spacing();
