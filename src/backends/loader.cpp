@@ -20,10 +20,25 @@
 #include "persistence/models_catalog.hpp"
 #include "persistence/settings.hpp"
 
+// Metal STT/LM backends (issue #69): gated on XPWELLYS_USE_LOCAL_INFERENCE.
 #ifdef XPWELLYS_USE_LOCAL_INFERENCE
 #include "backends/llama_lm.hpp"
-#include "backends/piper_tts.hpp"
 #include "backends/whisper_stt.hpp"
+#endif
+// CPU Piper TTS backend: gated on its own flag so the hybrid mode (cloud
+// STT/LM + local German voice) works on the cloud-only slices too (#69/#70).
+#ifdef XPWELLYS_USE_LOCAL_TTS
+#include "backends/piper_tts.hpp"
+#endif
+
+// Full local inference (Metal STT/LM) always implies local TTS at build time
+// (CMake forces XPWELLYS_USE_LOCAL_TTS ON whenever XPWELLYS_USE_LOCAL_INFERENCE
+// is), so "any local backend compiled in" is INFERENCE || TTS. The shared
+// model verification + status helpers below use this; the Piper-only pieces
+// (g_piper, ensure_piper_init, load_piper_voice, the hybrid override, the
+// Piper voice rows) are gated on XPWELLYS_USE_LOCAL_TTS alone.
+#if defined(XPWELLYS_USE_LOCAL_INFERENCE) || defined(XPWELLYS_USE_LOCAL_TTS)
+#define XPWELLYS_HAS_LOCAL_MODELS 1
 #endif
 
 #include <atomic>
@@ -68,14 +83,14 @@ std::thread g_worker;
 std::mutex g_single_mtx;
 std::string g_single_key; // protected by g_single_mtx
 
-#ifdef XPWELLYS_USE_LOCAL_INFERENCE
+#ifdef XPWELLYS_USE_LOCAL_TTS
 // One ITextToSpeech survives across loader runs so newly-downloaded
-// optional voices can be hot-loaded. Created on first run. Local
-// inference only — the OpenAI TTS backend is owned by the manager.
+// optional voices can be hot-loaded. Created on first run. Local Piper
+// only — the cloud TTS backends are owned by the manager.
 std::shared_ptr<PiperTts> g_piper;
 #endif
 
-#ifdef XPWELLYS_USE_LOCAL_INFERENCE
+#ifdef XPWELLYS_HAS_LOCAL_MODELS
 void update_state(const model_manifest::Entry &entry, FileState s,
                   std::string message = {}) {
   std::lock_guard<std::mutex> lk(g_mtx);
@@ -113,7 +128,7 @@ bool entry_loaded(const model_manifest::Entry &e) {
     return backends::lm_ready();
   case model_manifest::Kind::PiperVoice:
   case model_manifest::Kind::PiperVoiceConfig:
-#ifdef XPWELLYS_USE_LOCAL_INFERENCE
+#ifdef XPWELLYS_USE_LOCAL_TTS
     return g_piper && g_piper->has_voice(e.voice_id);
 #else
     return false;
@@ -122,7 +137,7 @@ bool entry_loaded(const model_manifest::Entry &e) {
   return false;
 }
 
-#ifdef XPWELLYS_USE_LOCAL_INFERENCE
+#ifdef XPWELLYS_USE_LOCAL_TTS
 bool dir_exists(const std::string &path) {
   struct stat st{};
   if (stat(path.c_str(), &st) != 0)
@@ -131,7 +146,7 @@ bool dir_exists(const std::string &path) {
 }
 #endif
 
-#ifdef XPWELLYS_USE_LOCAL_INFERENCE
+#ifdef XPWELLYS_HAS_LOCAL_MODELS
 // The set of voice_ids the user currently wants loaded — i.e. the
 // four roles' assignments. Optional voices not assigned to any role
 // are not loaded into memory but still verified (so the UI can show
@@ -146,7 +161,7 @@ std::unordered_set<std::string> assigned_voice_ids() {
 }
 #endif
 
-#ifdef XPWELLYS_USE_LOCAL_INFERENCE
+#ifdef XPWELLYS_HAS_LOCAL_MODELS
 // Verify a single manifest entry. Updates `g_status` to reflect the
 // terminal state (Missing / SizeMismatch / HashMismatch / Verified).
 // Returns true iff the entry reached Verified.
@@ -194,7 +209,9 @@ bool verify_one(const model_manifest::Entry &e) {
     logging::info("verify: %s OK (sha256 matches)", e.filename.c_str());
   return true;
 }
+#endif // XPWELLYS_HAS_LOCAL_MODELS
 
+#ifdef XPWELLYS_USE_LOCAL_INFERENCE
 // Walks the manifest, fast-checks size, computes SHA256 only for
 // files that pass the size check. Updates `g_status` as it goes so
 // the UI can reflect "Verifying… llama-3.2-3B (45%)" etc.
@@ -383,7 +400,9 @@ void load_backends() {
     load_piper_voice(voice_id);
   }
 }
+#endif // XPWELLYS_USE_LOCAL_INFERENCE
 
+#ifdef XPWELLYS_USE_LOCAL_TTS
 // Shim that lets the manager own the Piper instance via a unique_ptr
 // while we keep a shared_ptr to it for hot-loading new voices.
 struct PiperShim final : ITextToSpeech {
@@ -490,15 +509,19 @@ void load_piper_voice(const std::string &voice_id) {
     logging::error("%s", msg.c_str());
   }
 }
+#endif // XPWELLYS_USE_LOCAL_TTS
 
+#ifdef XPWELLYS_HAS_LOCAL_MODELS
 // Per-entry verify-then-load used by the targeted start(key) path.
 // Verifies the entry; if Verified, loads the matching backend
 // (Whisper / Llama / Piper voice). Piper voices pull their sibling
 // entry through automatically so the voice ends up usable from a
-// single Re-verify click.
+// single Re-verify click. Available whenever any local backend is
+// compiled in — the Models-tab voice re-verify uses it in hybrid mode.
 void process_one(const model_manifest::Entry &e) {
   using K = model_manifest::Kind;
   if (e.kind == K::PiperVoice || e.kind == K::PiperVoiceConfig) {
+#ifdef XPWELLYS_USE_LOCAL_TTS
     const auto *onnx = model_manifest::get_voice(K::PiperVoice, e.voice_id);
     const auto *json =
         model_manifest::get_voice(K::PiperVoiceConfig, e.voice_id);
@@ -508,8 +531,10 @@ void process_one(const model_manifest::Entry &e) {
     bool json_ok = verify_one(*json);
     if (onnx_ok && json_ok)
       load_piper_voice(e.voice_id);
+#endif
     return;
   }
+#ifdef XPWELLYS_USE_LOCAL_INFERENCE
   if (!verify_one(e))
     return;
   if (e.kind == K::WhisperModel)
@@ -517,8 +542,11 @@ void process_one(const model_manifest::Entry &e) {
                                        : e.language);
   else if (e.kind == K::LlamaModel)
     load_llama(e);
+#endif
 }
+#endif // XPWELLYS_HAS_LOCAL_MODELS
 
+#ifdef XPWELLYS_USE_LOCAL_TTS
 // Hybrid TTS bring-up (issue #66). Called AFTER a cloud loader has already
 // registered STT+LM+TTS, when settings::tts_backend_override() == "local".
 // Verifies the assigned Piper voice(s) and, only if at least one verifies,
@@ -546,7 +574,7 @@ bool bring_up_local_tts_override() {
   }
   return any_ready;
 }
-#endif // XPWELLYS_USE_LOCAL_INFERENCE
+#endif // XPWELLYS_USE_LOCAL_TTS
 
 // Construct the three OpenAI cloud backends and register them with the
 // manager. Skips the local-model verification entirely: no files on
@@ -670,11 +698,12 @@ void run_worker() {
       single_key = std::move(g_single_key);
       g_single_key.clear();
     }
-#ifdef XPWELLYS_USE_LOCAL_INFERENCE
+#ifdef XPWELLYS_HAS_LOCAL_MODELS
     if (!single_key.empty()) {
       // Targeted: only one file (plus Piper sibling). Cloud modes
       // have nothing to verify on disk, so single-key requests are
-      // ignored there — the cloud loader runs full anyway.
+      // ignored there — the cloud loader runs full anyway. Available in
+      // hybrid TTS-only builds too, for the Models-tab voice re-verify.
       logging::info("[xp_wellys_vfr_atc] LOADER: targeted verify for key %s",
                     single_key.c_str());
       const model_manifest::Entry *target = nullptr;
@@ -751,11 +780,12 @@ void run_worker() {
           "OpenAI in Settings (Apple Silicon required for Local).");
 #endif
     }
-#ifdef XPWELLYS_USE_LOCAL_INFERENCE
+#ifdef XPWELLYS_USE_LOCAL_TTS
     // Hybrid (issue #66): keep STT+LM on the cloud backend just registered,
     // but speak with the local Piper voice (native German, no US accent).
     // Overwrites the cloud TTS slot if a Piper voice is available; falls
-    // back to the cloud TTS otherwise.
+    // back to the cloud TTS otherwise. Gated on the Piper-TTS flag so it
+    // also runs on the x86_64-macOS / Windows slices (#69/#70).
     if ((mode == "openai" || mode == "mistral") &&
         settings::tts_backend_override() == "local") {
       if (g_should_exit.load()) {
@@ -976,7 +1006,7 @@ void clear_file_state(const std::string &single_entry_key) {
     }
   };
   reset(target->kind, target->voice_id, target->language);
-#ifdef XPWELLYS_USE_LOCAL_INFERENCE
+#ifdef XPWELLYS_HAS_LOCAL_MODELS
   using K = model_manifest::Kind;
   if (target->kind == K::PiperVoice || target->kind == K::PiperVoiceConfig) {
     const K sibling =
@@ -986,12 +1016,15 @@ void clear_file_state(const std::string &single_entry_key) {
     // file disappears from disk.
     if (g_piper)
       g_piper->unload_voice(target->voice_id);
-  } else if (target->kind == K::WhisperModel) {
+  }
+#ifdef XPWELLYS_USE_LOCAL_INFERENCE
+  else if (target->kind == K::WhisperModel) {
     backends::register_stt(nullptr);
   } else if (target->kind == K::LlamaModel) {
     backends::register_lm(nullptr);
   }
 #endif
+#endif // XPWELLYS_HAS_LOCAL_MODELS
 }
 
 void stop() {
@@ -1007,7 +1040,7 @@ void stop() {
   }
   g_running = false;
   g_should_exit = false;
-#ifdef XPWELLYS_USE_LOCAL_INFERENCE
+#ifdef XPWELLYS_USE_LOCAL_TTS
   g_piper.reset();
 #endif
   // Drop the registered backend pointers so a subsequent start() —

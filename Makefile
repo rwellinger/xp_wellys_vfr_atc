@@ -190,9 +190,13 @@ build: $(PREBUILT_SENTINEL) $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $
 	cmake --build build-arm64 --parallel
 	@echo ""
 	@echo "--- x86_64 slice (cloud-only) ---"
+	@# Local TTS (Piper) is explicitly OFF here until the x86_64-macOS
+	@# Piper prebuilt lands (#71/#72); XPWELLYS_USE_LOCAL_TTS defaults ON,
+	@# so it must be forced OFF to keep this slice cloud-only.
 	cmake -B build-x86_64 -DCMAKE_BUILD_TYPE=Release $(RELEASE_FLAG) \
 	    -DCMAKE_OSX_ARCHITECTURES=x86_64 \
 	    -DXPWELLYS_USE_LOCAL_INFERENCE=OFF \
+	    -DXPWELLYS_USE_LOCAL_TTS=OFF \
 	    -DBUILD_TESTS=OFF \
 	    -Wno-dev
 	cmake --build build-x86_64 --parallel
@@ -227,9 +231,13 @@ build: $(PREBUILT_SENTINEL) $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $
 # vendor sentinels only.
 ci-fast: $(SDK_SENTINEL) $(IMGUI_SENTINEL) $(JSON_SENTINEL) $(CATCH2_SENTINEL)
 	@echo "=== Fast cloud-only sanity build (arm64, no local backends) ==="
+	@# Both local flags OFF: this fast build has no prebuilt bundle
+	@# (no PREBUILT_SENTINEL dep), so XPWELLYS_USE_LOCAL_TTS (default ON)
+	@# must be forced OFF or bundle discovery would FATAL_ERROR.
 	cmake -B build-ci -DCMAKE_BUILD_TYPE=Release \
 	    -DCMAKE_OSX_ARCHITECTURES=arm64 \
 	    -DXPWELLYS_USE_LOCAL_INFERENCE=OFF \
+	    -DXPWELLYS_USE_LOCAL_TTS=OFF \
 	    -DBUILD_TESTS=ON \
 	    -Wno-dev
 	cmake --build build-ci --target xp_wellys_vfr_atc_tests atc_repl xp_wellys_vfr_atc --parallel
