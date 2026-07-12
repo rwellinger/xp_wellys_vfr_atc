@@ -39,6 +39,7 @@
 #include "data/airspace_db.hpp"
 #include "data/traffic_context.hpp"
 #include "persistence/model_manifest.hpp"
+#include "persistence/model_paths.hpp"
 #include "persistence/models_catalog.hpp"
 #include "persistence/settings.hpp"
 #include "ui/clipboard.hpp"
@@ -704,6 +705,13 @@ static void draw_status_tab() {
       ImGui::TextDisabled("%s", ui_strings::tr("models.openai_no_models"));
       ImGui::Spacing();
       ImGui::TextDisabled("%s", ui_strings::tr("models.openai_hint"));
+#ifdef XPWELLYS_USE_LOCAL_INFERENCE
+      // Hybrid TTS (issue #66): the local Piper voice must first be
+      // downloaded in Local mode; then it can be used as the speech voice
+      // while STT+LM stay on the cloud backend.
+      ImGui::Spacing();
+      ImGui::TextDisabled("%s", ui_strings::tr("models.hybrid_voice_hint"));
+#endif
       return;
     }
   }
@@ -1463,6 +1471,19 @@ static void draw_settings_tab() {
       backend_mode_keys[backend_mode_selection];
   const bool show_openai_controls = (active_backend_key == "openai");
   const bool show_mistral_controls = (active_backend_key == "mistral");
+  // Only read inside the Apple-Silicon-only hybrid blocks below.
+  [[maybe_unused]] const bool is_cloud_mode =
+      show_openai_controls || show_mistral_controls;
+  // Hybrid TTS (issue #66, Apple Silicon only): local Piper voice for
+  // speech while STT+LM stay on the cloud backend. When active, the cloud
+  // TTS model/voice combos are hidden and the Piper voice combos are shown
+  // instead — so the speech-output controls always match the active TTS.
+#ifdef XPWELLYS_USE_LOCAL_INFERENCE
+  const bool tts_local_override =
+      is_cloud_mode && settings::tts_backend_override() == "local";
+#else
+  const bool tts_local_override = false;
+#endif
 
   if (show_openai_controls) {
     // OpenAI mode — show the key + model + voice controls. None of
@@ -1545,27 +1566,32 @@ static void draw_settings_tab() {
         ui_strings::tr("settings.lm_model"),
         models_catalog::openai_lm_options(), settings::openai_lm_model(),
         [](const std::string &v) { settings::set_openai_lm_model(v); });
-    combo_from_catalog(
-        ui_strings::tr("settings.tts_model"),
-        models_catalog::openai_tts_options(), settings::openai_tts_model(),
-        [](const std::string &v) { settings::set_openai_tts_model(v); });
+    // TTS model + voices are hidden when the local Piper TTS override is
+    // active (issue #66) — the Piper voice combos below take their place.
+    if (!tts_local_override) {
+      combo_from_catalog(
+          ui_strings::tr("settings.tts_model"),
+          models_catalog::openai_tts_options(), settings::openai_tts_model(),
+          [](const std::string &v) { settings::set_openai_tts_model(v); });
 
-    combo_from_catalog(
-        ui_strings::tr("settings.atis_voice"),
-        models_catalog::openai_voice_options(),
-        settings::openai_tts_voice_atis(),
-        [](const std::string &v) { settings::set_openai_tts_voice_atis(v); });
-    combo_from_catalog(
-        ui_strings::tr("settings.tower_voice"),
-        models_catalog::openai_voice_options(),
-        settings::openai_tts_voice_tower(),
-        [](const std::string &v) { settings::set_openai_tts_voice_tower(v); });
-    combo_from_catalog(
-        ui_strings::tr("settings.ground_voice"),
-        models_catalog::openai_voice_options(),
-        settings::openai_tts_voice_ground(),
-        [](const std::string &v) { settings::set_openai_tts_voice_ground(v); });
-    ImGui::TextDisabled("%s", ui_strings::tr("settings.voice_tip"));
+      combo_from_catalog(
+          ui_strings::tr("settings.atis_voice"),
+          models_catalog::openai_voice_options(),
+          settings::openai_tts_voice_atis(),
+          [](const std::string &v) { settings::set_openai_tts_voice_atis(v); });
+      combo_from_catalog(
+          ui_strings::tr("settings.tower_voice"),
+          models_catalog::openai_voice_options(),
+          settings::openai_tts_voice_tower(),
+          [](const std::string &v) { settings::set_openai_tts_voice_tower(v); });
+      combo_from_catalog(ui_strings::tr("settings.ground_voice"),
+                         models_catalog::openai_voice_options(),
+                         settings::openai_tts_voice_ground(),
+                         [](const std::string &v) {
+                           settings::set_openai_tts_voice_ground(v);
+                         });
+      ImGui::TextDisabled("%s", ui_strings::tr("settings.voice_tip"));
+    }
 
     ImGui::Unindent();
   }
@@ -1650,32 +1676,91 @@ static void draw_settings_tab() {
         "LM model##mistral", models_catalog::mistral_lm_options(),
         settings::mistral_lm_model(),
         [](const std::string &v) { settings::set_mistral_lm_model(v); });
-    combo_from_catalog(
-        "TTS model##mistral", models_catalog::mistral_tts_options(),
-        settings::mistral_tts_model(),
-        [](const std::string &v) { settings::set_mistral_tts_model(v); });
+    // TTS model + voices are hidden when the local Piper TTS override is
+    // active (issue #66) — the Piper voice combos below take their place.
+    if (!tts_local_override) {
+      combo_from_catalog(
+          "TTS model##mistral", models_catalog::mistral_tts_options(),
+          settings::mistral_tts_model(),
+          [](const std::string &v) { settings::set_mistral_tts_model(v); });
 
-    combo_from_catalog(
-        "ATIS voice##mistral", models_catalog::mistral_voice_options(),
-        settings::mistral_tts_voice_atis(),
-        [](const std::string &v) { settings::set_mistral_tts_voice_atis(v); });
-    combo_from_catalog(
-        "Tower voice##mistral", models_catalog::mistral_voice_options(),
-        settings::mistral_tts_voice_tower(),
-        [](const std::string &v) { settings::set_mistral_tts_voice_tower(v); });
-    combo_from_catalog(
-        "Ground voice##mistral", models_catalog::mistral_voice_options(),
-        settings::mistral_tts_voice_ground(), [](const std::string &v) {
-          settings::set_mistral_tts_voice_ground(v);
-        });
-    ImGui::TextDisabled(
-        "%s",
-        "Voxtral preset voices - \"EN-GB Oliver (neutral)\" reads closest to "
-        "ICAO ATC. Edit data/models_catalog.json to add custom clones.");
+      combo_from_catalog(
+          "ATIS voice##mistral", models_catalog::mistral_voice_options(),
+          settings::mistral_tts_voice_atis(),
+          [](const std::string &v) { settings::set_mistral_tts_voice_atis(v); });
+      combo_from_catalog("Tower voice##mistral",
+                         models_catalog::mistral_voice_options(),
+                         settings::mistral_tts_voice_tower(),
+                         [](const std::string &v) {
+                           settings::set_mistral_tts_voice_tower(v);
+                         });
+      combo_from_catalog("Ground voice##mistral",
+                         models_catalog::mistral_voice_options(),
+                         settings::mistral_tts_voice_ground(),
+                         [](const std::string &v) {
+                           settings::set_mistral_tts_voice_ground(v);
+                         });
+      ImGui::TextDisabled(
+          "%s",
+          "Voxtral preset voices - \"EN-GB Oliver (neutral)\" reads closest to "
+          "ICAO ATC. Edit data/models_catalog.json to add custom clones.");
+    }
 
     ImGui::Unindent();
   }
   ImGui::Separator();
+
+#ifdef XPWELLYS_USE_LOCAL_INFERENCE
+  // Hybrid TTS toggle (issue #66): only offered in a cloud mode (in local
+  // mode TTS is already Piper), and only enabled once a Piper voice for the
+  // active language is verified — otherwise it would silently fall back to
+  // the accented cloud voice. The Piper voice combos appear below when on.
+  if (is_cloud_mode) {
+    // Gate on the voice files being present on disk (a cheap stat via
+    // size_matches), NOT on the loader snapshot state: in a cloud mode the
+    // loader never verifies Piper files, so their snapshot state stays
+    // NotChecked even when the voice is downloaded. Enabling the toggle
+    // restarts the loader, which SHA-verifies + loads the voice for real
+    // (and falls back to cloud TTS if that fails).
+    bool piper_ready = false;
+    {
+      using K = model_manifest::Kind;
+      const std::string vlang = settings::backend_language();
+      const std::string &dir = model_paths::models_dir();
+      for (const auto &id : model_manifest::voice_ids()) {
+        if (model_manifest::voice_language(id) != vlang)
+          continue;
+        const auto *onnx = model_manifest::get_voice(K::PiperVoice, id);
+        const auto *json = model_manifest::get_voice(K::PiperVoiceConfig, id);
+        if (onnx && json &&
+            model_manifest::size_matches(*onnx, dir + "/" + onnx->filename) &&
+            model_manifest::size_matches(*json, dir + "/" + json->filename)) {
+          piper_ready = true;
+          break;
+        }
+      }
+    }
+    bool hybrid = settings::tts_backend_override() == "local";
+    // Allow turning it OFF even if the voice went missing; only block
+    // turning it ON when no voice is ready.
+    ImGui::BeginDisabled(!piper_ready && !hybrid);
+    if (ImGui::Checkbox(ui_strings::tr("settings.tts_local_override"),
+                        &hybrid)) {
+      settings::set_tts_backend_override(hybrid ? "local" : "");
+      settings::save();
+      backends::loader::stop();
+      backends::loader::start();
+      atc_session::reset_atis_cooldown();
+    }
+    ImGui::EndDisabled();
+    if (ImGui::IsItemHovered())
+      ImGui::SetTooltip("%s", ui_strings::tr("tooltip.tts_local_override"));
+    if (!piper_ready)
+      ImGui::TextColored(ImVec4(1.0f, 0.7f, 0.3f, 1.0f), "%s",
+                         ui_strings::tr("settings.tts_local_override_hint"));
+    ImGui::Separator();
+  }
+#endif
 
   // PTT — bound via X-Plane settings
   ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.0f, 1.0f), "%s",
@@ -1867,7 +1952,10 @@ static void draw_settings_tab() {
   // once would clash on the identical ImGui labels ("ATIS Voice"
   // etc.) and leak Piper voice ids into the cloud synthesize() path,
   // which silently fails (cloud has_voice() rejects local ids).
-  if (!show_openai_controls && !show_mistral_controls) {
+  // Shown in Local mode, and in a cloud mode when the local Piper TTS
+  // override is active (issue #66) — in both cases speech comes from Piper,
+  // so these are the voice controls that actually apply.
+  if ((!show_openai_controls && !show_mistral_controls) || tts_local_override) {
     ImGui::Separator();
     ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.0f, 1.0f), "%s",
                        ui_strings::tr("settings.voices_header"));

@@ -150,8 +150,17 @@ void set_traffic_features_enabled(bool v);
 //   "local"   — whisper.cpp + llama.cpp + Piper (Apple Silicon only)
 //   "openai"  — Whisper API + Chat Completions + TTS API
 //   "mistral" — Voxtral STT + Mistral chat completions + Voxtral TTS
-// Never mixed at runtime. Default "local".
+// STT+LM always come from this one backend. Default "local". The TTS
+// stage can be split off via tts_backend_override() below.
 std::string backend_mode();
+
+// TTS stage override (issue #66, Apple Silicon only). "" = TTS follows
+// backend_mode; "local" = force the local Piper voice for speech output
+// while STT+LM stay on a cloud backend_mode — a native German voice
+// without running the heavy local whisper/llama models. Inert on the
+// cloud-only slice (no Piper compiled in).
+std::string tts_backend_override();
+void set_tts_backend_override(const std::string &v);
 
 // True when an OpenAI API key was saved to the Keychain. The actual
 // key is never persisted to settings.json — only this flag.

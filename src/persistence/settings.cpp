@@ -87,6 +87,7 @@ static json default_config() {
       {"bzf_strict_mode", false},
       {"start_mode", "engines_running"},
       {"backend_mode", "local"},
+      {"tts_backend_override", ""},
       {"api_key_saved", false},
       {"openai_stt_model", "whisper-1"},
       {"openai_lm_model", "gpt-4o-mini"},
@@ -421,6 +422,15 @@ std::string backend_mode() {
   return v;
 }
 
+std::string tts_backend_override() {
+  // "" = follow backend_mode for TTS; "local" = force Piper TTS while
+  // STT+LM stay on the cloud backend_mode (issue #66, Apple Silicon only).
+  std::string v = cfg.value("tts_backend_override", std::string(""));
+  if (v != "" && v != "local")
+    v = "";
+  return v;
+}
+
 bool api_key_saved() { return cfg.value("api_key_saved", false); }
 
 std::string openai_stt_model() {
@@ -546,6 +556,7 @@ void reset_for_test() {
   cfg["atc_language"] = d["atc_language"];
   cfg["atc_profile"] = d["atc_profile"];
   cfg["bzf_strict_mode"] = d["bzf_strict_mode"];
+  cfg["tts_backend_override"] = d["tts_backend_override"];
   cfg["vfr_flight_type"] = d["vfr_flight_type"];
   cfg["vfr_destination"] = d["vfr_destination"];
   cfg["pilot_callsign_raw"] = d["pilot_callsign_raw"];
@@ -569,6 +580,9 @@ void set_backend_mode(const std::string &v) {
     cfg["backend_mode"] = v;
   else
     cfg["backend_mode"] = "local";
+}
+void set_tts_backend_override(const std::string &v) {
+  cfg["tts_backend_override"] = (v == "local") ? "local" : "";
 }
 void set_openai_stt_model(const std::string &v) { cfg["openai_stt_model"] = v; }
 void set_openai_lm_model(const std::string &v) { cfg["openai_lm_model"] = v; }
@@ -720,7 +734,13 @@ std::string voice_for_role(model_manifest::VoiceRole role) {
   // Cloud modes read from their own voice slots — the Piper-style
   // model_manifest::voice_ids() are local-only and would be rejected
   // by the cloud TTS has_voice() checks.
-  const std::string mode = backend_mode();
+  //
+  // Hybrid (issue #66): when the TTS stage is overridden to local Piper
+  // while STT+LM stay on a cloud backend_mode, the role->voice lookup must
+  // resolve to the local Piper slots (below), not the cloud voices — so
+  // force the effective mode to "local" for voice resolution.
+  const std::string mode =
+      (tts_backend_override() == "local") ? std::string("local") : backend_mode();
   if (mode == "openai") {
     using R = model_manifest::VoiceRole;
     switch (role) {
