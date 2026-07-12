@@ -35,6 +35,39 @@ concurrency:
   cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/v') }}
 
 jobs:
+  # ── Test gate (runs FIRST; the expensive builds need it) ────────────────────
+  # The Catch2 unit + scenario suite on the default arm64 tree, prebuilt libs.
+  # The costly builds — build-macos-universal (~8 min) and build-windows (~15 min
+  # with the bundle) — declare `needs: test`, so a red suite ABORTS them before
+  # any build minutes are spent. Runs on the same triggers those builds do
+  # (release tags, feature branches, workflow_dispatch); plain main merges are
+  # gated by build-macos-fast instead (build + test in one ~4 min job).
+  test:
+    runs-on: macos-15 # pinned — matches the maintainer's test system
+    timeout-minutes: 15
+    if: (github.event_name == 'push' && github.ref != 'refs/heads/main') || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup dependencies
+        # Prebuilt xp_wellys_libs bundle (SHA256-verified) + SDK / ImGui / json /
+        # Catch2 vendor deps. No submodules.
+        run: make setup
+
+      - name: Set up ccache
+        uses: hendrikmuhs/ccache-action@v1.2.23
+        with:
+          key: ${{ runner.os }}-arm64-test
+          max-size: 500M
+          variant: ccache
+
+      - name: Run tests
+        # Builds the default arm64 tree with BUILD_TESTS=ON and runs the Catch2
+        # + scenario suite (--order rand --rng-seed 42). The regression gate.
+        run: |
+          make test
+          ccache --show-stats
+
   # ── Fast macOS sanity gate (all non-tag pushes, incl. main merges) ──────────
   # Cloud-only arm64 build + tests: no submodules, no whisper/llama/Piper/
   # espeak-ng/onnxruntime, so it finishes in ~4 min instead of ~50. Crucially
@@ -91,6 +124,7 @@ jobs:
   # PARALLEL with the Windows slice; the artifacts are folded together in
   # `release` (tags only).
   build-macos-universal:
+    needs: test # abort the release build if the suite is red
     runs-on: macos-15 # pinned — see build-macos-fast (matches test system)
     timeout-minutes: 25 # only the plugin's own ~40 TUs compile; libs are prebuilt
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
@@ -111,12 +145,6 @@ jobs:
           key: ${{ runner.os }}-arm64-plugin
           max-size: 500M
           variant: ccache
-
-      - name: Run tests
-        # Builds the default arm64 tree (build/) with BUILD_TESTS=ON and runs
-        # the Catch2 + scenario suite — the regression gate before the
-        # universal-binary build.
-        run: make test
 
       - name: Build (universal)
         # `make build` always produces a universal .xpl: two CMake configures
@@ -161,6 +189,7 @@ jobs:
   # espeak-ng-data under Resources/ — no longer DLL-free, the deliberate
   # tradeoff for the accent-free German voice.
   build-windows:
+    needs: test # abort the ~15-30 min Windows build if the suite is red
     runs-on: windows-latest
     timeout-minutes: 30
     # Windows slice is release-bundle work: it runs on release TAGS (the
