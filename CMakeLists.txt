@@ -515,6 +515,16 @@ elseif(WIN32)
         # for the accent-free German Piper voice; STT/LM stay on the cloud).
         target_link_libraries(xp_wellys_vfr_atc PRIVATE xp_wellys_libs::piper)
 
+        # Delay-load piper.dll so a default cloud-only Windows install NEVER
+        # loads Piper/onnxruntime at plugin startup — the DLL (and, through it,
+        # onnxruntime.dll) is pulled in lazily on the first Piper call, i.e.
+        # only when the user actually enables the hybrid TTS override. Without
+        # this, piper.lib is a load-time import and X-Plane would load
+        # onnxruntime.dll for every Windows user; any init failure there would
+        # break plugin loading for all of them. delayimp provides the thunk.
+        target_link_libraries(xp_wellys_vfr_atc PRIVATE delayimp)
+        target_link_options(xp_wellys_vfr_atc PRIVATE /DELAYLOAD:piper.dll)
+
         # Stage every bundle DLL (piper.dll + onnxruntime.dll +
         # onnxruntime_providers_shared.dll) next to the built .xpl so the Windows
         # loader resolves them, and espeak-ng-data into the build dir for the CI
