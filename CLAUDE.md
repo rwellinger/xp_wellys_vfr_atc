@@ -58,16 +58,20 @@ Der `x86_64`-Slice hat **keine** lokalen Backends einkompiliert; **OpenAI**
 oder **Mistral** ist die einzige Option auf Intel-Macs (der Loader
 schreibt `local` → `openai` beim Start für diesen Slice still um).
 
-**Windows-Slice (`win_x64/xp_wellys_vfr_atc.xpl`, cloud-only)** — die
-per-arch `.xpl` MUSS den Plugin-Namen tragen (nicht `win.xpl`): X-Plane 12
-auf Windows lädt eine generisch benannte Datei still nicht. Funktional
-identisch
-zum Intel-`x86_64`-Slice: `XPWELLYS_USE_LOCAL_INFERENCE=OFF`, kein
-whisper.cpp/llama.cpp/Piper/onnxruntime, kein Metal — nur OpenAI + Mistral
-über libcurl. Gebaut mit MSVC via CMake auf `windows-latest` in CI (nicht
-lokal); libcurl statisch aus vcpkg (`x64-windows-static`, Schannel-TLS),
-sodass das Artefakt **null** Extra-DLLs trägt — ein reiner Drop-in-Ordner
-für einen Zero-Toolchain-Test-Laptop. Der CMake-`elseif(WIN32)`-Zweig
+**Windows-Slice (`win_x64/xp_wellys_vfr_atc.xpl`, Cloud STT/LM + lokales
+Piper-TTS)** — die per-arch `.xpl` MUSS den Plugin-Namen tragen (nicht
+`win.xpl`): X-Plane 12 auf Windows lädt eine generisch benannte Datei still
+nicht. STT/LM bleiben Cloud (OpenAI + Mistral über statisches libcurl aus
+vcpkg, `x64-windows-static`, Schannel-TLS); **TTS ist die lokale Piper-Stimme**
+über das prebuilt `xp_wellys_libs`-**win-x64-Bundle** (Issue #74):
+`XPWELLYS_USE_LOCAL_INFERENCE=OFF` (kein whisper/llama/Metal), aber
+`XPWELLYS_USE_LOCAL_TTS=ON` (Piper + onnxruntime, reines CPU). Gebaut mit MSVC
+(Ninja) via CMake auf `windows-latest` in CI (nicht lokal); das CI holt das
+win-x64-Bundle per `PREBUILT_LIBS_VERSION`. Das Artefakt trägt daher `piper.dll`
++ `onnxruntime.dll` (+ `onnxruntime_providers_shared.dll`) neben der `.xpl` und
+`espeak-ng-data` unter `Resources/` — **nicht mehr DLL-frei** (bewusster
+Tradeoff für die akzentfreie deutsche Stimme; die `de_DE-thorsten`-Voice lädt
+der Nutzer in-sim im Models-Tab). Der CMake-`elseif(WIN32)`-Zweig
 setzt `IBM=1 APL=0 LIN=0` und linkt `XPLM_64.lib`/`XPWidgets_64.lib` +
 `opengl32 Ws2_32 Crypt32 Bcrypt Advapi32`. Die macOS-`.mm`-Bridges
 (`clipboard.mm`, `mic_permission.mm`) sind aus dem Windows-Build
@@ -84,7 +88,8 @@ Core-Audio-Pfad bleibt unangetastet. miniaudio (`vendor/miniaudio.h`, von
 ole32/WASAPI werden zur Laufzeit dynamisch geladen; `MINIAUDIO_IMPLEMENTATION`
 lebt allein in `audio_recorder.cpp`. Die pthread-QoS-Hints (`manager`) sind
 auf Nicht-Apple weiterhin Stub (echter Windows-Thread-Priority-Port: Issue
-#23) — harmlos, da cloud-only nie lokale Modelle verifiziert. Siehe Epic #24.
+#23) — harmlos, da der Slice kein whisper/llama-Local-Inference fährt (nur die
+leichte CPU-Piper-TTS). Siehe Epic #24.
 
 Alle drei Backend-Familien teilen sich dieselben drei abstrakten
 `i_*.hpp`-Strategie-Interfaces. Engine-Code berührt nie ein konkretes

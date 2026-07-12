@@ -64,15 +64,18 @@ even to pilot mistakes.
   > **For accurate German, use Local mode** (Piper `de_DE-thorsten`, a native
   > German voice). Both cloud providers speak German with an accent — see
   > issue #63.
-- **🪟 Windows (cloud-only, fully supported)** — a pure cloud build for
+- **🪟 Windows (cloud STT/LM + local German Piper voice, fully supported)** —
   X-Plane 12 on Windows is included (`win_x64/xp_wellys_vfr_atc.xpl`, OpenAI
   **or** Mistral, API key in the Windows Credential Manager). **Verified
   end-to-end on real Windows 11 hardware** (Shadow cloud PC, Windows 11,
   NVIDIA GPU): a complete VFR round trip out of **Friedrichshafen (EDNY)** —
   plugin loading, microphone/PTT, the full STT→ATC→TTS pipeline and the API
-  key in the Credential Manager all work flawlessly. Local offline AI is
-  **not** available on Windows (no Apple Silicon / no Metal); the cloud
-  (OpenAI or Mistral, API key required) is the only backend option.
+  key in the Credential Manager all work flawlessly. Full local STT/LM
+  (whisper/llama, Metal) is **not** available on Windows, but the local Piper
+  **TTS** voice now is: enable the hybrid TTS toggle to speak with the
+  accent-free German `de_DE-thorsten` voice while STT/LM stay on the cloud
+  (issue #74) — the artifact ships `piper.dll` + `onnxruntime.dll` alongside
+  the `.xpl` (no longer DLL-free) and the voice downloads in-sim.
 
 ## What Welly's ATC is for
 

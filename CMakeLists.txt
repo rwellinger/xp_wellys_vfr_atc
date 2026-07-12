@@ -506,6 +506,34 @@ elseif(WIN32)
         Advapi32
         CURL::libcurl
     )
+
+    if(XPWELLYS_USE_LOCAL_TTS)
+        # Hybrid TTS on Windows (issue #74): link the Piper-only bundle's import
+        # libs (xp_wellys_libs::piper → piper.lib + onnxruntime.lib) and ship the
+        # runtime DLLs + espeak-ng-data. The Windows artifact is therefore no
+        # longer DLL-free — onnxruntime.dll ships alongside (a deliberate tradeoff
+        # for the accent-free German Piper voice; STT/LM stay on the cloud).
+        target_link_libraries(xp_wellys_vfr_atc PRIVATE xp_wellys_libs::piper)
+
+        # Stage every bundle DLL (piper.dll + onnxruntime.dll +
+        # onnxruntime_providers_shared.dll) next to the built .xpl so the Windows
+        # loader resolves them, and espeak-ng-data into the build dir for the CI
+        # stage step to place under <plugin>/Resources/espeak-ng-data. The bundle
+        # is extracted before configure, so the glob is populated here.
+        file(GLOB _win_piper_dlls "${XP_WELLYS_LIBS_ROOT}/lib/*.dll")
+        foreach(_dll ${_win_piper_dlls})
+            add_custom_command(TARGET xp_wellys_vfr_atc POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${_dll}" "$<TARGET_FILE_DIR:xp_wellys_vfr_atc>"
+                VERBATIM)
+        endforeach()
+        add_custom_command(TARGET xp_wellys_vfr_atc POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${XP_WELLYS_ATC_ESPEAKNG_DATA_DIR}"
+                "${CMAKE_BINARY_DIR}/espeak-ng-data"
+            COMMENT "Staging Piper DLLs + espeak-ng-data next to xp_wellys_vfr_atc.xpl"
+            VERBATIM)
+    endif()
 endif()
 
 # ── CLI Executable (ohne X-Plane) ────────────────────────────────────────────

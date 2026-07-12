@@ -82,11 +82,23 @@ void init() {
   std::string xpl_path = normalise_path(raw);
 
   // .../plugins/xp_wellys_vfr_atc/mac_x64/xp_wellys_vfr_atc.xpl
+  // .../plugins/xp_wellys_vfr_atc/win_x64/xp_wellys_vfr_atc.xpl
   //   ^ plugin_root              ^ platform_dir   ^ filename
-  // Strip the filename, then strip the platform dir.
-  auto pos = xpl_path.rfind('/');
-  if (pos != std::string::npos) {
-    pos = xpl_path.rfind('/', pos - 1);
+  // Strip the filename, then strip the platform dir. XPLM_USE_NATIVE_PATHS
+  // yields OS-native separators, so accept both '/' and '\' — X-Plane on
+  // Windows reports backslash paths (the local-TTS slice, issue #74).
+  auto rfind_sep = [&](size_t from) {
+    size_t a = xpl_path.rfind('/', from);
+    size_t b = xpl_path.rfind('\\', from);
+    if (a == std::string::npos)
+      return b;
+    if (b == std::string::npos)
+      return a;
+    return std::max(a, b);
+  };
+  auto pos = rfind_sep(std::string::npos);
+  if (pos != std::string::npos && pos > 0) {
+    pos = rfind_sep(pos - 1);
   }
   if (pos != std::string::npos) {
     g_plugin_root = xpl_path.substr(0, pos);

@@ -150,15 +150,16 @@ jobs:
             build/espeak_ng-install/share/espeak-ng-data
           if-no-files-found: error
 
-  # ── Windows slice (cloud-only) ──────────────────────────────────────────────
-  # GitHub Actions is the Windows compiler — no local MSVC toolchain
-  # needed. Builds the same source tree with XPWELLYS_USE_LOCAL_INFERENCE=OFF
-  # (no whisper/llama/Piper/onnxruntime, no Metal) into a self-contained
-  # win_x64/xp_wellys_vfr_atc.xpl (the per-arch .xpl MUST carry the plugin
-  # name, not win.xpl — X-Plane 12 on Windows silently skips a generically
-  # named file). libcurl is linked statically from vcpkg (Schannel TLS)
-  # so the artifact carries zero extra DLLs — a pure "unzip into
-  # Resources/plugins" drop-in for a zero-toolchain test laptop.
+  # ── Windows slice (cloud STT/LM + local Piper TTS) ──────────────────────────
+  # GitHub Actions is the Windows compiler — no local MSVC toolchain needed.
+  # STT/LM stay cloud (OpenAI/Mistral, static libcurl from vcpkg); TTS is the
+  # local Piper voice via the prebuilt xp_wellys_libs win-x64 bundle
+  # (XPWELLYS_USE_LOCAL_INFERENCE=OFF, XPWELLYS_USE_LOCAL_TTS=ON — issue #74).
+  # The per-arch .xpl MUST carry the plugin name, not win.xpl (X-Plane 12 on
+  # Windows silently skips a generically named file). The artifact now carries
+  # piper.dll + onnxruntime.dll (+ providers_shared) next to the .xpl and
+  # espeak-ng-data under Resources/ — no longer DLL-free, the deliberate
+  # tradeoff for the accent-free German voice.
   build-windows:
     runs-on: windows-latest
     timeout-minutes: 30
@@ -215,7 +216,24 @@ jobs:
           Write-Host "Downloading miniaudio v0.11.25..."
           curl.exe -fsSL "https://raw.githubusercontent.com/mackron/miniaudio/0.11.25/miniaudio.h" -o vendor/miniaudio.h
 
-      - name: Configure (CMake, Ninja + MSVC, cloud-only)
+      - name: Download prebuilt Piper bundle (win-x64, hybrid TTS)
+        # The Windows slice is no longer cloud-only: it links the Piper-only
+        # xp_wellys_libs bundle for the local German voice (issue #74). Version
+        # pinned by PREBUILT_LIBS_VERSION, published by the xp_wellys_libs repo.
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $ver = (Get-Content PREBUILT_LIBS_VERSION).Trim()
+          New-Item -ItemType Directory -Force -Path vendor/prebuilt/xp_wellys_libs | Out-Null
+          $url = "https://github.com/rwellinger/xp_wellys_libs/releases/download/v$ver/xp_wellys_libs-win-x64-$ver.tar.gz"
+          Write-Host "Downloading $url"
+          curl.exe -fsSL $url -o bundle.tar.gz
+          tar -xzf bundle.tar.gz -C vendor/prebuilt/xp_wellys_libs
+          Remove-Item bundle.tar.gz
+          Write-Host "--- bundle lib/ ---"
+          Get-ChildItem vendor/prebuilt/xp_wellys_libs/lib | Format-Table Name,Length
+
+      - name: Configure (CMake, Ninja + MSVC, hybrid TTS)
         shell: pwsh
         run: |
           cmake -B build-win -G Ninja `
@@ -224,7 +242,7 @@ jobs:
             -DVCPKG_TARGET_TRIPLET=x64-windows-static `
             -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded `
             -DXPWELLYS_USE_LOCAL_INFERENCE=OFF `
-            -DXPWELLYS_USE_LOCAL_TTS=OFF `
+            -DXPWELLYS_USE_LOCAL_TTS=ON `
             -DBUILD_TESTS=OFF `
             -Wno-dev
 
@@ -237,8 +255,15 @@ jobs:
         run: |
           set -euo pipefail
           STAGE=dist/xp_wellys_vfr_atc
-          mkdir -p "$STAGE/win_x64" "$STAGE/data/atc_profiles/de" "$STAGE/data/atc_profiles/en" "$STAGE/data/vrps" "$STAGE/data/airspaces"
+          mkdir -p "$STAGE/win_x64" "$STAGE/Resources/espeak-ng-data" "$STAGE/data/atc_profiles/de" "$STAGE/data/atc_profiles/en" "$STAGE/data/vrps" "$STAGE/data/airspaces"
           cp build-win/xp_wellys_vfr_atc.xpl "$STAGE/win_x64/"
+          # Hybrid TTS (issue #74): the Piper runtime DLLs sit next to the .xpl
+          # (Windows loader resolves them there); espeak-ng-data goes under
+          # Resources/ where model_paths::espeakng_data_dir() looks for it. The
+          # de_DE-thorsten voice itself is downloaded in-sim (Models tab), not
+          # shipped. This is why the Windows artifact is no longer DLL-free.
+          cp build-win/*.dll "$STAGE/win_x64/"
+          cp -r build-win/espeak-ng-data/. "$STAGE/Resources/espeak-ng-data/"
           cp data/atc_prompt_templates.json "$STAGE/data/"
           cp data/models_catalog.json       "$STAGE/data/"
           cp data/settings.json             "$STAGE/data/"
@@ -302,8 +327,12 @@ jobs:
           mkdir -p "$STAGE/data/vrps"
           mkdir -p "$STAGE/data/airspaces"
 
-          # Windows slice (cloud-only, self-contained DLL — no extra libs).
+          # Windows slice: the .xpl + its Piper runtime DLLs (piper.dll +
+          # onnxruntime.dll + providers_shared) next to it (issue #74). espeak-ng-data
+          # is architecture-independent and staged once under Resources/ from the
+          # mac slice below, so it is shared by both platforms.
           cp win-dist/win_x64/xp_wellys_vfr_atc.xpl "$STAGE/win_x64/"
+          cp win-dist/win_x64/*.dll                 "$STAGE/win_x64/"
 
           # macOS universal slice + its runtime dylibs (from the artifact).
           cp mac-dist/xp_wellys_vfr_atc.xpl        "$STAGE/mac_x64/"
