@@ -39,6 +39,32 @@ option(XPWELLYS_USE_LOCAL_INFERENCE
     "Compile local whisper.cpp/llama.cpp/Piper backends (Apple Silicon only)"
     ON)
 
+# ── Local-TTS toggle (Piper) ─────────────────────────────────────────────────
+# Piper is pure-CPU TTS (onnxruntime + espeak-ng, NO Metal), so unlike
+# whisper.cpp/llama.cpp it is not bound to Apple Silicon. This flag compiles
+# the local Piper TTS backend independently of the Metal STT/LM backends,
+# enabling the hybrid mode (cloud STT/LM + local German Piper voice, issue #66)
+# on the x86_64-macOS and Windows slices too (issue #69 / #70). Whisper/Llama
+# stay gated on XPWELLYS_USE_LOCAL_INFERENCE.
+#
+# Full local inference (STT+LM+TTS) always implies local TTS — see below.
+option(XPWELLYS_USE_LOCAL_TTS
+    "Compile local Piper TTS backend (CPU, cross-platform)"
+    ON)
+if(XPWELLYS_USE_LOCAL_INFERENCE AND NOT XPWELLYS_USE_LOCAL_TTS)
+    set(XPWELLYS_USE_LOCAL_TTS ON CACHE BOOL
+        "Compile local Piper TTS backend (CPU, cross-platform)" FORCE)
+endif()
+
+# Any local backend (Metal STT/LM or CPU Piper TTS) needs the prebuilt
+# xp_wellys_libs bundle (headers + libpiper + onnxruntime + espeak-ng-data).
+# On arm64 both flags are ON, so this is identical to the old
+# XPWELLYS_USE_LOCAL_INFERENCE-only gating; on the cloud-only slices both are
+# OFF. Splitting the bundle into a Piper-only sub-target lands in #71/#72/#73.
+if(XPWELLYS_USE_LOCAL_INFERENCE OR XPWELLYS_USE_LOCAL_TTS)
+    set(XPWELLYS_USE_LOCAL_BUNDLE ON)
+endif()
+
 # ── Sanitizer build (ASan + UBSan) ───────────────────────────────────────────
 # When ON, instruments the SDK-free engine OBJECT lib + atc_repl + Catch2
 # tests with AddressSanitizer + UndefinedBehaviorSanitizer. The plugin
@@ -129,7 +155,7 @@ find_package(CURL REQUIRED)
 # trees are compiled once in that separate repo and downloaded here by
 # `make setup`. No submodules, no add_subdirectory, no local compile.
 
-if(XPWELLYS_USE_LOCAL_INFERENCE)
+if(XPWELLYS_USE_LOCAL_BUNDLE)
     # Prebuilt local-inference bundle (xp_wellys_libs). The heavy third-party
     # trees (whisper/llama/ggml/Piper/espeak) are compiled ONCE in that repo
     # and consumed here as a versioned arm64 binary bundle — no
@@ -142,7 +168,8 @@ if(XPWELLYS_USE_LOCAL_INFERENCE)
             "Prebuilt xp_wellys_libs bundle missing at ${XP_WELLYS_LIBS_ROOT}. "
             "Run `make setup` to download it.")
     endif()
-    message(STATUS "Building with local inference (prebuilt xp_wellys_libs bundle)")
+    message(STATUS "Building with local backend(s) (prebuilt xp_wellys_libs bundle): "
+                   "inference=${XPWELLYS_USE_LOCAL_INFERENCE} tts=${XPWELLYS_USE_LOCAL_TTS}")
     # Defines xp_wellys_libs::inference (static whisper/llama/ggml + libpiper
     # dylib + onnxruntime + Metal/Accelerate frameworks, in link order).
     include("${XP_WELLYS_LIBS_ROOT}/xp_wellys_libs.cmake")
@@ -297,13 +324,22 @@ elseif(WIN32)
 endif()
 
 if(XPWELLYS_USE_LOCAL_INFERENCE)
-    # Concrete local backends — pull whisper.h / llama.h / piper.h
-    # transitively. Static libs come from the spike submodules added
-    # above. In the OpenAI-only build these TUs are not compiled at
-    # all (and the loader is built without their includes).
+    # Concrete Metal STT/LM backends — pull whisper.h / llama.h
+    # transitively. Static libs come from the prebuilt bundle. In the
+    # cloud-only build these TUs are not compiled at all (and the loader
+    # is built without their includes).
     target_sources(xp_wellys_vfr_atc PRIVATE
         src/backends/whisper_stt.cpp
         src/backends/llama_lm.cpp
+    )
+endif()
+
+if(XPWELLYS_USE_LOCAL_TTS)
+    # Local Piper TTS backend — pulls piper.h transitively. CPU-only, so
+    # gated on its own flag (not XPWELLYS_USE_LOCAL_INFERENCE) to allow the
+    # hybrid mode on non-Apple-Silicon slices (issue #69 / #70). loader.cpp
+    # is the only legitimate consumer of piper_tts.hpp / piper.h.
+    target_sources(xp_wellys_vfr_atc PRIVATE
         src/backends/piper_tts.cpp
     )
 endif()
@@ -323,10 +359,19 @@ if(XPWELLYS_USE_LOCAL_INFERENCE)
     # from the prebuilt bundle via xp_wellys_libs::inference's INTERFACE
     # include dirs (propagated by the link below) — no explicit paths needed.
     #
-    # Surface the flag to C++ code so loader.cpp can #ifdef the local-only
+    # Surface the flag to C++ code so loader.cpp can #ifdef the Metal STT/LM
     # includes + backend instantiation calls.
     target_compile_definitions(xp_wellys_vfr_atc PRIVATE
         XPWELLYS_USE_LOCAL_INFERENCE=1
+    )
+endif()
+
+if(XPWELLYS_USE_LOCAL_TTS)
+    # Surface the Piper-TTS flag so loader.cpp / atc_ui.cpp can #ifdef the
+    # Piper include + the hybrid-TTS override + the UI voice controls
+    # independently of the Metal STT/LM flag (issue #69 / #70).
+    target_compile_definitions(xp_wellys_vfr_atc PRIVATE
+        XPWELLYS_USE_LOCAL_TTS=1
     )
 endif()
 
@@ -380,11 +425,16 @@ if(APPLE)
         CURL::libcurl
     )
 
-    if(XPWELLYS_USE_LOCAL_INFERENCE)
-        # All local-inference libs come from the prebuilt bundle: the static
+    if(XPWELLYS_USE_LOCAL_BUNDLE)
+        # All local libs come from the prebuilt bundle: the static
         # whisper/llama/ggml archives + libpiper.dylib + onnxruntime, in the
         # correct link order, plus the Metal / Accelerate frameworks. Piper is
         # shared and resolved at runtime via @loader_path — see rpath below.
+        # NOTE (#71/#72): the monolithic xp_wellys_libs::inference target still
+        # pulls whisper/llama/Metal even in a TTS-only build; a Piper-only
+        # sub-target (libpiper + onnxruntime, no Metal) lands with the
+        # x86_64/Windows prebuilts. On arm64 both flags are ON, so this is
+        # identical to the previous behaviour.
         target_link_libraries(xp_wellys_vfr_atc PRIVATE xp_wellys_libs::inference)
 
         # rpath: dev builds find dylibs in build/ and build/lib/<ort>;

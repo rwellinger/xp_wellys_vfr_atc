@@ -695,7 +695,8 @@ static void draw_status_tab() {
 // live tuning during dev sessions; both are read-only.
 [[maybe_unused]] static void draw_models_tab() {
   // Cloud modes never download the full local pipeline (Whisper STT +
-  // Llama LM). On Apple Silicon we still render a trimmed "voice only"
+  // Llama LM). Wherever Piper TTS is compiled in (Apple Silicon, and with
+  // #69 also x86_64-macOS / Windows) we still render a trimmed "voice only"
   // view so the hybrid TTS override (issue #66) can fetch its local Piper
   // voice right here, without a detour through Local mode. On the
   // cloud-only slices there is nothing local to manage, so short-circuit.
@@ -705,7 +706,7 @@ static void draw_status_tab() {
     if (mode == "openai" || mode == "mistral") {
       ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.0f, 1.0f), "%s",
                          ui_strings::tr("models.openai_active"));
-#ifdef XPWELLYS_USE_LOCAL_INFERENCE
+#ifdef XPWELLYS_USE_LOCAL_TTS
       // Hybrid TTS (issue #66): only the local Piper voice is downloadable
       // here — STT+LM stay on the cloud backend, so Whisper/Llama are
       // hidden. Fall through to the per-voice rows below instead of
@@ -1497,14 +1498,16 @@ static void draw_settings_tab() {
       backend_mode_keys[backend_mode_selection];
   const bool show_openai_controls = (active_backend_key == "openai");
   const bool show_mistral_controls = (active_backend_key == "mistral");
-  // Only read inside the Apple-Silicon-only hybrid blocks below.
+  // Only read inside the hybrid-TTS blocks below (compiled wherever Piper
+  // TTS is available).
   [[maybe_unused]] const bool is_cloud_mode =
       show_openai_controls || show_mistral_controls;
-  // Hybrid TTS (issue #66, Apple Silicon only): local Piper voice for
-  // speech while STT+LM stay on the cloud backend. When active, the cloud
-  // TTS model/voice combos are hidden and the Piper voice combos are shown
-  // instead — so the speech-output controls always match the active TTS.
-#ifdef XPWELLYS_USE_LOCAL_INFERENCE
+  // Hybrid TTS (issue #66): local Piper voice for speech while STT+LM stay
+  // on the cloud backend. When active, the cloud TTS model/voice combos are
+  // hidden and the Piper voice combos are shown instead — so the
+  // speech-output controls always match the active TTS. Gated on the
+  // Piper-TTS flag so it also lights up on x86_64-macOS / Windows (#69/#70).
+#ifdef XPWELLYS_USE_LOCAL_TTS
   const bool tts_local_override =
       is_cloud_mode && settings::tts_backend_override() == "local";
 #else
@@ -1736,11 +1739,13 @@ static void draw_settings_tab() {
   }
   ImGui::Separator();
 
-#ifdef XPWELLYS_USE_LOCAL_INFERENCE
+#ifdef XPWELLYS_USE_LOCAL_TTS
   // Hybrid TTS toggle (issue #66): only offered in a cloud mode (in local
   // mode TTS is already Piper), and only enabled once a Piper voice for the
   // active language is verified — otherwise it would silently fall back to
   // the accented cloud voice. The Piper voice combos appear below when on.
+  // Gated on the Piper-TTS flag so it also appears on the x86_64-macOS /
+  // Windows slices (#69/#70), not just Apple Silicon.
   if (is_cloud_mode) {
     // Gate on the voice files being present on disk (a cheap stat via
     // size_matches), NOT on the loader snapshot state: in a cloud mode the
@@ -3232,11 +3237,12 @@ static int draw_phase_cb(XPLMDrawingPhase, int, void *) {
         // "Models" sits second so first-launch users see it
         // immediately after Status — they cannot use the plugin
         // until they download here.
-        // Only compiled in on slices that actually have local backends
-        // (XPWELLYS_USE_LOCAL_INFERENCE=ON, i.e. Apple Silicon). The
-        // cloud-only slices (x86_64 macOS, Windows) never download models,
-        // so the whole tab is hidden there — nothing to manage.
-#ifdef XPWELLYS_USE_LOCAL_INFERENCE
+        // Compiled in on any slice with a local backend: full Local (Metal
+        // STT/LM, Apple Silicon) OR just the CPU Piper voice for hybrid TTS
+        // (with #69 also x86_64-macOS / Windows). The pure cloud-only slices
+        // never download models, so the whole tab is hidden there — nothing
+        // to manage.
+#ifdef XPWELLYS_USE_LOCAL_TTS
         // Highlight Models tab only in Local mode — in cloud modes
         // the user goes to Settings, not Models, when something is
         // missing (see the Status-tab banner above for the cloud
@@ -3265,7 +3271,7 @@ static int draw_phase_cb(XPLMDrawingPhase, int, void *) {
           draw_models_tab();
           ImGui::EndTabItem();
         }
-#endif // XPWELLYS_USE_LOCAL_INFERENCE
+#endif // XPWELLYS_USE_LOCAL_TTS
         // Transcript-Tab lebt jetzt am ATC-Panel (siehe draw_atc_panel)
         // — Pilot soll Funkverlauf neben dem Status sehen, nicht im
         // Config-Fenster.

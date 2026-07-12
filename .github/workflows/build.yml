@@ -224,6 +224,7 @@ jobs:
             -DVCPKG_TARGET_TRIPLET=x64-windows-static `
             -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded `
             -DXPWELLYS_USE_LOCAL_INFERENCE=OFF `
+            -DXPWELLYS_USE_LOCAL_TTS=OFF `
             -DBUILD_TESTS=OFF `
             -Wno-dev
 
