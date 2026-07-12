@@ -574,6 +574,25 @@ bool bring_up_local_tts_override() {
   }
   return any_ready;
 }
+
+// Verify the on-disk state of every Piper voice (both the .onnx weights
+// and the .onnx.json config sibling) WITHOUT loading anything into
+// memory. Cloud modes skip verify_files() entirely, so without this the
+// Models-tab voice rows stay stuck at NotChecked and render a disabled
+// "..." button instead of a Download button — the user could never start
+// a voice download (issue #78). Purely updates g_status so the UI can
+// resolve each row to Missing (-> Download) or Verified (-> Ready).
+// Cheap for the common "nothing downloaded yet" case: a missing file
+// fails the size check and reports Missing without hashing.
+void verify_local_voice_files() {
+  using K = model_manifest::Kind;
+  for (const auto &e : model_manifest::all()) {
+    if (g_should_exit.load())
+      return;
+    if (e.kind == K::PiperVoice || e.kind == K::PiperVoiceConfig)
+      verify_one(e);
+  }
+}
 #endif // XPWELLYS_USE_LOCAL_TTS
 
 // Construct the three OpenAI cloud backends and register them with the
@@ -781,6 +800,20 @@ void run_worker() {
 #endif
     }
 #ifdef XPWELLYS_USE_LOCAL_TTS
+    // Hybrid (issue #66/#78): a cloud run never touched the local Piper
+    // voice files above, so their Models-tab rows would stay at NotChecked
+    // and show a disabled "..." button — no way to start a voice download
+    // (issue #78). Verify their on-disk state here so each row resolves to
+    // Missing (-> Download) or Verified (-> Ready). Independent of the TTS
+    // override so the voices are downloadable even before it is enabled.
+    if (mode == "openai" || mode == "mistral") {
+      verify_local_voice_files();
+      if (g_should_exit.load()) {
+        g_running = false;
+        return;
+      }
+    }
+
     // Hybrid (issue #66): keep STT+LM on the cloud backend just registered,
     // but speak with the local Piper voice (native German, no US accent).
     // Overwrites the cloud TTS slot if a Piper voice is available; falls
