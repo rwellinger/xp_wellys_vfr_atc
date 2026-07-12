@@ -144,32 +144,96 @@ void normalize_whisper_nato_variants(std::string &lc) {
     lc.replace(lc.size() - 7, 7, " juliett");
 }
 
+// Map a single German spoken-digit word to its numeral char, or '\0' if
+// the token is not a digit word. Mirrors de_phraseology::spoken_digit_value
+// (file-local there) and intent_parser's kSpokenDigitsDe, kept local to the
+// callsign matcher below. Tolerates the BZF "zwei" (vs the radio "zwo") and
+// the UTF-8 umlaut form "fünf".
+char digit_word_to_numeral(const std::string &tok) {
+  static const std::pair<const char *, char> kDigits[] = {
+      {"null", '0'},  {"eins", '1'},   {"zwo", '2'},  {"zwei", '2'},
+      {"drei", '3'},  {"vier", '4'},   {"fuenf", '5'}, {"f\xc3\xbcnf", '5'},
+      {"sechs", '6'}, {"sieben", '7'}, {"acht", '8'}, {"neun", '9'}};
+  for (const auto &[word, digit] : kDigits) {
+    if (tok == word)
+      return digit;
+  }
+  return '\0';
+}
+
+// Canonical form for CALLSIGN comparison: lowercase, NATO-variant unified
+// (Alfa/Alpha, Vector/Victor), then tokenised on every non-alphanumeric
+// char so each token is either a NATO letter, a numeral, or a spoken-digit
+// word — each digit word collapsed to its numeral — and finally welded
+// (alphanumerics only). Unlike canon_stripped/parse_spoken_number, this
+// unifies a LONE spoken digit: in a phonetic callsign a standalone "eins"
+// is always the numeral 1, never a numerus, so the parse_spoken_number
+// min-2-run guard does not apply here. Collapses all of "Lima eins",
+// "Lima 1", "Charlie, Oscar, Lima" and "November eins zwo drei" /
+// "November 123" onto one stream (issue #79 — Voxtral emits numerals +
+// per-letter commas where Whisper emits number words).
+std::string canon_callsign(const std::string &s) {
+  std::string t = to_lower(s);
+  normalize_whisper_nato_variants(t);
+  std::string out;
+  out.reserve(t.size());
+  std::size_t i = 0;
+  const std::size_t n = t.size();
+  while (i < n) {
+    if (!std::isalnum(static_cast<unsigned char>(t[i]))) {
+      ++i;
+      continue;
+    }
+    std::size_t j = i;
+    while (j < n && std::isalnum(static_cast<unsigned char>(t[j])))
+      ++j;
+    const std::string tok = t.substr(i, j - i);
+    if (char d = digit_word_to_numeral(tok))
+      out += d;
+    else
+      out += tok;
+    i = j;
+  }
+  return out;
+}
+
 // Substring match — the pilot's phonetic callsign is multi-word
-// ("november eins zwo drei alfa bravo"), and Whisper may render only
-// a subset. We accept any match of at least the LAST TWO TOKENS of
-// the phonetic callsign — that is the BZF-Verkürzung rule from
-// NfL §13 b) (Bodenstelle initiates, pilot may follow with first +
-// last two characters). Both sides are normalised through
-// normalize_whisper_nato_variants() first so common Whisper NATO
-// mistranscriptions don't produce false-negative readback flags.
+// ("november eins zwo drei alfa bravo"), and STT may render only a
+// subset. We accept any match of at least the LAST TWO TOKENS of the
+// phonetic callsign — the BZF-Verkürzung rule from NfL §13 b)
+// (Bodenstelle initiates, pilot may follow with first + last two
+// characters). Both sides run through canon_callsign() so they survive
+// three STT quirks that otherwise raise a false "callsign missing" flag
+// (issue #79 — most visible on Mistral/Voxtral but backend-agnostic):
+//   1. NATO-letter variants (Alfa/Alpha) — unified.
+//   2. A trailing registration digit spoken as a numeral vs a number
+//      word: Voxtral emits "Lima 1", the stored callsign carries
+//      "Lima eins". canon_callsign() collapses both to "...lima1".
+//   3. Commas inserted between phonetic letters ("Charlie, Oscar,
+//      Lima") — welded out with all other whitespace/punctuation.
 bool pilot_has_callsign(const std::string &pilot_lc,
                         const std::string &callsign_lc) {
   if (callsign_lc.empty())
     return true; // can't check, give the benefit of the doubt
-  std::string p = pilot_lc;
-  std::string c = callsign_lc;
-  normalize_whisper_nato_variants(p);
-  normalize_whisper_nato_variants(c);
-  // Try full match first.
+  const std::string p = canon_callsign(pilot_lc);
+  const std::string c = canon_callsign(callsign_lc);
+  if (c.empty())
+    return true;
+  // Try the full (welded) callsign first.
   if (p.find(c) != std::string::npos)
     return true;
-  // Fall back to last two tokens of the callsign (BZF-Verkürzung).
-  std::size_t sp1 = c.rfind(' ');
+  // Fall back to the last two spoken tokens of the callsign
+  // (BZF-Verkürzung). Split the raw callsign on whitespace BEFORE
+  // welding so the token boundary survives, then canonicalise just that
+  // tail fragment and look for it in the welded transcript.
+  std::size_t sp1 = callsign_lc.rfind(' ');
   if (sp1 == std::string::npos)
     return false;
-  std::size_t sp2 = c.rfind(' ', sp1 - 1);
-  std::string short_form = c.substr(sp2 == std::string::npos ? 0 : sp2 + 1);
-  return p.find(short_form) != std::string::npos;
+  std::size_t sp2 = callsign_lc.rfind(' ', sp1 - 1);
+  std::string tail =
+      callsign_lc.substr(sp2 == std::string::npos ? 0 : sp2 + 1);
+  const std::string tail_c = canon_callsign(tail);
+  return !tail_c.empty() && p.find(tail_c) != std::string::npos;
 }
 
 // Canonical char-stream for value matching: lowercase, spoken digit

@@ -628,9 +628,17 @@ void on_ptt_released() {
   // anchors the transcription across all three backends (OpenAI free-prompt,
   // local initial_prompt, Mistral per-word context_bias[]). Compact + constant
   // to stay well under the OpenAI 224-token prompt limit. See GitHub issue #9.
+  //
+  // The readback-critical NfL §25 b) Nr. 1 elements — Piste, QNH, Squawk,
+  // Transponder, Frequenz — plus the departure clearance word Startfrei are
+  // anchored too: Voxtral (Mistral STT) is materially weaker on German
+  // aviation terms and was observed mis-hearing "Piste" as "Biste" and
+  // dropping "QNH" entirely, which fails every readback-conformance check
+  // downstream (issue #79). Biasing these is backend-agnostic and helps
+  // OpenAI + local as well.
   static const char *const kVfrVocabBias =
       "Vorfeld Rollhalt Platzrunde Gegenanflug Queranflug Endanflug "
-      "Abstellposition";
+      "Abstellposition Piste QNH Squawk Transponder Frequenz Startfrei";
   airport_ctx += " ";
   airport_ctx += kVfrVocabBias;
 

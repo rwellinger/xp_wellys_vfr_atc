@@ -108,6 +108,51 @@ TEST_CASE("check_pilot_readback: BZF-shortened callsign accepted",
     REQUIRE(missing.empty());
 }
 
+// Issue #79 — Mistral/Voxtral emits the trailing registration digit as a
+// numeral ("Charlie Oscar Lima 1") while the stored callsign carries the
+// number word ("Charlie Oscar Lima eins"). Before the canon_stripped()
+// unification the readback was wrongly flagged callsign:missing and the
+// tower answered "WIEDERHOLEN SIE WOERTLICH" on a correct readback.
+TEST_CASE("check_pilot_readback: numeral trailing digit matches number-word "
+          "callsign (Voxtral)",
+          "[bzf_compliance][check][callsign][issue79]") {
+    std::vector<Element> required{Element::Callsign, Element::Runway,
+                                  Element::QNH};
+    auto missing = check_pilot_readback(
+        "Rolle via Alpha zu Rollhalt, Piste 04, QNH 1018, Charlie, Oscar, "
+        "Lima 1.",
+        required, "Charlie Oscar Lima eins");
+    REQUIRE(missing.empty());
+}
+
+// Issue #79 — Voxtral inserts commas between spelled phonetic letters
+// ("Charlie, Oscar, Lima"), which defeated the plain substring match.
+// canon_stripped() welds punctuation/whitespace out, so the callsign is
+// recognised regardless of the comma noise.
+TEST_CASE("check_pilot_readback: comma-split phonetic callsign accepted "
+          "(Voxtral)",
+          "[bzf_compliance][check][callsign][issue79]") {
+    std::vector<Element> required{Element::Callsign};
+    auto missing =
+        check_pilot_readback("verstanden, Charlie, Oscar, Lima, eins", required,
+                             "Charlie Oscar Lima eins");
+    REQUIRE(missing.empty());
+}
+
+// Issue #79 — the numeral/word unification must also hold for a multi-digit
+// registration run: Voxtral welds "eins zwo drei" into "123" while the
+// stored callsign keeps the spelled words, and it emits "Alpha" where the
+// stored form carries the NATO "Alfa". Both must still match.
+TEST_CASE("check_pilot_readback: welded numeral run + Alfa/Alpha callsign "
+          "(Voxtral)",
+          "[bzf_compliance][check][callsign][issue79]") {
+    std::vector<Element> required{Element::Callsign, Element::Runway};
+    auto missing = check_pilot_readback(
+        "Piste 25, November 123 Alpha Bravo", required,
+        "November eins zwo drei Alfa Bravo");
+    REQUIRE(missing.empty());
+}
+
 TEST_CASE("check_pilot_readback: frequency detection",
           "[bzf_compliance][check]") {
     std::vector<Element> required{Element::Callsign, Element::Frequency};
