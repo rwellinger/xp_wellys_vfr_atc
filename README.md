@@ -11,6 +11,20 @@ microphone, and the tower answers you back by voice — in either **German
 (NfL/BZF)** or **English (ICAO)** VFR phraseology, with realistic reactions
 even to pilot mistakes.
 
+> ### 🛩️ This is the **VFR** plugin
+>
+> Pattern work, cross-country, UNICOM/CTAF, AFIS, VFR reporting points,
+> traffic advisories — **VFR radio is what this plugin does, and this is
+> where all VFR development happens.** It is the home of the German
+> NfL/BZF profile and the BZF strict mode.
+>
+> **Looking for IFR?** Instrument flight is a separate product with its own
+> plugin: **[Welly's IFR ATC](https://github.com/rwellinger/xp_welly_llm_atc)**
+> — IFR clearance delivery, SID/STAR out of X-Plane's CIFP data, SimBrief
+> route integration, en-route sector handoffs, approach and landing.
+> English/ICAO only. This plugin has no IFR flow at all — see
+> [What it can't do (yet)](#what-it-cant-do-yet).
+
 ---
 
 ## What the plugin covers
@@ -77,6 +91,23 @@ even to pilot mistakes.
   (issue #74) — the artifact ships `piper.dll` + `onnxruntime.dll` alongside
   the `.xpl` (no longer DLL-free) and the voice downloads in-sim.
 
+## A typical VFR flight, end to end
+
+Every one of these calls is spoken — press PTT, talk, listen. The
+phraseology hints panel tells you what to say if you are unsure, and the
+tower reacts realistically when you get it wrong.
+
+| Phase | What you say | What the tower does |
+|---|---|---|
+| **Before start-up** | Listen to ATIS | Automatic ATIS broadcast from live sim weather, with information letter |
+| **Taxi** | "Ground, D-EABC, at the apron, request taxi for local VFR flight" | Taxi clearance to the holding point, runway and QNH |
+| **Departure** | "Ready for departure" | Takeoff clearance with wind — or line-up-and-wait if traffic is in the way |
+| **Pattern** | "Downwind runway 14" · "Final" | Pattern acknowledgement, landing sequencing ("you are number two, follow the traffic on left base") |
+| **Landing** | "Request touch and go" | Clearance for touch-and-go, full stop, or an unsolicited go-around when the runway is blocked |
+| **Cross country** | "Request frequency change" · "Leaving your frequency" | Frequency change approved, en-route traffic advisories, then handoff |
+| **Inbound** | "Inbound November, 2000 feet, request joining" | Approach hands you to the tower with the destination frequency; pattern entry instructions |
+| **Uncontrolled field** | "Kirchdorf traffic, D-EABC, joining downwind 25" | UNICOM/CTAF self-announcement acknowledged — no clearances, as in reality |
+
 ## What Welly's ATC is for
 
 > **This plugin is first and foremost oriented toward REALITY.** The goal is
@@ -95,8 +126,12 @@ from BZF holders are expressly welcome.
 
 ## What it can't do (yet)
 
-- **No IFR** — no instrument flight, no IFR clearances, no flight planning,
-  no FMS/routing.
+- **No IFR — by design, it lives in its own plugin** — no instrument flight,
+  no IFR clearances, no flight planning, no FMS/routing here. That feature
+  set is a separate product:
+  **[Welly's IFR ATC](https://github.com/rwellinger/xp_welly_llm_atc)**
+  (SID/STAR from CIFP, SimBrief routes, sector handoffs, approach — English
+  only). This plugin stays focused on VFR.
 - **German & English, no FR/IT** — VFR phraseology comes as a German
   (NfL/BZF, default) and an English (ICAO) profile. Further languages — such
   as French or Italian for western Switzerland or Ticino — are not planned.
@@ -113,7 +148,24 @@ from BZF holders are expressly welcome.
 > A detailed breakdown of the limitations including effort estimates is in
 > the [technical documentation](docs/README.md#known-limitations).
 
-## Companion plugin: Welly's VFR Trainer
+## Related plugins
+
+### 🛫 Welly's IFR ATC — the instrument-flight sibling
+
+**[Welly's IFR ATC](https://github.com/rwellinger/xp_welly_llm_atc)** is the
+separate plugin for instrument flight. Same voice pipeline and the same
+backend choice (Local / OpenAI / Mistral), but a completely different ATC
+flow: IFR clearance with squawk and SID, SID climb and en-route sector
+handoffs with real controller names, STAR descent, approach and landing —
+driven by your **SimBrief** flight plan and X-Plane's own **CIFP** procedure
+data, with readback verification and unprompted deviation calls.
+
+Pick by what you fly: **VFR → this plugin. IFR → that one.** They install
+side by side. Two differences worth knowing up front: the IFR plugin is
+**English/ICAO only** (no German NfL/BZF profile), and it needs some extra
+data installed (SimBrief OFP, an OpenAir airspace file).
+
+### 🎯 Welly's VFR Trainer — optional gamification
 
 **[Welly's VFR Trainer](https://github.com/rwellinger/xp_wellys_vfr_trainer)** is
 an optional gamification layer on top of Welly's ATC: it suggests VFR flights

@@ -713,6 +713,7 @@ exam questions, NfL Teil B) and the coverage matrix are under
 
 | Limitation | Impact | Effort |
 |---|---|---|
+| **No IFR — by design** | This plugin models VFR radio only: no IFR clearances, no flight-plan filing, no FMS/routing, no SID/STAR. There is genuinely no IFR flow in the code (the word "ifr" appears only as a TTS acronym and as a recognition token in the intention keyword lists — recognition surface, not a feature). | Not planned here. IFR is a separate product with its own plugin: **[Welly's IFR ATC](https://github.com/rwellinger/xp_welly_llm_atc)** — clearance delivery, SID/STAR from X-Plane's CIFP data, SimBrief route integration, en-route sector handoffs, approach and landing. English/ICAO only (no NfL/BZF profile) and needs extra data installed (SimBrief OFP, OpenAir airspace file). The two plugins install side by side. |
 | **Local inference on Apple Silicon only** | Intel Macs (x86_64 slice) and **Windows** (`win_x64` build, verified on Windows 11) can run the plugin, but only in OpenAI or Mistral cloud mode (API key + billing needed) — no local offline mode | Solved for macOS by the Universal Binary; lifting the restriction for Local mode would need Metal alternatives + a non-Apple onnxruntime build (on Windows additionally a CUDA/DirectML path) |
 | **German & English, no FR/IT** | VFR phraseology comes as a German (NfL/BZF, default) and an English (ICAO) profile, switchable via `atc_language`. The interface language is independently selectable (`ui_language`). Further languages (French/Italian for western Switzerland or Ticino) are not planned | By design — the focus stays on DACH VFR |
 | **OpenAI voices speak German with a US accent** | In `backend_mode=openai` Whisper transcribes correctly and the LM answers correctly in German, but the `tts-1` voices (`alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`) are English-trained and render German with an audible US accent — NATO letters in particular sound anglophone (e.g. "Tschaar-lie" instead of "Tschar-li"). Acceptable for casual practice, unrealistic for BZF/AZF training. | Solved for Local mode by Piper `de_DE-thorsten`. For cloud users, **Mistral Cloud** is the alternative — Voxtral TTS is natively multilingual and speaks German without a US accent. |
@@ -726,8 +727,12 @@ exam questions, NfL Teil B) and the coverage matrix are under
 ## FAQ
 
 **Does the plugin support IFR or flight planning?**
-No — the plugin is VFR-only. No IFR clearances, no flight-plan filing, no
-FMS/routing integration.
+No — this plugin is VFR-only. No IFR clearances, no flight-plan filing, no
+FMS/routing integration. IFR is a separate product with its own plugin:
+**[Welly's IFR ATC](https://github.com/rwellinger/xp_welly_llm_atc)** —
+clearance delivery, SID/STAR from CIFP, SimBrief route integration, sector
+handoffs, approach and landing (English/ICAO only). The two install side by
+side; pick by what you fly.
 
 **Will there be a virtual co-pilot or checklist reader?**
 Not currently planned. The plugin is a single-pilot pilot↔ATC voice
@@ -767,9 +772,11 @@ realistic tower reactions to pilot mistakes. Two cloud options — **OpenAI**
 and **Mistral** — are available as paid opt-ins (your own key). Mistral
 usually costs less per token and is the cleaner choice for German ATC,
 since Voxtral TTS speaks German natively.
-Today's limits: VFR-only, no IFR, no routing, no wake-turbulence
-separation (sequencing in v2.2 is distance-based only — Phase 5 on the
-roadmap), no transponder data link, no co-pilot.
+Today's limits: VFR-only (IFR is the separate
+[Welly's IFR ATC](https://github.com/rwellinger/xp_welly_llm_atc) plugin),
+no routing, no wake-turbulence separation (sequencing in v2.2 is
+distance-based only — Phase 5 on the roadmap), no transponder data link,
+no co-pilot.
 
 **Is there an introductory video?**
 Not yet.
